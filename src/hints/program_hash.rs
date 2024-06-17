@@ -2,7 +2,7 @@ use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::relocatable::MaybeRelocatable;
 use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use cairo_vm::Felt252;
-use starknet_crypto::{pedersen_hash, FieldElement};
+use starknet_crypto::{pedersen_hash, poseidon_hash_many, FieldElement};
 
 type HashFunction = fn(&FieldElement, &FieldElement) -> FieldElement;
 
@@ -85,7 +85,8 @@ fn maybe_relocatable_to_field_element(
 }
 
 #[allow(dead_code)] // TODO: remove
-/// Computes the Pedersen hash of a program.
+/// Computes the hash of a program.
+/// Uses poseidon hash if `use_poseidon` is true, otherwise uses pedersen hash.
 ///
 /// Reimplements this Python function:
 /// def compute_program_hash_chain(program: ProgramBase, bootloader_version=0):
@@ -98,6 +99,7 @@ fn maybe_relocatable_to_field_element(
 pub fn compute_program_hash_chain(
     program: &StrippedProgram,
     bootloader_version: usize,
+    use_poseidon: bool,
 ) -> Result<FieldElement, ProgramHashError> {
     let program_main = program.main;
     let program_main = FieldElement::from(program_main);
@@ -134,7 +136,13 @@ pub fn compute_program_hash_chain(
         &program_data,
     ];
 
-    let hash = compute_hash_chain(data_chain.iter().flat_map(|&v| v.iter()), pedersen_hash)?;
+    let data_iter = data_chain.iter().flat_map(|&v| v.iter());
+
+    let hash = if use_poseidon {
+        poseidon_hash_many(&data_iter.copied().collect::<Vec<FieldElement>>())
+    } else {
+        compute_hash_chain(data_iter, pedersen_hash)?
+    };
     Ok(hash)
 }
 

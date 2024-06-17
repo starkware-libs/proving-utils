@@ -25,6 +25,16 @@ struct Args {
     air_private_input: PathBuf,
     #[clap(long = "cairo_pies", num_args = 1.., value_delimiter = ',')]
     cairo_pies: Vec<PathBuf>,
+    #[clap(
+        long = "use_poseidon",
+        num_args = 1..,
+        value_delimiter = ',',
+        help = "A comma separated list of booleans corresponding to whether \
+               each CairoPie should use the poseidon or pedersen hash. Must be \
+               the same length as cairo_pies.",
+        required = true,
+    )]
+    use_poseidon: Vec<bool>,
     #[clap(long = "layout", default_value = "plain", value_enum)]
     layout: LayoutName,
 }
@@ -85,6 +95,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .iter()
             .map(Vec::as_slice)
             .collect::<Vec<_>>()[..],
+        args.use_poseidon,
     )?;
 
     let mut _runner = cairo_run_simple_bootloader_in_proof_mode(&simple_bootloader_program, tasks)?;

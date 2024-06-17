@@ -50,6 +50,16 @@ pub const BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS: &str =
 pub const BOOTLOADER_IS_PLAIN_PACKED_OUTPUT: &str =
     "memory[ap] = to_felt_or_relocatable(isinstance(packed_output, PlainPackedOutput))";
 
+pub const BOOTLOADER_IS_POSEIDON_TO_AP: &str =
+    "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)";
+
+pub const BOOTLOADER_VALIDATE_HASH: &str = "# Validate hash.
+from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
+
+assert memory[ids.output_ptr + 1] == compute_program_hash_chain(
+    program=task.get_program(),
+    use_poseidon=bool(ids.use_poseidon)), 'Computed hash does not match input.'";
+
 pub const BOOTLOADER_SAVE_OUTPUT_POINTER: &str = "output_start = ids.output_ptr";
 
 pub const BOOTLOADER_SAVE_PACKED_OUTPUTS: &str = "packed_outputs = bootloader_input.packed_outputs";

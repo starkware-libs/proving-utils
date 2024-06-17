@@ -54,9 +54,14 @@ impl Task {
     }
 }
 
+/// Contains a task's specification for running.
+/// `task` can be either a Program or a CairoPie.
+/// `use_poseidon` determines whether the program is hashed using the poseidon
+/// or pedersen hash function.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TaskSpec {
     pub task: Task,
+    pub use_poseidon: bool,
 }
 
 impl TaskSpec {

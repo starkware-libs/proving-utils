@@ -24,8 +24,8 @@ use crate::hints::bootloader_hints::{
 };
 use crate::hints::codes::*;
 use crate::hints::execute_task_hints::{
-    allocate_program_data_segment, append_fact_topologies, call_task, load_program_hint,
-    validate_hash, write_return_builtins_hint,
+    allocate_program_data_segment, append_fact_topologies, call_task, is_poseidon_to_ap,
+    load_program_hint, validate_hash, validate_hash_maybe_poseidon, write_return_builtins_hint,
 };
 use crate::hints::inner_select_builtins::select_builtin;
 use crate::hints::select_builtins::select_builtins_enter_scope;
@@ -93,6 +93,13 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS => set_packed_output_to_subtasks(exec_scopes),
             BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS => import_packed_output_schemas(),
             BOOTLOADER_IS_PLAIN_PACKED_OUTPUT => is_plain_packed_output(vm, exec_scopes),
+            BOOTLOADER_IS_POSEIDON_TO_AP => is_poseidon_to_ap(vm, exec_scopes),
+            BOOTLOADER_VALIDATE_HASH => validate_hash_maybe_poseidon(
+                vm,
+                exec_scopes,
+                &hint_data.ids_data,
+                &hint_data.ap_tracking,
+            ),
             BOOTLOADER_ASSERT_IS_COMPOSITE_PACKED_OUTPUT => {
                 assert_is_composite_packed_output(exec_scopes)
             }

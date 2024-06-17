@@ -2,7 +2,8 @@ use std::any::Any;
 use std::collections::HashMap;
 
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
-    get_ptr_from_var_name, get_relocatable_from_var_name, insert_value_from_var_name,
+    get_integer_from_var_name, get_ptr_from_var_name, get_relocatable_from_var_name,
+    insert_value_from_var_name, insert_value_into_ap,
 };
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::{ApTracking, Identifier};
@@ -159,7 +160,7 @@ pub fn validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let computed_program_hash = compute_program_hash_chain(&program, 0).map_err(|e| {
+    let computed_program_hash = compute_program_hash_chain(&program, 0, false).map_err(|e| {
         HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
     })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
@@ -453,6 +454,67 @@ pub fn call_task(
     exec_scopes.insert_value(vars::OUTPUT_RUNNER_DATA, output_runner_data);
 
     exec_scopes.enter_scope(new_task_locals);
+
+    Ok(())
+}
+
+// Implements hint: "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)"
+pub fn is_poseidon_to_ap(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+) -> Result<(), HintError> {
+    let task: Task = exec_scopes.get(vars::TASK)?;
+    insert_value_into_ap(
+        vm,
+        match &task {
+            Task::Program(_) => 0,
+            Task::Pie(_) => 0,
+        },
+    )
+}
+
+/// Implements
+/// # Validate hash.
+/// from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
+///
+/// assert memory[ids.output_ptr + 1] == compute_program_hash_chain(
+///     program=task.get_program(),
+///     use_poseidon=bool(ids.use_poseidon)), 'Computed hash does not match input.'
+pub fn validate_hash_maybe_poseidon(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let task: Task = exec_scopes.get(vars::TASK)?;
+    let program = get_program_from_task(&task)?;
+
+    let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
+    let program_hash_ptr = (output_ptr + 1)?;
+
+    let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
+
+    // Compute the hash of the program
+    let use_poseidon =
+        get_integer_from_var_name("use_poseidon", vm, ids_data, ap_tracking)? != Felt252::ZERO;
+    let computed_program_hash = compute_program_hash_chain(
+        &program,
+        // bootloader_version
+        0,
+        use_poseidon,
+    )
+    .map_err(|e| {
+        HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
+    })?;
+    let computed_program_hash = field_element_to_felt(computed_program_hash);
+
+    if program_hash != computed_program_hash {
+        return Err(HintError::AssertionFailed(
+            "Computed hash does not match input"
+                .to_string()
+                .into_boxed_str(),
+        ));
+    }
 
     Ok(())
 }

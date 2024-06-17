@@ -183,9 +183,11 @@ mod tests {
             tasks: vec![
                 TaskSpec {
                     task: Task::Program(fibonacci.clone()),
+                    use_poseidon: true,
                 },
                 TaskSpec {
                     task: Task::Program(fibonacci.clone()),
+                    use_poseidon: true,
                 },
             ],
         }
