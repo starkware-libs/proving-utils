@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm", rev = "05352b1c67859a4d8cd128575c1e68ca7e300341", features = ["extensive_hints"] }
+cairo-vm = { git = "https://github.com/Alon-Ti/cairo-vm", rev = "ab0aee9323b8c1f413045119607e028e1e3830dd", features = ["extensive_hints", "mod_builtin", "clap"] }
+clap = { version = "4.3.10", features = ["derive"] }
 num-traits = "0.2.19"
 serde = { version = "1.0.202", features = ["derive"] }
 serde_json = "1.0.117"
@@ -19,3 +20,5 @@ thiserror-no-std = "2.0.2"
 assert_matches = "1.5.0"
 rstest = "0.19.0"
 
+[[bin]]
+name = "run_simple_bootloader"
