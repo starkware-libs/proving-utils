@@ -18,7 +18,9 @@ use num_traits::ToPrimitive;
 use std::any::Any;
 use std::collections::HashMap;
 
-use crate::hints::types::{BootloaderInput, CompositePackedOutput, PackedOutput};
+use crate::hints::types::{
+    BootloaderInput, CompositePackedOutput, PackedOutput, SimpleBootloaderInput,
+};
 use crate::hints::vars;
 
 /// Implements
@@ -68,6 +70,18 @@ pub fn prepare_simple_bootloader_output_segment(
         ids_data,
         ap_tracking,
     )?;
+
+    Ok(())
+}
+
+/// Implements
+/// %{
+///     from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput
+///     simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)";
+/// %}
+pub fn load_simple_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
+    // Make sure SIMPLE_BOOTLOADER_INPUT is already loaded.
+    let _: SimpleBootloaderInput = exec_scopes.get(vars::SIMPLE_BOOTLOADER_INPUT)?;
 
     Ok(())
 }

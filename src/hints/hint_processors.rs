@@ -18,7 +18,7 @@ use crate::hints::bootloader_hints::{
     assert_is_composite_packed_output, assert_program_address,
     compute_and_configure_fact_topologies, enter_packed_output_scope,
     guess_pre_image_of_subtasks_output_hash, import_packed_output_schemas, is_plain_packed_output,
-    load_bootloader_config, prepare_simple_bootloader_input,
+    load_bootloader_config, load_simple_bootloader_input, prepare_simple_bootloader_input,
     prepare_simple_bootloader_output_segment, restore_bootloader_output, save_output_pointer,
     save_packed_outputs, set_packed_output_to_subtasks,
 };
@@ -70,6 +70,7 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             BOOTLOADER_PREPARE_SIMPLE_BOOTLOADER_INPUT => {
                 prepare_simple_bootloader_input(exec_scopes)
             }
+            BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT => load_simple_bootloader_input(exec_scopes),
             BOOTLOADER_LOAD_BOOTLOADER_CONFIG => {
                 load_bootloader_config(vm, exec_scopes, ids_data, ap_tracking)
             }
