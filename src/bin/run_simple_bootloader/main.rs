@@ -51,7 +51,7 @@ fn cairo_run_simple_bootloader_in_proof_mode(
     // Build the bootloader input
     let simple_bootloader_input = SimpleBootloaderInput {
         fact_topologies_path: None,
-        single_page: false,
+        single_page: true,
         tasks,
     };
 
@@ -59,6 +59,7 @@ fn cairo_run_simple_bootloader_in_proof_mode(
     // https://github.com/lambdaclass/cairo-vm/pull/1772 and may change depending on review.
     let mut exec_scopes = ExecutionScopes::new();
     insert_simple_bootloader_input(&mut exec_scopes, simple_bootloader_input);
+    exec_scopes.insert_value("bootloader_program", simple_bootloader_program.clone());
 
     // Run the bootloader
     cairo_run_program_with_initial_scope(

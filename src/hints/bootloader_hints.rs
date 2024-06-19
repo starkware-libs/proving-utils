@@ -350,6 +350,54 @@ pub fn compute_and_configure_fact_topologies(
     Ok(())
 }
 
+/// Implements:
+/// # Dump fact topologies to a json file.
+/// from starkware.cairo.bootloaders.simple_bootloader.utils import (
+///     configure_fact_topologies,
+///     write_to_fact_topologies_file,
+/// )
+///
+/// # The task-related output is prefixed by a single word that contains the number of tasks.
+/// tasks_output_start = output_builtin.base + 1
+///
+/// if not simple_bootloader_input.single_page:
+///     # Configure the memory pages in the output builtin, based on fact_topologies.
+///     configure_fact_topologies(
+///         fact_topologies=fact_topologies, output_start=tasks_output_start,
+///         output_builtin=output_builtin,
+///     )
+///
+/// if simple_bootloader_input.fact_topologies_path is not None:
+///     write_to_fact_topologies_file(
+///         fact_topologies_path=simple_bootloader_input.fact_topologies_path,
+///         fact_topologies=fact_topologies,
+///     )
+pub fn compute_and_configure_fact_topologies_simple(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+) -> Result<(), HintError> {
+    let output_builtin = vm.get_output_builtin_mut()?;
+    let mut tasks_output_start = Relocatable {
+        segment_index: output_builtin.base() as isize,
+        offset: 1,
+    };
+    let simple_bootloader_input: &SimpleBootloaderInput =
+        exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
+    let fact_topologies: Vec<FactTopology> = exec_scopes.get(vars::FACT_TOPOLOGIES)?;
+
+    if !simple_bootloader_input.single_page {
+        // Configure the memory pages in the output builtin, based on fact_topologies.
+        configure_fact_topologies(&fact_topologies, &mut tasks_output_start, output_builtin)?;
+    }
+
+    if let Some(path) = &simple_bootloader_input.fact_topologies_path {
+        write_to_fact_topologies_file(path.as_path(), &fact_topologies)
+            .map_err(Into::<HintError>::into)?;
+    }
+
+    Ok(())
+}
+
 fn unwrap_composite_output(
     packed_output: PackedOutput,
 ) -> Result<CompositePackedOutput, HintError> {

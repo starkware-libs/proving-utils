@@ -228,7 +228,8 @@ pub fn configure_fact_topologies<FT: AsRef<FactTopology>>(
 }
 
 fn check_tree_structure(tree_structure: &[usize]) -> Result<(), TreeStructureError> {
-    if (!tree_structure.len().is_power_of_two()) || (tree_structure.len() > 10) {
+    let tree_structure_len = tree_structure.len();
+    if tree_structure_len % 2 != 0 || tree_structure_len > 10 {
         return Err(TreeStructureError::InvalidTreeStructure);
     }
 

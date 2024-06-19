@@ -92,6 +92,29 @@ if bootloader_input.fact_topologies_path is not None:
         fact_topologies=plain_fact_topologies,
     )";
 
+pub const BOOTLOADER_COMPUTE_AND_CONFIGURE_FACT_TOPOLOGIES_SIMPLE: &str =
+    "# Dump fact topologies to a json file.
+from starkware.cairo.bootloaders.simple_bootloader.utils import (
+    configure_fact_topologies,
+    write_to_fact_topologies_file,
+)
+
+# The task-related output is prefixed by a single word that contains the number of tasks.
+tasks_output_start = output_builtin.base + 1
+
+if not simple_bootloader_input.single_page:
+    # Configure the memory pages in the output builtin, based on fact_topologies.
+    configure_fact_topologies(
+        fact_topologies=fact_topologies, output_start=tasks_output_start,
+        output_builtin=output_builtin,
+    )
+
+if simple_bootloader_input.fact_topologies_path is not None:
+    write_to_fact_topologies_file(
+        fact_topologies_path=simple_bootloader_input.fact_topologies_path,
+        fact_topologies=fact_topologies,
+    )";
+
 pub const BOOTLOADER_GUESS_PRE_IMAGE_OF_SUBTASKS_OUTPUT_HASH: &str =
     "data = packed_output.elements_for_hash()
 ids.nested_subtasks_output_len = len(data)

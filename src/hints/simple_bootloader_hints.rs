@@ -14,6 +14,7 @@ use cairo_vm::Felt252;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
+use crate::hints::execute_task_hints::ALL_BUILTINS;
 use crate::hints::fact_topologies::FactTopology;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
@@ -45,8 +46,8 @@ pub fn prepare_task_range_checks(
     vm.insert_value(output_ptr, Felt252::from(n_tasks))?;
 
     // ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks
-    // BuiltinData is a struct with 8 members defined in execute_task.cairo.
-    const BUILTIN_DATA_SIZE: usize = 8;
+    // BuiltinData is a struct with a member for each builtin, defined in execute_task.cairo.
+    const BUILTIN_DATA_SIZE: usize = ALL_BUILTINS.len();
     let range_check_ptr = get_ptr_from_var_name("range_check_ptr", vm, ids_data, ap_tracking)?;
     let task_range_check_ptr = (range_check_ptr + BUILTIN_DATA_SIZE * n_tasks)?;
     insert_value_from_var_name(

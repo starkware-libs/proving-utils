@@ -16,9 +16,10 @@ use starknet_types_core::felt::Felt;
 
 use crate::hints::bootloader_hints::{
     assert_is_composite_packed_output, assert_program_address,
-    compute_and_configure_fact_topologies, enter_packed_output_scope,
-    guess_pre_image_of_subtasks_output_hash, import_packed_output_schemas, is_plain_packed_output,
-    load_bootloader_config, load_simple_bootloader_input, prepare_simple_bootloader_input,
+    compute_and_configure_fact_topologies, compute_and_configure_fact_topologies_simple,
+    enter_packed_output_scope, guess_pre_image_of_subtasks_output_hash,
+    import_packed_output_schemas, is_plain_packed_output, load_bootloader_config,
+    load_simple_bootloader_input, prepare_simple_bootloader_input,
     prepare_simple_bootloader_output_segment, restore_bootloader_output, save_output_pointer,
     save_packed_outputs, set_packed_output_to_subtasks,
 };
@@ -89,6 +90,9 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             }
             BOOTLOADER_COMPUTE_FACT_TOPOLOGIES => {
                 compute_and_configure_fact_topologies(vm, exec_scopes)
+            }
+            BOOTLOADER_COMPUTE_AND_CONFIGURE_FACT_TOPOLOGIES_SIMPLE => {
+                compute_and_configure_fact_topologies_simple(vm, exec_scopes)
             }
             BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS => set_packed_output_to_subtasks(exec_scopes),
             BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS => import_packed_output_schemas(),

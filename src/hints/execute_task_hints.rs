@@ -9,6 +9,7 @@ use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::{ApTracking, Identifier};
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::types::program::Program;
 use cairo_vm::types::relocatable::Relocatable;
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
@@ -177,7 +178,7 @@ pub fn validate_hash(
 }
 
 /// List of all builtins in the order used by the bootloader.
-const ALL_BUILTINS: [BuiltinName; 8] = [
+pub const ALL_BUILTINS: [BuiltinName; 11] = [
     BuiltinName::output,
     BuiltinName::pedersen,
     BuiltinName::range_check,
@@ -186,6 +187,9 @@ const ALL_BUILTINS: [BuiltinName; 8] = [
     BuiltinName::ec_op,
     BuiltinName::keccak,
     BuiltinName::poseidon,
+    BuiltinName::range_check96,
+    BuiltinName::add_mod,
+    BuiltinName::mul_mod,
 ];
 
 fn check_cairo_pie_builtin_usage(
@@ -315,17 +319,18 @@ pub fn write_return_builtins_hint(
     Ok(())
 }
 
-fn get_bootloader_program(exec_scopes: &ExecutionScopes) -> Result<&ProgramIdentifiers, HintError> {
-    if let Some(boxed_program) = exec_scopes.data[0].get(vars::BOOTLOADER_PROGRAM_IDENTIFIERS) {
-        if let Some(program) = boxed_program.downcast_ref::<ProgramIdentifiers>() {
-            return Ok(program);
-        }
+fn get_bootloader_program_identifiers(
+    exec_scopes: &ExecutionScopes,
+) -> Result<ProgramIdentifiers, HintError> {
+    if let Ok(program) = exec_scopes.get::<Program>(vars::BOOTLOADER_PROGRAM) {
+        return Ok(program
+            .iter_identifiers()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect());
     }
 
     Err(HintError::VariableNotInScopeError(
-        vars::BOOTLOADER_PROGRAM_IDENTIFIERS
-            .to_string()
-            .into_boxed_str(),
+        vars::BOOTLOADER_PROGRAM.to_string().into_boxed_str(),
     ))
 }
 
@@ -414,10 +419,10 @@ pub fn call_task(
             let program_address: Relocatable = exec_scopes.get("program_address")?;
 
             // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ + pc
-            let bootloader_identifiers = get_bootloader_program(exec_scopes)?;
-            let ret_pc_label = get_identifier(bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
+            let bootloader_identifiers = get_bootloader_program_identifiers(exec_scopes)?;
+            let ret_pc_label = get_identifier(&bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
             let call_task = get_identifier(
-                bootloader_identifiers,
+                &bootloader_identifiers,
                 "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.call_task",
             )?;
 
@@ -771,7 +776,7 @@ mod tests {
         );
         let bootloader_program = mock_program_with_identifiers(bootloader_identifiers);
         exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
-        exec_scopes.insert_value(vars::BOOTLOADER_PROGRAM_IDENTIFIERS, bootloader_program);
+        exec_scopes.insert_value(vars::BOOTLOADER_PROGRAM, bootloader_program);
 
         // Load the program in memory
         load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
