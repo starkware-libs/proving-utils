@@ -34,14 +34,15 @@ struct Args {
 fn cairo_run_simple_bootloader_in_proof_mode(
     simple_bootloader_program: &Program,
     tasks: Vec<TaskSpec>,
+    layout: LayoutName,
 ) -> Result<CairoRunner, CairoRunError> {
     let mut hint_processor = BootloaderHintProcessor::new();
 
     let cairo_run_config = CairoRunConfig {
         entrypoint: "main",
-        trace_enabled: false,
-        relocate_mem: false,
-        layout: LayoutName::all_cairo,
+        trace_enabled: true,
+        relocate_mem: true,
+        layout,
         proof_mode: true,
         secure_run: None,
         disable_trace_padding: false,
@@ -91,7 +92,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.use_poseidon,
     )?;
 
-    let mut _runner = cairo_run_simple_bootloader_in_proof_mode(&simple_bootloader_program, tasks)?;
+    let runner =
+        cairo_run_simple_bootloader_in_proof_mode(&simple_bootloader_program, tasks, args.layout)?;
+
+    std::fs::write(
+        args.air_public_input,
+        runner.get_air_public_input()?.serialize_json()?,
+    )?;
+
+    std::fs::write(
+        args.air_private_input,
+        runner.get_air_public_input()?.serialize_json()?,
+    )?;
 
     Ok(())
 }
