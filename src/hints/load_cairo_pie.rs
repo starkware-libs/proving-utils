@@ -219,7 +219,7 @@ fn extend_additional_data(
                 builtin_segment_base,
             ));
         }
-        builtin.add_signature(*addr, signature)?;
+        builtin.add_signature(relocated_addr, signature)?;
     }
 
     Ok(())
