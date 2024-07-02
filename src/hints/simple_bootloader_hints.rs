@@ -121,11 +121,11 @@ pub fn set_current_task(
         .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
 
     let task_id = simple_bootloader_input.tasks.len() - n_tasks;
-    // TODO: it's still unclear how we need to model TaskSpec/Task objects.
-    //       Check if we need to keep TaskSpec, or if it needs to be implemented as a trait, etc.
     let task = simple_bootloader_input.tasks[task_id].load_task();
+    let use_poseidon = simple_bootloader_input.tasks[task_id].use_poseidon;
 
     exec_scopes.insert_value(vars::TASK, task.clone());
+    exec_scopes.insert_value(vars::USE_POSEIDON, use_poseidon);
 
     Ok(())
 }

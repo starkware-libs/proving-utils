@@ -136,7 +136,10 @@ pub fn compute_program_hash_chain(
     ];
 
     let hash = if use_poseidon {
-        let data: Vec<FieldElement> = data_chain.iter().flat_map(|&v| v.iter().copied()).collect();
+        let data: Vec<FieldElement> = data_chain[1..]
+            .iter()
+            .flat_map(|&v| v.iter().copied())
+            .collect();
         poseidon_hash_many(&data)
     } else {
         compute_hash_chain(data_chain.iter().flat_map(|&v| v.iter()), pedersen_hash)?

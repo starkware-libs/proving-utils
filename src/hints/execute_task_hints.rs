@@ -473,7 +473,13 @@ pub fn is_poseidon_to_ap(
         vm,
         match &task {
             Task::Program(_) => 0,
-            Task::Pie(_) => 0,
+            Task::Pie(_) => {
+                if exec_scopes.get(vars::USE_POSEIDON)? {
+                    1
+                } else {
+                    0
+                }
+            }
         },
     )
 }
