@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 bincode = { version = "2.0.0-rc.3", default-features = false, features = ["serde"] }
-cairo-vm = { git = "https://github.com/Alon-Ti/cairo-vm", rev = "a0cfee54e70c7c6eb93d03c0844bac29914b86df", features = ["extensive_hints", "mod_builtin", "clap"] }
+cairo-vm = { git = "https://github.com/Alon-Ti/cairo-vm", rev = "f6b9e651f1c2cc4b3a5b94119cc81ad5036f8889", features = ["extensive_hints", "mod_builtin", "clap"] }
 clap = { version = "4.3.10", features = ["derive"] }
 num-traits = "0.2.19"
 serde = { version = "1.0.202", features = ["derive"] }

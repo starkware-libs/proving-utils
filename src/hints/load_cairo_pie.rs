@@ -70,7 +70,7 @@ impl From<CairoPieLoaderError> for HintError {
 /// Each entry in `relocations` maps a segment index from the PIE to
 /// a pointer in the VM memory.
 pub struct RelocationTable {
-    relocations: HashMap<isize, Relocatable>,
+    pub relocations: HashMap<isize, Relocatable>,
 }
 
 impl RelocationTable {
@@ -205,38 +205,28 @@ pub fn build_cairo_pie_relocation_table(
     }
 
     // Set initial stack relocations.
-    let mut idx = 0;
-    let mut last_offset = 0;
-    for builtin_name in cairo_pie.metadata.program.builtins.iter() {
-        // Skip loading the builtin segment (it doesn't exist) if it isn't used.
-        match cairo_pie
-            .execution_resources
-            .builtin_instance_counter
-            .get(&builtin_name)
-        {
-            None => continue,
-            Some(execution_resources) if *execution_resources == 0 => continue,
-            _ => {}
-        }
-
-        idx += 1;
-
+    for (idx, _builtin_name) in cairo_pie.metadata.program.builtins.iter().enumerate() {
         println!("yg build_cairo_pie_relocation_table 6.1");
         let memory_address = (origin_execution_segment + idx)?;
         println!("yg build_cairo_pie_relocation_table 6.2");
         let segment_index = extract_segment(memory_map[&memory_address].clone())?;
         println!("yg build_cairo_pie_relocation_table 6.3, execution_segment_address: {execution_segment_address}, idx: {idx}");
-        let relocation = match vm.get_relocatable((execution_segment_address + idx)?) {
-            Err(_) => Relocatable {
-                segment_index,
-                offset: last_offset,
+
+        let key = (execution_segment_address + idx)?;
+        let relocation = match vm
+            .get_maybe(&key)
+            .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(key)))?
+        {
+            MaybeRelocatable::RelocatableValue(x) => x,
+            MaybeRelocatable::Int(x) if x == Felt252::ZERO => Relocatable {
+                segment_index: 0,
+                offset: 0,
             },
-            Ok(relocatable) => relocatable,
+            _ => return Err(MemoryError::ExpectedRelocatable(Box::new(key)).into()),
         };
         println!("yg build_cairo_pie_relocation_table 6.4");
         relocation_table.insert(segment_index, relocation)?;
         println!("yg build_cairo_pie_relocation_table 6.5");
-        last_offset = relocation.offset;
     }
     println!("yg build_cairo_pie_relocation_table 7");
 
@@ -302,13 +292,21 @@ fn relocate_cairo_pie_memory(
     vm: &mut VirtualMachine,
     relocation_table: &RelocationTable,
 ) -> Result<(), MemoryRelocationError> {
+    println!(
+        "yg relocate_cairo_pie_memory 1, relocation_table: {:?}",
+        relocation_table.relocations
+    );
     // Relocate memory segment
     for ((segment_index, offset), value) in &cairo_pie.memory.0 {
         let address = Relocatable::from((*segment_index as isize, *offset));
+        // println!("yg relocate_cairo_pie_memory 2 segment_index: {segment_index}, offset: {offset}, address: {address}");
         let relocated_address = relocation_table.relocate_address(address)?;
+        // println!("yg relocate_cairo_pie_memory 3");
         let relocated_value = relocation_table.relocate_value(value.clone())?;
+        // println!("yg relocate_cairo_pie_memory 4");
 
         vm.insert_value(relocated_address, relocated_value)?;
+        // println!("yg relocate_cairo_pie_memory 5");
     }
 
     Ok(())

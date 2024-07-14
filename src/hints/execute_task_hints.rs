@@ -200,20 +200,39 @@ fn check_cairo_pie_builtin_usage(
     return_builtins_addr: Relocatable,
     pre_execution_builtins_addr: Relocatable,
 ) -> Result<(), HintError> {
+    println!("yg hint 3.7.1");
     let return_builtin_value = vm.get_relocatable((return_builtins_addr + builtin_index)?)?;
-    let pre_execution_builtin_value =
-        vm.get_relocatable((pre_execution_builtins_addr + builtin_index)?)?;
+    println!("yg hint 3.7.2");
+    let key = (pre_execution_builtins_addr + builtin_index)?;
+    println!("yg hint 3.7.2.5");
+    let pre_execution_builtin_value = match vm
+        .get_maybe(&key)
+        .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(key)))?
+    {
+        cairo_vm::types::relocatable::MaybeRelocatable::RelocatableValue(x) => x,
+        cairo_vm::types::relocatable::MaybeRelocatable::Int(x) if x == Felt252::ZERO => {
+            // unused.
+            println!("yg int!");
+            return Ok(());
+        }
+        _ => return Err(MemoryError::ExpectedRelocatable(Box::new(key)).into()),
+    };
+    println!("yg hint 3.7.3");
     let expected_builtin_size = (return_builtin_value - pre_execution_builtin_value)?;
+    println!("yg hint 3.7.4");
 
     let builtin_size = cairo_pie.metadata.builtin_segments[builtin_name].size;
+    println!("yg hint 3.7.5");
 
     if builtin_size != expected_builtin_size {
+        println!("yg hint 3.7.6");
         return Err(HintError::AssertionFailed(
             "Builtin usage is inconsistent with the CairoPie."
                 .to_string()
                 .into_boxed_str(),
         ));
     }
+    println!("yg hint 3.7.7");
 
     Ok(())
 }
@@ -230,14 +249,21 @@ fn write_return_builtins(
     pre_execution_builtins_addr: Relocatable,
     task: &Task,
 ) -> Result<(), HintError> {
+    println!("yg hint 3.1");
     let mut used_builtin_offset: usize = 0;
     for (index, builtin) in ALL_BUILTINS.iter().enumerate() {
+        println!("yg hint 3.2, {builtin}");
         if used_builtins.contains(builtin) {
+            println!("yg hint 3.3, used_builtins_addr: {used_builtins_addr}, used_builtin_offset: {used_builtin_offset}");
             let builtin_value = vm.get_relocatable((used_builtins_addr + used_builtin_offset)?)?;
+            println!("yg hint 3.4");
             vm.insert_value((return_builtins_addr + index)?, builtin_value)?;
+            println!("yg hint 3.5");
             used_builtin_offset += 1;
+            println!("yg hint 3.6");
 
             if let Task::Pie(cairo_pie) = task {
+                println!("yg hint 3.7");
                 check_cairo_pie_builtin_usage(
                     vm,
                     builtin,
@@ -246,10 +272,12 @@ fn write_return_builtins(
                     return_builtins_addr,
                     pre_execution_builtins_addr,
                 )?;
+                println!("yg hint 3.8");
             }
         }
         // The builtin is unused, hence its value is the same as before calling the program.
         else {
+            println!("yg hint 3.9");
             let pre_execution_builtin_addr = (pre_execution_builtins_addr + index)?;
             let pre_execution_value =
                 vm.get_maybe(&pre_execution_builtin_addr).ok_or_else(|| {
@@ -258,6 +286,7 @@ fn write_return_builtins(
             vm.insert_value((return_builtins_addr + index)?, pre_execution_value)?;
         }
     }
+    println!("yg hint 3.10");
     Ok(())
 }
 
@@ -282,12 +311,14 @@ pub fn write_return_builtins_hint(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
+    println!("yg hint 1");
     let task: Task = exec_scopes.get(vars::TASK)?;
     let n_builtins: usize = exec_scopes.get(vars::N_BUILTINS)?;
 
     // builtins = task.get_program().builtins
     let program = get_program_from_task(&task)?;
     let builtins = &program.builtins;
+    println!("yg hint 2");
 
     // write_return_builtins(
     //     memory=memory, return_builtins_addr=ids.return_builtin_ptrs.address_,
@@ -299,6 +330,7 @@ pub fn write_return_builtins_hint(
         get_ptr_from_var_name("used_builtins_addr", vm, ids_data, ap_tracking)?;
     let pre_execution_builtins_addr =
         get_relocatable_from_var_name("pre_execution_builtin_ptrs", vm, ids_data, ap_tracking)?;
+    println!("yg hint 3");
 
     write_return_builtins(
         vm,
@@ -308,6 +340,7 @@ pub fn write_return_builtins_hint(
         pre_execution_builtins_addr,
         &task,
     )?;
+    println!("yg hint 4");
 
     // vm_enter_scope({'n_selected_builtins': n_builtins})
     let n_builtins: Box<dyn Any> = Box::new(n_builtins);
@@ -315,6 +348,7 @@ pub fn write_return_builtins_hint(
         vars::N_SELECTED_BUILTINS.to_string(),
         n_builtins,
     )]));
+    println!("yg hint 5");
 
     Ok(())
 }
