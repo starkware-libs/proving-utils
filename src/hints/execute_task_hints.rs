@@ -220,7 +220,7 @@ fn check_cairo_pie_builtin_usage(
 
 /// Writes the updated builtin pointers after the program execution to the given return builtins
 /// address.
-///     
+///
 /// `used_builtins` is the list of builtins used by the program and thus updated by it.
 fn write_return_builtins(
     vm: &mut VirtualMachine,
@@ -392,6 +392,7 @@ pub fn call_task(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
+    println!("yg call_task 0");
     // assert isinstance(task, Task)
     let task: Task = exec_scopes.get(vars::TASK)?;
 
@@ -401,9 +402,11 @@ pub fn call_task(
 
     let mut new_task_locals = HashMap::new();
 
+    println!("yg call_task 0.1");
     match &task {
         // if isinstance(task, RunProgramTask):
         Task::Program(_program) => {
+            println!("yg call_task 0.2 program!");
             let program_input = HashMap::<String, Box<dyn Any>>::new();
             // new_task_locals['program_input'] = task.program_input
             new_task_locals.insert("program_input".to_string(), any_box![program_input]);
@@ -416,6 +419,7 @@ pub fn call_task(
         }
         // elif isinstance(task, CairoPieTask):
         Task::Pie(cairo_pie) => {
+            println!("yg call_task 0.2 pie");
             let program_address: Relocatable = exec_scopes.get("program_address")?;
 
             // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ + pc
@@ -425,10 +429,12 @@ pub fn call_task(
                 &bootloader_identifiers,
                 "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.call_task",
             )?;
+            println!("yg call_task 0.3");
 
             let ret_pc_offset = ret_pc_label - call_task;
             let ret_pc = (vm.get_pc() + ret_pc_offset)?;
 
+            println!("yg call_task 0.4");
             // load_cairo_pie(
             //     task=task.cairo_pie, memory=memory, segments=segments,
             //     program_address=program_address, execution_segment_address= ap - n_builtins,
@@ -442,24 +448,31 @@ pub fn call_task(
                 ret_pc,
             )
             .map_err(Into::<HintError>::into)?;
+            println!("yg call_task 0.5");
         }
     }
 
+    println!("yg call_task 1");
     // output_runner_data = prepare_output_runner(
     //     task=task,
     //     output_builtin=output_builtin,
     //     output_ptr=ids.pre_execution_builtin_ptrs.output)
     let pre_execution_builtin_ptrs_addr =
         get_relocatable_from_var_name(vars::PRE_EXECUTION_BUILTIN_PTRS, vm, ids_data, ap_tracking)?;
+    println!("yg call_task 2");
     // The output field is the first one in the BuiltinData struct
     let output_ptr = vm.get_relocatable((pre_execution_builtin_ptrs_addr + 0)?)?;
+    println!("yg call_task 3");
     let output_runner_data =
         util::prepare_output_runner(&task, vm.get_output_builtin_mut()?, output_ptr)?;
+    println!("yg call_task 4");
 
     exec_scopes.insert_value(vars::OUTPUT_RUNNER_DATA, output_runner_data);
+    println!("yg call_task 5");
 
     exec_scopes.enter_scope(new_task_locals);
 
+    println!("yg call_task end");
     Ok(())
 }
 

@@ -5,7 +5,7 @@ use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
-use cairo_vm::vm::runners::builtin_runner::SignatureBuiltinRunner;
+use cairo_vm::vm::runners::builtin_runner::{self, SignatureBuiltinRunner};
 use cairo_vm::vm::runners::cairo_pie::{BuiltinAdditionalData, CairoPie, CairoPieMemory};
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::Felt252;
@@ -170,15 +170,21 @@ pub fn build_cairo_pie_relocation_table(
     ret_fp: Relocatable,
     ret_pc: Relocatable,
 ) -> Result<RelocationTable, RelocationTableError> {
+    println!("yg build_cairo_pie_relocation_table 0");
     let mut relocation_table = RelocationTable::new();
 
+    println!("yg build_cairo_pie_relocation_table 1");
     relocation_table.insert(cairo_pie.metadata.program_segment.index, program_address)?;
+    println!("yg build_cairo_pie_relocation_table 2");
     relocation_table.insert(
         cairo_pie.metadata.execution_segment.index,
         execution_segment_address,
     )?;
+    println!("yg build_cairo_pie_relocation_table 3");
     relocation_table.insert(cairo_pie.metadata.ret_fp_segment.index, ret_fp)?;
+    println!("yg build_cairo_pie_relocation_table 4");
     relocation_table.insert(cairo_pie.metadata.ret_pc_segment.index, ret_pc)?;
+    println!("yg build_cairo_pie_relocation_table 5");
 
     let origin_execution_segment = Relocatable {
         segment_index: cairo_pie.metadata.execution_segment.index,
@@ -189,18 +195,55 @@ pub fn build_cairo_pie_relocation_table(
     // If this turns out to be too expensive, consider building it directly
     // when building the CairoPie object.
     let memory_map = build_cairo_pie_memory_map(&cairo_pie.memory);
+    println!(
+        "yg build_cairo_pie_relocation_table 6, #builtins: {}, builtins: {:?}",
+        cairo_pie.metadata.program.builtins.len(),
+        cairo_pie.metadata.program.builtins
+    );
+    for builtin_runner in vm.get_builtin_runners() {
+        println!("yg builtin runner: {}", builtin_runner.name());
+    }
 
     // Set initial stack relocations.
-    for (idx, _builtin_name) in cairo_pie.metadata.program.builtins.iter().enumerate() {
+    let mut idx = 0;
+    let mut last_offset = 0;
+    for builtin_name in cairo_pie.metadata.program.builtins.iter() {
+        // Skip loading the builtin segment (it doesn't exist) if it isn't used.
+        match cairo_pie
+            .execution_resources
+            .builtin_instance_counter
+            .get(&builtin_name)
+        {
+            None => continue,
+            Some(execution_resources) if *execution_resources == 0 => continue,
+            _ => {}
+        }
+
+        idx += 1;
+
+        println!("yg build_cairo_pie_relocation_table 6.1");
         let memory_address = (origin_execution_segment + idx)?;
+        println!("yg build_cairo_pie_relocation_table 6.2");
         let segment_index = extract_segment(memory_map[&memory_address].clone())?;
-        let relocation = vm.get_relocatable((execution_segment_address + idx)?)?;
+        println!("yg build_cairo_pie_relocation_table 6.3, execution_segment_address: {execution_segment_address}, idx: {idx}");
+        let relocation = match vm.get_relocatable((execution_segment_address + idx)?) {
+            Err(_) => Relocatable {
+                segment_index,
+                offset: last_offset,
+            },
+            Ok(relocatable) => relocatable,
+        };
+        println!("yg build_cairo_pie_relocation_table 6.4");
         relocation_table.insert(segment_index, relocation)?;
+        println!("yg build_cairo_pie_relocation_table 6.5");
+        last_offset = relocation.offset;
     }
+    println!("yg build_cairo_pie_relocation_table 7");
 
     for segment_info in cairo_pie.metadata.extra_segments.iter() {
         relocation_table.insert(segment_info.index, vm.add_memory_segment())?;
     }
+    println!("yg build_cairo_pie_relocation_table 8");
 
     Ok(relocation_table)
 }
@@ -283,6 +326,7 @@ pub(crate) fn load_cairo_pie(
     ret_fp: Relocatable,
     ret_pc: Relocatable,
 ) -> Result<(), CairoPieLoaderError> {
+    println!("yg load_cairo_pie 0");
     let relocation_table = build_cairo_pie_relocation_table(
         cairo_pie,
         vm,
@@ -291,9 +335,12 @@ pub(crate) fn load_cairo_pie(
         ret_fp,
         ret_pc,
     )?;
+    println!("yg load_cairo_pie 1");
 
     relocate_builtin_additional_data(cairo_pie, vm, &relocation_table)?;
+    println!("yg load_cairo_pie 2");
     relocate_cairo_pie_memory(cairo_pie, vm, &relocation_table)?;
+    println!("yg load_cairo_pie 3");
 
     Ok(())
 }
