@@ -511,8 +511,7 @@ pub fn bootloader_validate_hash(
     let computed_program_hash = compute_program_hash_chain(&program, 0, use_poseidon)
         .map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
-        })?
-        .into();
+        })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
 
     if program_hash != computed_program_hash {
