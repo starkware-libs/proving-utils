@@ -508,11 +508,10 @@ pub fn bootloader_validate_hash(
     // Compute the hash of the program
     let use_poseidon =
         get_integer_from_var_name("use_poseidon", vm, ids_data, ap_tracking)? != Felt252::ZERO;
-    let computed_program_hash = compute_program_hash_chain(&program, 0, use_poseidon)
-        .map_err(|e| {
+    let computed_program_hash =
+        compute_program_hash_chain(&program, 0, use_poseidon).map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
-        })?
-        .into();
+        })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
 
     if program_hash != computed_program_hash {
