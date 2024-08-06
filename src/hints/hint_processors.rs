@@ -16,16 +16,17 @@ use starknet_types_core::felt::Felt;
 
 use crate::hints::bootloader_hints::{
     assert_is_composite_packed_output, assert_program_address,
-    compute_and_configure_fact_topologies, enter_packed_output_scope,
-    guess_pre_image_of_subtasks_output_hash, import_packed_output_schemas, is_plain_packed_output,
-    load_bootloader_config, prepare_simple_bootloader_input,
+    compute_and_configure_fact_topologies, compute_and_configure_fact_topologies_simple,
+    enter_packed_output_scope, guess_pre_image_of_subtasks_output_hash,
+    import_packed_output_schemas, is_plain_packed_output, load_bootloader_config,
+    load_simple_bootloader_input, prepare_simple_bootloader_input,
     prepare_simple_bootloader_output_segment, restore_bootloader_output, save_output_pointer,
     save_packed_outputs, set_packed_output_to_subtasks,
 };
 use crate::hints::codes::*;
 use crate::hints::execute_task_hints::{
-    allocate_program_data_segment, append_fact_topologies, call_task, load_program_hint,
-    validate_hash, write_return_builtins_hint,
+    allocate_program_data_segment, append_fact_topologies, bootloader_validate_hash, call_task,
+    is_poseidon_to_ap, load_program_hint, validate_hash, write_return_builtins_hint,
 };
 use crate::hints::inner_select_builtins::select_builtin;
 use crate::hints::select_builtins::select_builtins_enter_scope;
@@ -70,6 +71,7 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             BOOTLOADER_PREPARE_SIMPLE_BOOTLOADER_INPUT => {
                 prepare_simple_bootloader_input(exec_scopes)
             }
+            BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT => load_simple_bootloader_input(exec_scopes),
             BOOTLOADER_LOAD_BOOTLOADER_CONFIG => {
                 load_bootloader_config(vm, exec_scopes, ids_data, ap_tracking)
             }
@@ -89,9 +91,19 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             BOOTLOADER_COMPUTE_FACT_TOPOLOGIES => {
                 compute_and_configure_fact_topologies(vm, exec_scopes)
             }
+            BOOTLOADER_SIMPLE_BOOTLOADER_COMPUTE_FACT_TOPOLOGIES => {
+                compute_and_configure_fact_topologies_simple(vm, exec_scopes)
+            }
             BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS => set_packed_output_to_subtasks(exec_scopes),
             BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS => import_packed_output_schemas(),
             BOOTLOADER_IS_PLAIN_PACKED_OUTPUT => is_plain_packed_output(vm, exec_scopes),
+            BOOTLOADER_IS_POSEIDON => is_poseidon_to_ap(vm, exec_scopes),
+            BOOTLOADER_VALIDATE_HASH => bootloader_validate_hash(
+                vm,
+                exec_scopes,
+                &hint_data.ids_data,
+                &hint_data.ap_tracking,
+            ),
             BOOTLOADER_ASSERT_IS_COMPOSITE_PACKED_OUTPUT => {
                 assert_is_composite_packed_output(exec_scopes)
             }

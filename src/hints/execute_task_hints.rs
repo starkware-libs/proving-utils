@@ -2,12 +2,14 @@ use std::any::Any;
 use std::collections::HashMap;
 
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
-    get_ptr_from_var_name, get_relocatable_from_var_name, insert_value_from_var_name,
+    get_integer_from_var_name, get_ptr_from_var_name, get_relocatable_from_var_name,
+    insert_value_from_var_name, insert_value_into_ap,
 };
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::{ApTracking, Identifier};
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::types::program::Program;
 use cairo_vm::types::relocatable::Relocatable;
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
@@ -159,7 +161,7 @@ pub fn validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let computed_program_hash = compute_program_hash_chain(&program, 0).map_err(|e| {
+    let computed_program_hash = compute_program_hash_chain(&program, 0, false).map_err(|e| {
         HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
     })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
@@ -176,7 +178,7 @@ pub fn validate_hash(
 }
 
 /// List of all builtins in the order used by the bootloader.
-const ALL_BUILTINS: [BuiltinName; 8] = [
+pub const ALL_BUILTINS: [BuiltinName; 11] = [
     BuiltinName::output,
     BuiltinName::pedersen,
     BuiltinName::range_check,
@@ -185,6 +187,9 @@ const ALL_BUILTINS: [BuiltinName; 8] = [
     BuiltinName::ec_op,
     BuiltinName::keccak,
     BuiltinName::poseidon,
+    BuiltinName::range_check96,
+    BuiltinName::add_mod,
+    BuiltinName::mul_mod,
 ];
 
 fn check_cairo_pie_builtin_usage(
@@ -314,11 +319,12 @@ pub fn write_return_builtins_hint(
     Ok(())
 }
 
-fn get_bootloader_program(exec_scopes: &ExecutionScopes) -> Result<&ProgramIdentifiers, HintError> {
-    if let Some(boxed_program) = exec_scopes.data[0].get(vars::BOOTLOADER_PROGRAM_IDENTIFIERS) {
-        if let Some(program) = boxed_program.downcast_ref::<ProgramIdentifiers>() {
-            return Ok(program);
-        }
+fn get_bootloader_program(exec_scopes: &ExecutionScopes) -> Result<ProgramIdentifiers, HintError> {
+    if let Ok(program) = exec_scopes.get::<Program>(vars::BOOTLOADER_PROGRAM_IDENTIFIERS) {
+        return Ok(program
+            .iter_identifiers()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect());
     }
 
     Err(HintError::VariableNotInScopeError(
@@ -414,9 +420,9 @@ pub fn call_task(
 
             // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ + pc
             let bootloader_identifiers = get_bootloader_program(exec_scopes)?;
-            let ret_pc_label = get_identifier(bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
+            let ret_pc_label = get_identifier(&bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
             let call_task = get_identifier(
-                bootloader_identifiers,
+                &bootloader_identifiers,
                 "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.call_task",
             )?;
 
@@ -453,6 +459,68 @@ pub fn call_task(
     exec_scopes.insert_value(vars::OUTPUT_RUNNER_DATA, output_runner_data);
 
     exec_scopes.enter_scope(new_task_locals);
+
+    Ok(())
+}
+
+// Implements hint: "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)"
+pub fn is_poseidon_to_ap(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+) -> Result<(), HintError> {
+    let task: Task = exec_scopes.get(vars::TASK)?;
+    insert_value_into_ap(
+        vm,
+        match &task {
+            Task::Program(_) => 0,
+            Task::Pie(_) => {
+                if exec_scopes.get(vars::USE_POSEIDON)? {
+                    1
+                } else {
+                    0
+                }
+            }
+        },
+    )
+}
+
+/// Implements
+/// # Validate hash.
+/// from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
+///
+/// assert memory[ids.output_ptr + 1] == compute_program_hash_chain(
+///     program=task.get_program(),
+///     use_poseidon=bool(ids.use_poseidon)), 'Computed hash does not match input.'
+pub fn bootloader_validate_hash(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let task: Task = exec_scopes.get(vars::TASK)?;
+    let program = get_program_from_task(&task)?;
+
+    let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
+    let program_hash_ptr = (output_ptr + 1)?;
+
+    let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
+
+    // Compute the hash of the program
+    let use_poseidon =
+        get_integer_from_var_name("use_poseidon", vm, ids_data, ap_tracking)? != Felt252::ZERO;
+    let computed_program_hash =
+        compute_program_hash_chain(&program, 0, use_poseidon).map_err(|e| {
+            HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
+        })?;
+    let computed_program_hash = field_element_to_felt(computed_program_hash);
+
+    if program_hash != computed_program_hash {
+        return Err(HintError::AssertionFailed(
+            "Computed hash does not match input"
+                .to_string()
+                .into_boxed_str(),
+        ));
+    }
 
     Ok(())
 }

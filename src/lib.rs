@@ -13,3 +13,10 @@ pub fn insert_bootloader_input(
 ) {
     exec_scopes.insert_value(BOOTLOADER_INPUT, bootloader_input);
 }
+
+pub fn insert_simple_bootloader_input(
+    exec_scopes: &mut ExecutionScopes,
+    simple_bootloader_input: SimpleBootloaderInput,
+) {
+    exec_scopes.insert_value(SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
+}

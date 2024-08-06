@@ -18,3 +18,4 @@ pub use types::{
 };
 
 pub use vars::BOOTLOADER_INPUT;
+pub use vars::SIMPLE_BOOTLOADER_INPUT;

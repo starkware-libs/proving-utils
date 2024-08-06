@@ -12,6 +12,10 @@ output_builtin.new_state(base=ids.simple_bootloader_output_start)";
 pub const BOOTLOADER_PREPARE_SIMPLE_BOOTLOADER_INPUT: &str =
     "simple_bootloader_input = bootloader_input";
 
+pub const BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT: &str =
+    "from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput
+simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)";
+
 pub const BOOTLOADER_RESTORE_BOOTLOADER_OUTPUT: &str =
     "# Restore the bootloader's output builtin state.
 output_builtin.set_state(output_builtin_state)";
@@ -46,6 +50,16 @@ pub const BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS: &str =
 pub const BOOTLOADER_IS_PLAIN_PACKED_OUTPUT: &str =
     "memory[ap] = to_felt_or_relocatable(isinstance(packed_output, PlainPackedOutput))";
 
+pub const BOOTLOADER_IS_POSEIDON: &str =
+    "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)";
+
+pub const BOOTLOADER_VALIDATE_HASH: &str = "# Validate hash.
+from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
+
+assert memory[ids.output_ptr + 1] == compute_program_hash_chain(
+    program=task.get_program(),
+    use_poseidon=bool(ids.use_poseidon)), 'Computed hash does not match input.'";
+
 pub const BOOTLOADER_SAVE_OUTPUT_POINTER: &str = "output_start = ids.output_ptr";
 
 pub const BOOTLOADER_SAVE_PACKED_OUTPUTS: &str = "packed_outputs = bootloader_input.packed_outputs";
@@ -76,6 +90,29 @@ if bootloader_input.fact_topologies_path is not None:
     write_to_fact_topologies_file(
         fact_topologies_path=bootloader_input.fact_topologies_path,
         fact_topologies=plain_fact_topologies,
+    )";
+
+pub const BOOTLOADER_SIMPLE_BOOTLOADER_COMPUTE_FACT_TOPOLOGIES: &str =
+    "# Dump fact topologies to a json file.
+from starkware.cairo.bootloaders.simple_bootloader.utils import (
+    configure_fact_topologies,
+    write_to_fact_topologies_file,
+)
+
+# The task-related output is prefixed by a single word that contains the number of tasks.
+tasks_output_start = output_builtin.base + 1
+
+if not simple_bootloader_input.single_page:
+    # Configure the memory pages in the output builtin, based on fact_topologies.
+    configure_fact_topologies(
+        fact_topologies=fact_topologies, output_start=tasks_output_start,
+        output_builtin=output_builtin,
+    )
+
+if simple_bootloader_input.fact_topologies_path is not None:
+    write_to_fact_topologies_file(
+        fact_topologies_path=simple_bootloader_input.fact_topologies_path,
+        fact_topologies=fact_topologies,
     )";
 
 pub const BOOTLOADER_GUESS_PRE_IMAGE_OF_SUBTASKS_OUTPUT_HASH: &str =

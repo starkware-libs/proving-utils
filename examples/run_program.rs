@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let bootloader_program = load_bootloader()?;
     let fibonacci_program = include_bytes!("fibonacci.json");
 
-    let tasks = make_bootloader_tasks(&[fibonacci_program], &[])?;
+    let tasks = make_bootloader_tasks(&[fibonacci_program], &[], vec![true])?;
 
     let mut runner = cairo_run_bootloader_in_proof_mode(&bootloader_program, tasks)?;
 

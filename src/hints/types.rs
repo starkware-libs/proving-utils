@@ -57,6 +57,7 @@ impl Task {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TaskSpec {
     pub task: Task,
+    pub use_poseidon: bool,
 }
 
 impl TaskSpec {
