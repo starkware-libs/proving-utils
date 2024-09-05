@@ -59,7 +59,7 @@ pub fn cairo_run_simple_bootloader_in_proof_mode(
     let mut exec_scopes = ExecutionScopes::new();
     insert_simple_bootloader_input(&mut exec_scopes, simple_bootloader_input);
     exec_scopes.insert_value(
-        "simple_bootloader_program",
+        BOOTLOADER_PROGRAM_IDENTIFIERS,
         simple_bootloader_program.clone(),
     );
 

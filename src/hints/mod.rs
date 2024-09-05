@@ -18,4 +18,5 @@ pub use types::{
 };
 
 pub use vars::BOOTLOADER_INPUT;
+pub use vars::BOOTLOADER_PROGRAM_IDENTIFIERS;
 pub use vars::SIMPLE_BOOTLOADER_INPUT;
