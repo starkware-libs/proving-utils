@@ -130,10 +130,10 @@ fn gen_arg(vm: &mut VirtualMachine, args: &Vec<Box<dyn Any>>) -> Result<Relocata
 
     for arg in args {
         if let Some(value) = arg.downcast_ref::<MaybeRelocatable>() {
-            ptr = vm.segments.load_data(ptr, &vec![value.clone()])?;
+            ptr = vm.segments.load_data(ptr, &[value.clone()])?;
         } else if let Some(vector) = arg.downcast_ref::<Vec<Box<dyn Any>>>() {
             let nested_base = gen_arg(vm, vector)?;
-            ptr = vm.segments.load_data(ptr, &vec![nested_base.into()])?;
+            ptr = vm.segments.load_data(ptr, &[nested_base.into()])?;
         } else {
             return Err(MemoryError::GenArgInvalidType);
         }
