@@ -6,8 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bincode = { version = "2.0.0-rc.3", default-features = false, features = ["serde"] }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "3fb0344ce038b3a68cae897c403d1f561cfe8da7", features = ["extensive_hints", "mod_builtin", "clap"] }
+
+bincode = { version = "2.0.0-rc.3", default-features = false, features = [
+    "serde",
+] }
+cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "3fb0344ce038b3a68cae897c403d1f561cfe8da7", features = [
+    "extensive_hints",
+    "mod_builtin",
+    "clap",
+] }
 clap = { version = "4.3.10", features = ["derive"] }
 num-traits = "0.2.19"
 serde = { version = "1.0.202", features = ["derive"] }
@@ -17,7 +24,6 @@ starknet-types-core = "0.1.2"
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
-
 
 [dev-dependencies]
 assert_matches = "1.5.0"

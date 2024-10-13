@@ -10,7 +10,7 @@ use cairo_vm::serde::deserialize_program::{ApTracking, Identifier};
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::program::Program;
-use cairo_vm::types::relocatable::Relocatable;
+use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinState};
@@ -233,9 +233,16 @@ fn write_return_builtins(
     let mut used_builtin_offset: usize = 0;
     for (index, builtin) in ALL_BUILTINS.iter().enumerate() {
         if used_builtins.contains(builtin) {
-            let builtin_value = vm.get_relocatable((used_builtins_addr + used_builtin_offset)?)?;
-            vm.insert_value((return_builtins_addr + index)?, builtin_value)?;
+            let builtin_addr = (used_builtins_addr + used_builtin_offset)?;
+            let builtin_value = vm
+                .get_maybe(&builtin_addr)
+                .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(builtin_addr)))?;
+            vm.insert_value((return_builtins_addr + index)?, builtin_value.clone())?;
             used_builtin_offset += 1;
+
+            if let MaybeRelocatable::Int(_) = builtin_value {
+                continue;
+            }
 
             if let Task::Pie(cairo_pie) = task {
                 check_cairo_pie_builtin_usage(
