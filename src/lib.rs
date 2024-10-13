@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use cairo_vm::cairo_run::{cairo_run_program_with_initial_scope, CairoRunConfig};
 use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::types::layout::CairoLayoutParams;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
@@ -33,6 +34,7 @@ pub fn cairo_run_simple_bootloader_in_proof_mode(
     tasks: Vec<TaskSpec>,
     fact_topologies_path: Option<PathBuf>,
     layout: LayoutName,
+    dynamic_layout_params: Option<CairoLayoutParams>,
 ) -> Result<CairoRunner, CairoRunError> {
     let mut hint_processor = BootloaderHintProcessor::new();
 
@@ -45,7 +47,7 @@ pub fn cairo_run_simple_bootloader_in_proof_mode(
         secure_run: None,
         disable_trace_padding: false,
         allow_missing_builtins: None,
-        dynamic_layout_params: None,
+        dynamic_layout_params,
     };
 
     // Build the bootloader input

@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use bincode::enc::write::Writer;
+use cairo_vm::types::layout::CairoLayoutParams;
 use cairo_vm::types::layout_name::LayoutName;
 
 use cairo_bootloader::bootloaders::load_simple_bootloader;
@@ -32,6 +33,9 @@ struct Args {
     fact_topologies_path: PathBuf,
     #[clap(long = "layout", default_value = "plain", value_enum)]
     layout: LayoutName,
+    // Required when using with dynamic layout. Ignored otherwise.
+    #[clap(long = "dynamic_params_file", required_if_eq("layout", "dynamic"))]
+    dynamic_params_file: Option<PathBuf>,
 }
 struct FileWriter {
     buf_writer: io::BufWriter<std::fs::File>,
@@ -87,11 +91,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.use_poseidon,
     )?;
 
+    let dynamic_layout_params = match args.dynamic_params_file {
+        Some(file) => Some(CairoLayoutParams::from_file(&file)?),
+        None => None,
+    };
+
     let runner = cairo_run_simple_bootloader_in_proof_mode(
         &simple_bootloader_program,
         tasks,
         Some(args.fact_topologies_path),
         args.layout,
+        dynamic_layout_params,
     )?;
 
     std::fs::write(
