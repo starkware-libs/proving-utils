@@ -17,6 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         tasks,
         None,
         LayoutName::starknet_with_keccak,
+        None,
     )?;
 
     let mut output_buffer = "Program Output:\n".to_string();
