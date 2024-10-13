@@ -31,6 +31,9 @@ pub enum SignatureRelocationError {
     #[error(transparent)]
     Memory(#[from] MemoryError),
 
+    #[error(transparent)]
+    Math(#[from] MathError),
+
     #[error("The PIE requires ECDSA but the VM is not configured to use it")]
     EcdsaBuiltinNotFound,
 
@@ -45,6 +48,9 @@ pub enum SignatureRelocationError {
 pub enum MemoryRelocationError {
     #[error(transparent)]
     Memory(#[from] MemoryError),
+
+    #[error(transparent)]
+    Math(#[from] MathError),
 }
 
 #[derive(Error, Debug)]
@@ -68,9 +74,10 @@ impl From<CairoPieLoaderError> for HintError {
 /// Keeps track of relocations for different segments.
 ///
 /// Each entry in `relocations` maps a segment index from the PIE to
-/// a pointer in the VM memory.
+/// a pointer in the VM memory, or to an integer in case the segment is uninitialized.
+/// Those will be wrapped by the appropriate `MaybeRelocatable` variant.
 pub struct RelocationTable {
-    relocations: HashMap<isize, Relocatable>,
+    relocations: HashMap<isize, MaybeRelocatable>,
 }
 
 impl RelocationTable {
@@ -90,7 +97,7 @@ impl RelocationTable {
     pub fn insert(
         &mut self,
         segment_index: isize,
-        relocation: Relocatable,
+        relocation: MaybeRelocatable,
     ) -> Result<(), RelocationTableError> {
         if self.relocations.contains_key(&segment_index) {
             return Err(RelocationTableError::SegmentAlreadyMapped(segment_index));
@@ -105,14 +112,19 @@ impl RelocationTable {
     /// Considering a relocatable (i, o), if a relocation table entry i -> (i*, o*) exists,
     /// returns (i*, o + o*).
     /// Returns `MemoryError::Relocation` if there is no matching relocation.
-    pub fn relocate_address(&self, address: Relocatable) -> Result<Relocatable, MemoryError> {
+    pub fn relocate_address(&self, address: Relocatable) -> Result<MaybeRelocatable, MemoryError> {
         let new_base = self
             .relocations
             .get(&address.segment_index)
             .ok_or(MemoryError::Relocation)?;
 
-        let relocated_pointer = (*new_base + address.offset)?;
-        Ok(relocated_pointer)
+        match new_base {
+            MaybeRelocatable::Int(_) => Ok(new_base.clone()),
+            MaybeRelocatable::RelocatableValue(new_base_relocation) => {
+                let relocated_pointer = (*new_base_relocation + address.offset)?;
+                Ok(MaybeRelocatable::RelocatableValue(relocated_pointer))
+            }
+        }
     }
 
     /// Relocates any value.
@@ -122,10 +134,7 @@ impl RelocationTable {
     pub fn relocate_value(&self, value: MaybeRelocatable) -> Result<MaybeRelocatable, MemoryError> {
         match value {
             MaybeRelocatable::Int(_) => Ok(value),
-            MaybeRelocatable::RelocatableValue(address) => {
-                let relocated_addr = self.relocate_address(address);
-                relocated_addr.map(MaybeRelocatable::RelocatableValue)
-            }
+            MaybeRelocatable::RelocatableValue(address) => self.relocate_address(address),
         }
     }
 }
@@ -172,13 +181,22 @@ pub fn build_cairo_pie_relocation_table(
 ) -> Result<RelocationTable, RelocationTableError> {
     let mut relocation_table = RelocationTable::new();
 
-    relocation_table.insert(cairo_pie.metadata.program_segment.index, program_address)?;
+    relocation_table.insert(
+        cairo_pie.metadata.program_segment.index,
+        MaybeRelocatable::RelocatableValue(program_address),
+    )?;
     relocation_table.insert(
         cairo_pie.metadata.execution_segment.index,
-        execution_segment_address,
+        MaybeRelocatable::RelocatableValue(execution_segment_address),
     )?;
-    relocation_table.insert(cairo_pie.metadata.ret_fp_segment.index, ret_fp)?;
-    relocation_table.insert(cairo_pie.metadata.ret_pc_segment.index, ret_pc)?;
+    relocation_table.insert(
+        cairo_pie.metadata.ret_fp_segment.index,
+        MaybeRelocatable::RelocatableValue(ret_fp),
+    )?;
+    relocation_table.insert(
+        cairo_pie.metadata.ret_pc_segment.index,
+        MaybeRelocatable::RelocatableValue(ret_pc),
+    )?;
 
     let origin_execution_segment = Relocatable {
         segment_index: cairo_pie.metadata.execution_segment.index,
@@ -194,12 +212,18 @@ pub fn build_cairo_pie_relocation_table(
     for (idx, _builtin_name) in cairo_pie.metadata.program.builtins.iter().enumerate() {
         let memory_address = (origin_execution_segment + idx)?;
         let segment_index = extract_segment(memory_map[&memory_address].clone())?;
-        let relocation = vm.get_relocatable((execution_segment_address + idx)?)?;
-        relocation_table.insert(segment_index, relocation)?;
+        let builtin_seg_addr = (execution_segment_address + idx)?;
+        let maybe_relocation = vm
+            .get_maybe(&builtin_seg_addr)
+            .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(builtin_seg_addr)))?;
+        relocation_table.insert(segment_index, maybe_relocation)?;
     }
 
     for segment_info in cairo_pie.metadata.extra_segments.iter() {
-        relocation_table.insert(segment_info.index, vm.add_memory_segment())?;
+        relocation_table.insert(
+            segment_info.index,
+            MaybeRelocatable::RelocatableValue(vm.add_memory_segment()),
+        )?;
     }
 
     Ok(relocation_table)
@@ -211,7 +235,9 @@ fn extend_additional_data(
     relocation_table: &RelocationTable,
 ) -> Result<(), SignatureRelocationError> {
     for (addr, signature) in data {
-        let relocated_addr = relocation_table.relocate_address(*addr)?;
+        let maybe_relocated_addr = relocation_table.relocate_address(*addr)?;
+        let relocated_addr: Relocatable = maybe_relocated_addr.try_into()?;
+
         let builtin_segment_base = builtin.base() as isize;
         if relocated_addr.segment_index != builtin_segment_base {
             return Err(SignatureRelocationError::RelocatedDataNotOnBuiltinSegment(
@@ -262,12 +288,12 @@ fn relocate_cairo_pie_memory(
     // Relocate memory segment
     for ((segment_index, offset), value) in &cairo_pie.memory.0 {
         let address = Relocatable::from((*segment_index as isize, *offset));
-        let relocated_address = relocation_table.relocate_address(address)?;
+        let maybe_relocated_address = relocation_table.relocate_address(address)?;
+        let relocated_address = maybe_relocated_address.try_into()?;
         let relocated_value = relocation_table.relocate_value(value.clone())?;
 
         vm.insert_value(relocated_address, relocated_value)?;
     }
-
     Ok(())
 }
 
