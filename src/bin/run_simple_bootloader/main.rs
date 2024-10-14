@@ -21,6 +21,10 @@ struct Args {
     air_public_input: PathBuf,
     #[clap(long = "air_private_input")]
     air_private_input: PathBuf,
+    #[clap(long = "trace_file", help = "Path to the trace output file.")]
+    trace_file: Option<PathBuf>,
+    #[clap(long = "memory_file", help = "Path to the memory output file.")]
+    memory_file: Option<PathBuf>,
     #[clap(long = "cairo_pies", num_args = 1.., value_delimiter = ',')]
     cairo_pies: Vec<PathBuf>,
     #[clap(long = "use_poseidon", num_args = 1.., value_delimiter = ',')]
@@ -124,7 +128,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         .as_ref()
         .expect("trace not relocated");
 
-    let (trace_file, trace_file_path) = NamedTempFile::new()?.keep()?;
+    let (trace_file, trace_file_path) = if let Some(ref path) = args.trace_file {
+        let file = std::fs::File::create(path)?;
+        let path = path.clone();
+        (file, path)
+    } else {
+        NamedTempFile::new()?.keep()?
+    };
 
     let mut trace_writer =
         FileWriter::new(io::BufWriter::with_capacity(3 * 1024 * 1024, trace_file));
@@ -132,7 +142,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     cairo_run::write_encoded_trace(relocated_trace, &mut trace_writer)?;
     trace_writer.flush()?;
 
-    let (memory_file, memory_file_path) = NamedTempFile::new()?.keep()?;
+    let (memory_file, memory_file_path) = if let Some(ref path) = args.memory_file {
+        let file = std::fs::File::create(path)?;
+        let path = path.clone();
+        (file, path)
+    } else {
+        NamedTempFile::new()?.keep()?
+    };
+
     let mut memory_writer =
         FileWriter::new(io::BufWriter::with_capacity(5 * 1024 * 1024, memory_file));
 
