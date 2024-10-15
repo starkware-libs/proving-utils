@@ -11,6 +11,45 @@ use std::io::{self, ErrorKind};
 
 mod hints;
 pub mod tasks;
+enum RunMode {
+    CairoRunner {
+        layout: LayoutName,
+        dynamic_layout_params: Option<CairoLayoutParams>,
+    },
+    Validator,
+}
+
+impl RunMode {
+    fn create_config(self) -> CairoRunConfig<'static> {
+        match self {
+            RunMode::CairoRunner {
+                layout,
+                dynamic_layout_params,
+            } => CairoRunConfig {
+                entrypoint: "main",
+                trace_enabled: true,
+                relocate_mem: true,
+                layout,
+                proof_mode: true,
+                secure_run: None,
+                disable_trace_padding: false,
+                allow_missing_builtins: None,
+                dynamic_layout_params,
+            },
+            RunMode::Validator => CairoRunConfig {
+                entrypoint: "main",
+                trace_enabled: false,
+                relocate_mem: false,
+                layout: LayoutName::all_cairo,
+                proof_mode: false,
+                secure_run: None,
+                disable_trace_padding: false,
+                allow_missing_builtins: None,
+                dynamic_layout_params: None,
+            },
+        }
+    }
+}
 
 /// Executes a specified Cairo program based on its name and configuration, with conditional handling
 /// of input types depending on the program variant.
@@ -35,19 +74,19 @@ pub fn cairo_run_program(
 ) -> Result<CairoRunner, CairoRunError> {
     let mut hint_processor = BootloaderHintProcessor::new();
 
-    let cairo_run_config = CairoRunConfig {
-        entrypoint: "main",
-        trace_enabled: true,
-        relocate_mem: true,
-        layout,
-        proof_mode: true,
-        secure_run: None,
-        disable_trace_padding: false,
-        allow_missing_builtins: None,
-        dynamic_layout_params,
-    };
-
     let mut exec_scopes = ExecutionScopes::new();
+
+    let cairo_run_config = if program_name.contains("applicative_bootloader")
+        || program_name.contains("cairo_verifier")
+    {
+        RunMode::Validator.create_config()
+    } else {
+        RunMode::CairoRunner {
+            layout,
+            dynamic_layout_params,
+        }
+        .create_config()
+    };
 
     // The following attribute is used to make clippy ignore the repeated if-else block. Should be
     // removed all blocks are implemented.
