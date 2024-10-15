@@ -1,21 +1,39 @@
 use std::error::Error;
+use std::path::PathBuf;
 
+use cairo_program_runner::cairo_run_program;
 use cairo_vm::types::layout_name::LayoutName;
-
-use cairo_bootloader::bootloaders::load_simple_bootloader;
-use cairo_bootloader::cairo_run_simple_bootloader_in_proof_mode;
-use cairo_bootloader::tasks::make_bootloader_tasks;
+use cairo_vm::types::program::Program;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let bootloader_program = load_simple_bootloader()?;
-    let fibonacci_program = include_bytes!("fibonacci.json");
+    let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let simple_bootloader_compiled_path =
+        project_dir.join("resources/compiled_programs/bootloaders/simple_bootloader_compiled.json");
+    let simple_bootloader_program =
+        Program::from_file(simple_bootloader_compiled_path.as_path(), Some("main"))?;
+    let fibonacci_compiled_program_path = project_dir.join("examples/fibonacci.json");
+    let program_input_contents = format!(
+        r#"{{
+            "tasks": [
+              {{
+                "path": "{}",
+                "use_poseidon": false,
+                "type": "RunProgramTask"
+              }}
+            ],
+            "single_page": true
+        }}"#,
+        fibonacci_compiled_program_path.display()
+    );
+    let program_name = simple_bootloader_compiled_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
 
-    let tasks = make_bootloader_tasks(&[fibonacci_program], &[], vec![true])?;
-
-    let mut runner = cairo_run_simple_bootloader_in_proof_mode(
-        &bootloader_program,
-        tasks,
-        None,
+    let mut runner = cairo_run_program(
+        &simple_bootloader_program,
+        program_name,
+        program_input_contents,
         LayoutName::starknet_with_keccak,
         None,
     )?;
