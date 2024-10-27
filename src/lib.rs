@@ -51,16 +51,17 @@ impl RunMode {
     }
 }
 
-/// Executes a specified Cairo program based on its name and configuration, with conditional handling
-/// of input types depending on the program variant.
+/// Executes a specified Cairo program based on its name and configuration, with conditional
+/// handling of input types depending on the program variant.
 ///
 /// # Arguments
 /// - `program`: A reference to a `Program` object that will be run.
-/// - `program_name`: A string slice representing the name of the program, used to determine the appropriate execution behavior.
+/// - `program_name`: A string slice representing the name of the program, used to determine the
+///   appropriate execution behavior.
 /// - `program_input_contents`: A `String` containing the program's input data (JSON format).
 /// - `layout`: A `LayoutName` specifying the Cairo layout to use in the vm.
-/// - `dynamic_layout_params`: Optional `CairoLayoutParams` that can specify additional dynamic parameters for the layout.
-///    Used with dynamic layouts only.
+/// - `dynamic_layout_params`: Optional `CairoLayoutParams` that can specify additional dynamic
+///   parameters for the layout. Used with dynamic layouts only.
 ///
 /// # Returns
 /// - `Ok(CairoRunner)`: If the program is successfully run, returns the `CairoRunner` object.

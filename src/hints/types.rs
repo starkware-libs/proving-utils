@@ -81,7 +81,8 @@ impl<'de> Deserialize<'de> for TaskSpec {
     /// - `deserializer`: The deserializer used to parse the JSON into a `TaskSpec`.
     ///
     /// # Returns
-    /// - `Ok(TaskSpec)`: If successful, returns a `TaskSpec` with the appropriate task and Poseidon option.
+    /// - `Ok(TaskSpec)`: If successful, returns a `TaskSpec` with the appropriate task and Poseidon
+    ///   option.
     /// - `Err(D::Error)`: If deserialization fails or the task type is unsupported.
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
