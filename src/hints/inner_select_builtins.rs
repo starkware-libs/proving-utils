@@ -12,15 +12,16 @@ use cairo_vm::vm::vm_core::VirtualMachine;
 
 use crate::hints::vars;
 
-/// Sets ids.select_builtin to 1 if the first builtin should be selected and 0 otherwise.
+/// Sets ids.select_builtin to 1 if the first builtin should be selected and 0
+/// otherwise.
 ///
 /// Implements
 /// # A builtin should be selected iff its encoding appears in the selected encodings list
 /// # and the list wasn't exhausted.
 /// # Note that testing inclusion by a single comparison is possible since the lists are sorted.
 /// ids.select_builtin = int(
-///   n_selected_builtins > 0 and memory[ids.selected_encodings] == memory[ids.all_encodings])
-/// if ids.select_builtin:
+///   n_selected_builtins > 0 and memory[ids.selected_encodings] ==
+/// memory[ids.all_encodings]) if ids.select_builtin:
 ///   n_selected_builtins = n_selected_builtins - 1
 pub fn select_builtin(
     vm: &mut VirtualMachine,

@@ -1,0 +1,5 @@
+max_width = 100
+wrap_comments = true
+format_strings = true
+struct_lit_single_line = false
+chain_width = 100

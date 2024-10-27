@@ -57,8 +57,9 @@ impl Task {
     }
 }
 
-// For now will support only CairoPiePath tasks and RunProgramTask task without program_input.
-// In the future, we may want to support for RunProgramTask with program_input.
+// For now will support only CairoPiePath tasks and RunProgramTask task without
+// program_input. In the future, we may want to support for RunProgramTask with
+// program_input.
 #[derive(Deserialize)]
 struct TaskSpecHelper {
     #[serde(rename = "type")]
@@ -74,15 +75,19 @@ pub struct TaskSpec {
 }
 
 impl<'de> Deserialize<'de> for TaskSpec {
-    /// Custom deserialization for `TaskSpec`, which constructs a task based on its type
-    /// (either "CairoPiePath" or "RunProgramTask") and a file path.
+    /// Custom deserialization for `TaskSpec`, which constructs a task based on
+    /// its type (either "CairoPiePath" or "RunProgramTask") and a file
+    /// path.
     ///
     /// # Arguments
-    /// - `deserializer`: The deserializer used to parse the JSON into a `TaskSpec`.
+    /// - `deserializer`: The deserializer used to parse the JSON into a
+    ///   `TaskSpec`.
     ///
     /// # Returns
-    /// - `Ok(TaskSpec)`: If successful, returns a `TaskSpec` with the appropriate task and Poseidon option.
-    /// - `Err(D::Error)`: If deserialization fails or the task type is unsupported.
+    /// - `Ok(TaskSpec)`: If successful, returns a `TaskSpec` with the
+    ///   appropriate task and Poseidon option.
+    /// - `Err(D::Error)`: If deserialization fails or the task type is
+    ///   unsupported.
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -110,7 +115,8 @@ impl TaskSpec {
     /// Retrieves a reference to the `Task` within the `TaskSpec`.
     ///
     /// # Returns
-    /// A reference to the `task` field, which is either a `Program` or `CairoPie`.
+    /// A reference to the `task` field, which is either a `Program` or
+    /// `CairoPie`.
     pub fn load_task(&self) -> &Task {
         &self.task
     }

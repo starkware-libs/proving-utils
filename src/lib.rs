@@ -51,20 +51,25 @@ impl RunMode {
     }
 }
 
-/// Executes a specified Cairo program based on its name and configuration, with conditional handling
-/// of input types depending on the program variant.
+/// Executes a specified Cairo program based on its name and configuration, with
+/// conditional handling of input types depending on the program variant.
 ///
 /// # Arguments
 /// - `program`: A reference to a `Program` object that will be run.
-/// - `program_name`: A string slice representing the name of the program, used to determine the appropriate execution behavior.
-/// - `program_input_contents`: A `String` containing the program's input data (JSON format).
+/// - `program_name`: A string slice representing the name of the program, used
+///   to determine the appropriate execution behavior.
+/// - `program_input_contents`: A `String` containing the program's input data
+///   (JSON format).
 /// - `layout`: A `LayoutName` specifying the Cairo layout to use in the vm.
-/// - `dynamic_layout_params`: Optional `CairoLayoutParams` that can specify additional dynamic parameters for the layout.
-///    Used with dynamic layouts only.
+/// - `dynamic_layout_params`: Optional `CairoLayoutParams` that can specify
+///   additional dynamic parameters for the layout. Used with dynamic layouts
+///   only.
 ///
 /// # Returns
-/// - `Ok(CairoRunner)`: If the program is successfully run, returns the `CairoRunner` object.
-/// - `Err(CairoRunError)`: If an error occurs, returns a `CairoRunError` describing the problem.
+/// - `Ok(CairoRunner)`: If the program is successfully run, returns the
+///   `CairoRunner` object.
+/// - `Err(CairoRunError)`: If an error occurs, returns a `CairoRunError`
+///   describing the problem.
 pub fn cairo_run_program(
     program: &Program,
     program_name: &str,
@@ -88,8 +93,8 @@ pub fn cairo_run_program(
         .create_config()
     };
 
-    // The following attribute is used to make clippy ignore the repeated if-else block. Should be
-    // removed all blocks are implemented.
+    // The following attribute is used to make clippy ignore the repeated if-else
+    // block. Should be when removed all blocks are implemented.
     #[allow(clippy::if_same_then_else)]
     if program_name.contains("simple_bootloader") {
         let simple_bootloader_input: SimpleBootloaderInput =

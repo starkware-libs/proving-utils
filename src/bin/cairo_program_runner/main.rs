@@ -59,12 +59,10 @@ struct FileWriter {
 
 impl Writer for FileWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<(), bincode::error::EncodeError> {
-        self.buf_writer
-            .write_all(bytes)
-            .map_err(|e| bincode::error::EncodeError::Io {
-                inner: e,
-                index: self.bytes_written,
-            })?;
+        self.buf_writer.write_all(bytes).map_err(|e| bincode::error::EncodeError::Io {
+            inner: e,
+            index: self.bytes_written,
+        })?;
 
         self.bytes_written += bytes.len();
 
@@ -92,11 +90,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let program = Program::from_file(args.compiled_program_path.as_path(), Some("main"))?;
 
-    let program_name = args
-        .compiled_program_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or_default();
+    let program_name =
+        args.compiled_program_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
 
     let program_input_contents = std::fs::read_to_string(&args.program_input)?;
 
@@ -120,10 +115,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     if let Some(ref file_name) = args.cairo_pie_output {
-        runner
-            .get_cairo_pie()
-            .map_err(CairoRunError::Runner)?
-            .write_zip_file(file_name)?
+        runner.get_cairo_pie().map_err(CairoRunError::Runner)?.write_zip_file(file_name)?
     }
 
     if let Some(ref air_public_input_file) = args.air_public_input {
@@ -133,10 +125,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?;
     }
 
-    let relocated_trace = runner
-        .relocated_trace
-        .as_ref()
-        .expect("trace not relocated");
+    let relocated_trace = runner.relocated_trace.as_ref().expect("trace not relocated");
 
     let (trace_file, trace_file_path) = if let Some(ref path) = args.trace_file {
         let file = std::fs::File::create(path)?;

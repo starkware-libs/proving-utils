@@ -30,10 +30,11 @@ impl From<ProgramLoaderError> for HintError {
 /// Creates an instance of `Felt252` from a builtin name.
 ///
 /// Converts the builtin name to bytes then attempts to create a felt from
-/// these bytes. This function will fail if the builtin name is over 31 characters.
+/// these bytes. This function will fail if the builtin name is over 31
+/// characters.
 ///
-/// This is used by the loader to make the builtins used by the program to the Cairo
-/// code.
+/// This is used by the loader to make the builtins used by the program to the
+/// Cairo code.
 fn builtin_to_felt(builtin: &BuiltinName) -> Result<Felt252, ProgramLoaderError> {
     // The Python implementation uses the builtin name without suffix
     let builtin_name = builtin.to_str();
@@ -71,8 +72,7 @@ impl<'vm> ProgramLoader<'vm> {
     ) -> Result<(), ProgramLoaderError> {
         for (index, builtin) in builtins.iter().enumerate() {
             let builtin_felt = builtin_to_felt(builtin)?;
-            self.vm
-                .insert_value((builtin_list_ptr + index)?, builtin_felt)?;
+            self.vm.insert_value((builtin_list_ptr + index)?, builtin_felt)?;
         }
 
         Ok(())
@@ -104,8 +104,7 @@ impl<'vm> ProgramLoader<'vm> {
         let bootloader_version = bootloader_version.unwrap_or(0);
 
         self.vm.insert_value(data_length_ptr, data_length)?;
-        self.vm
-            .insert_value(bootloader_version_ptr, Felt252::from(bootloader_version))?;
+        self.vm.insert_value(bootloader_version_ptr, Felt252::from(bootloader_version))?;
         self.vm.insert_value(program_main_ptr, program_main)?;
         self.vm.insert_value(n_builtins_ptr, n_builtins)?;
 
@@ -144,7 +143,8 @@ impl<'vm> ProgramLoader<'vm> {
     /// * `program`: The program to load.
     /// * `bootloader_version`: The bootloader version. Defaults to 0.
     ///
-    /// Returns the address where the code of the program is loaded and the program size.
+    /// Returns the address where the code of the program is loaded and the
+    /// program size.
     pub fn load_program(
         &mut self,
         base_address: Relocatable,

@@ -15,16 +15,19 @@ pub enum BootloaderTaskError {
     Pie(#[from] std::io::Error),
 }
 
-/// Creates a `TaskSpec` for a program task by loading a program from a specified file path.
+/// Creates a `TaskSpec` for a program task by loading a program from a
+/// specified file path.
 ///
 /// # Arguments
 /// - `program_path`: A reference to a `Path` where the program file is located.
 /// - `use_poseidon`: A boolean indicating if Poseidon hashing should be used.
 ///
 /// # Returns
-/// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded program task and the Poseidon option.
-/// - `Err(BootloaderTaskError)`: On failure, returns a `BootloaderTaskError::Program` if there's an issue
-///    with loading the program file.
+/// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded program
+///   task and the Poseidon option.
+/// - `Err(BootloaderTaskError)`: On failure, returns a
+///   `BootloaderTaskError::Program` if there's an issue with loading the
+///   program file.
 pub fn create_program_task_spec(
     program_path: &Path,
     use_poseidon: bool,
@@ -44,9 +47,11 @@ pub fn create_program_task_spec(
 /// - `use_poseidon`: A boolean indicating if Poseidon hashing should be used.
 ///
 /// # Returns
-/// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded Cairo PIE task and the Poseidon option.
-/// - `Err(BootloaderTaskError)`: On failure, returns a `BootloaderTaskError::Pie` if there's an issue
-///    with reading the Cairo PIE file.
+/// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded Cairo PIE
+///   task and the Poseidon option.
+/// - `Err(BootloaderTaskError)`: On failure, returns a
+///   `BootloaderTaskError::Pie` if there's an issue with reading the Cairo PIE
+///   file.
 pub fn create_pie_task_spec(
     pie_path: &Path,
     use_poseidon: bool,

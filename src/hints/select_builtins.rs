@@ -22,12 +22,9 @@ pub fn select_builtins_enter_scope(
 ) -> Result<(), HintError> {
     let n_selected_builtins =
         get_integer_from_var_name(vars::N_SELECTED_BUILTINS, vm, ids_data, ap_tracking)?;
-    let n_selected_builtins =
-        n_selected_builtins
-            .to_usize()
-            .ok_or(MathError::Felt252ToUsizeConversion(Box::new(
-                n_selected_builtins,
-            )))?;
+    let n_selected_builtins = n_selected_builtins.to_usize().ok_or(
+        MathError::Felt252ToUsizeConversion(Box::new(n_selected_builtins)),
+    )?;
 
     exec_scopes.enter_scope(HashMap::from([(
         vars::N_SELECTED_BUILTINS.to_string(),

@@ -36,12 +36,12 @@ use crate::hints::simple_bootloader_hints::{
 };
 
 /// A hint processor that can only execute the hints defined in this library.
-/// For large projects, you may want to compose a hint processor from multiple parts
-/// (ex: Starknet OS, bootloader and Cairo VM). This hint processor is as minimal as possible
-/// to enable this modularity.
+/// For large projects, you may want to compose a hint processor from multiple
+/// parts (ex: Starknet OS, bootloader and Cairo VM). This hint processor is as
+/// minimal as possible to enable this modularity.
 ///
-/// However, this processor is not sufficient to execute the bootloader. For this,
-/// use `StandaloneBootloaderHintProcessor`.
+/// However, this processor is not sufficient to execute the bootloader. For
+/// this, use `StandaloneBootloaderHintProcessor`.
 #[derive(Default)]
 pub struct MinimalBootloaderHintProcessor;
 
@@ -59,9 +59,8 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
         hint_data: &Box<dyn Any>,
         _constants: &HashMap<String, Felt252>,
     ) -> Result<(), HintError> {
-        let hint_data = hint_data
-            .downcast_ref::<HintProcessorData>()
-            .ok_or(HintError::WrongHintData)?;
+        let hint_data =
+            hint_data.downcast_ref::<HintProcessorData>().ok_or(HintError::WrongHintData)?;
 
         let ids_data = &hint_data.ids_data;
         let ap_tracking = &hint_data.ap_tracking;
@@ -147,10 +146,11 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
 
 impl ResourceTracker for MinimalBootloaderHintProcessor {}
 
-/// A hint processor for use cases where we only care about the bootloader hints.
+/// A hint processor for use cases where we only care about the bootloader
+/// hints.
 ///
-/// When executing a hint, this hint processor will first check the hints defined in this library,
-/// then the ones defined in Cairo VM.
+/// When executing a hint, this hint processor will first check the hints
+/// defined in this library, then the ones defined in Cairo VM.
 pub struct BootloaderHintProcessor {
     bootloader_hint_processor: MinimalBootloaderHintProcessor,
     builtin_hint_processor: BuiltinHintProcessor,
@@ -171,9 +171,7 @@ impl BootloaderHintProcessor {
     }
 
     pub fn add_hint(&mut self, hint_code: String, hint_func: Rc<HintFunc>) {
-        self.builtin_hint_processor
-            .extra_hints
-            .insert(hint_code, hint_func);
+        self.builtin_hint_processor.extra_hints.insert(hint_code, hint_func);
     }
 }
 
@@ -185,7 +183,8 @@ impl HintProcessorLogic for BootloaderHintProcessor {
         hint_data: &Box<dyn Any>,
         _constants: &HashMap<String, Felt>,
     ) -> Result<(), HintError> {
-        // This method will never be called, but must be defined for `HintProcessorLogic`.
+        // This method will never be called, but must be defined for
+        // `HintProcessorLogic`.
 
         let hint_data = hint_data.downcast_ref::<HintProcessorData>().unwrap();
         let hint_code = &hint_data.code;
@@ -199,7 +198,8 @@ impl HintProcessorLogic for BootloaderHintProcessor {
         hint_data: &Box<dyn Any>,
         constants: &HashMap<String, Felt>,
     ) -> Result<HintExtension, HintError> {
-        // Cascade through the internal hint processors until we find the hint implementation.
+        // Cascade through the internal hint processors until we find the hint
+        // implementation.
 
         match self.bootloader_hint_processor.execute_hint_extensive(
             vm,
@@ -213,8 +213,7 @@ impl HintProcessorLogic for BootloaderHintProcessor {
             }
         }
 
-        self.builtin_hint_processor
-            .execute_hint_extensive(vm, exec_scopes, hint_data, constants)
+        self.builtin_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data, constants)
     }
 }
 

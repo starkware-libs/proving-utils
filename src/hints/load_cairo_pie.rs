@@ -74,8 +74,9 @@ impl From<CairoPieLoaderError> for HintError {
 /// Keeps track of relocations for different segments.
 ///
 /// Each entry in `relocations` maps a segment index from the PIE to
-/// a pointer in the VM memory, or to an integer in case the segment is uninitialized.
-/// Those will be wrapped by the appropriate `MaybeRelocatable` variant.
+/// a pointer in the VM memory, or to an integer in case the segment is
+/// uninitialized. Those will be wrapped by the appropriate `MaybeRelocatable`
+/// variant.
 pub struct RelocationTable {
     relocations: HashMap<isize, MaybeRelocatable>,
 }
@@ -109,14 +110,12 @@ impl RelocationTable {
 
     /// Relocates a pointer.
     ///
-    /// Considering a relocatable (i, o), if a relocation table entry i -> (i*, o*) exists,
-    /// returns (i*, o + o*).
+    /// Considering a relocatable (i, o), if a relocation table entry i -> (i*,
+    /// o*) exists, returns (i*, o + o*).
     /// Returns `MemoryError::Relocation` if there is no matching relocation.
     pub fn relocate_address(&self, address: Relocatable) -> Result<MaybeRelocatable, MemoryError> {
-        let new_base = self
-            .relocations
-            .get(&address.segment_index)
-            .ok_or(MemoryError::Relocation)?;
+        let new_base =
+            self.relocations.get(&address.segment_index).ok_or(MemoryError::Relocation)?;
 
         match new_base {
             MaybeRelocatable::Int(_) => Ok(new_base.clone()),
@@ -129,8 +128,8 @@ impl RelocationTable {
 
     /// Relocates any value.
     ///
-    /// Returns the value directly if it is an integer, otherwise returns the relocated address
-    /// using `relocate_address`.
+    /// Returns the value directly if it is an integer, otherwise returns the
+    /// relocated address using `relocate_address`.
     pub fn relocate_value(&self, value: MaybeRelocatable) -> Result<MaybeRelocatable, MemoryError> {
         match value {
             MaybeRelocatable::Int(_) => Ok(value),
@@ -252,8 +251,9 @@ fn extend_additional_data(
 }
 
 /// Relocate builtin additional data.
-/// This should occur before the memory relocation, since the signature builtin assumes that a
-/// signature is added before the corresponding public key and message are both written to memory.
+/// This should occur before the memory relocation, since the signature builtin
+/// assumes that a signature is added before the corresponding public key and
+/// message are both written to memory.
 fn relocate_builtin_additional_data(
     cairo_pie: &CairoPie,
     vm: &mut VirtualMachine,
@@ -266,9 +266,8 @@ fn relocate_builtin_additional_data(
         _ => return Ok(()),
     };
 
-    let ecdsa_builtin = vm
-        .get_signature_builtin()
-        .map_err(|_| SignatureRelocationError::EcdsaBuiltinNotFound)?;
+    let ecdsa_builtin =
+        vm.get_signature_builtin().map_err(|_| SignatureRelocationError::EcdsaBuiltinNotFound)?;
 
     extend_additional_data(ecdsa_builtin, ecdsa_additional_data, relocation_table)?;
 
@@ -299,8 +298,8 @@ fn relocate_cairo_pie_memory(
 
 /// Load memory entries of the inner program.
 ///
-/// Relocates (copies) the memory of the PIE to segments allocated for the current task.
-/// This replaces executing hints in a non-trusted program.
+/// Relocates (copies) the memory of the PIE to segments allocated for the
+/// current task. This replaces executing hints in a non-trusted program.
 pub(crate) fn load_cairo_pie(
     cairo_pie: &CairoPie,
     vm: &mut VirtualMachine,

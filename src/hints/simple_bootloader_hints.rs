@@ -25,7 +25,8 @@ use crate::hints::vars;
 ///
 /// # Task range checks are located right after simple bootloader validation range checks, and
 /// # this is validated later in this function.
-/// ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks
+/// ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE *
+/// n_tasks
 ///
 /// # A list of fact_toplogies that instruct how to generate the fact from the program output
 /// # for each task.
@@ -45,8 +46,9 @@ pub fn prepare_task_range_checks(
     let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
     vm.insert_value(output_ptr, Felt252::from(n_tasks))?;
 
-    // ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks
-    // BuiltinData is a struct with n_builtins members defined in execute_task.cairo.
+    // ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE *
+    // n_tasks BuiltinData is a struct with n_builtins members defined in
+    // execute_task.cairo.
     const BUILTIN_DATA_SIZE: usize = ALL_BUILTINS.len();
     let range_check_ptr = get_ptr_from_var_name("range_check_ptr", vm, ids_data, ap_tracking)?;
     let task_range_check_ptr = (range_check_ptr + BUILTIN_DATA_SIZE * n_tasks)?;
@@ -92,7 +94,8 @@ pub fn divide_num_by_2(
     Ok(())
 }
 
-/// Implements %{ 0 %} (compiled to %{ memory[ap] = to_felt_or_relocatable(0) %}).
+/// Implements %{ 0 %} (compiled to %{ memory[ap] = to_felt_or_relocatable(0)
+/// %}).
 ///
 /// Stores 0 in the AP and returns.
 /// Used as `tempvar use_poseidon = nondet %{ 0 %}`.
@@ -230,7 +233,8 @@ mod tests {
             .unwrap();
         assert_eq!(output, simple_bootloader_input.tasks.len());
 
-        // Assert task_range_check_ptr == range_check_ptr (2, 2) + BUILTIN_DATA_SIZE (8) * n_tasks (2)
+        // Assert task_range_check_ptr == range_check_ptr (2, 2) + BUILTIN_DATA_SIZE (8)
+        // * n_tasks (2)
         assert_eq!(
             task_range_check_ptr,
             Relocatable {
@@ -239,9 +243,8 @@ mod tests {
             }
         );
 
-        let fact_topologies: Vec<FactTopology> = exec_scopes
-            .get(vars::FACT_TOPOLOGIES)
-            .expect("Fact topologies missing from scope");
+        let fact_topologies: Vec<FactTopology> =
+            exec_scopes.get(vars::FACT_TOPOLOGIES).expect("Fact topologies missing from scope");
         assert!(fact_topologies.is_empty());
     }
 
@@ -254,9 +257,7 @@ mod tests {
 
         set_tasks_variable(&mut exec_scopes).expect("Hint failed unexpectedly");
 
-        let tasks: Vec<TaskSpec> = exec_scopes
-            .get(vars::TASKS)
-            .expect("Tasks variable is not set");
+        let tasks: Vec<TaskSpec> = exec_scopes.get(vars::TASKS).expect("Tasks variable is not set");
         assert_eq!(tasks, bootloader_tasks);
     }
 
@@ -279,11 +280,7 @@ mod tests {
 
         divide_num_by_2(&mut vm, &ids_data, &ap_tracking).expect("Hint failed unexpectedly");
 
-        let divided_num = vm
-            .segments
-            .memory
-            .get_integer(vm.run_context.get_ap())
-            .unwrap();
+        let divided_num = vm.segments.memory.get_integer(vm.run_context.get_ap()).unwrap();
         assert_eq!(divided_num.into_owned(), expected_num_felt);
     }
 
@@ -294,12 +291,8 @@ mod tests {
 
         set_ap_to_zero(&mut vm).expect("Hint failed unexpectedly");
 
-        let ap_value = vm
-            .segments
-            .memory
-            .get_integer(vm.run_context.get_ap())
-            .unwrap()
-            .into_owned();
+        let ap_value =
+            vm.segments.memory.get_integer(vm.run_context.get_ap()).unwrap().into_owned();
 
         assert_eq!(ap_value, Felt252::from(0));
     }
@@ -321,8 +314,6 @@ mod tests {
             .expect("Hint failed unexpectedly");
 
         // Check that `task` is set
-        let _task: Task = exec_scopes
-            .get(vars::TASK)
-            .expect("task variable is not set.");
+        let _task: Task = exec_scopes.get(vars::TASK).expect("task variable is not set.");
     }
 }

@@ -157,8 +157,8 @@ pub fn compute_fact_topologies<'a>(
 ///     offset = 0
 ///     for i, page_size in enumerate(fact_topology.page_sizes):
 ///         output_builtin.add_page(
-///             page_id=cur_page_id + i, page_start=output_start + offset, page_size=page_size
-///         )
+///             page_id=cur_page_id + i, page_start=output_start + offset,
+/// page_size=page_size         )
 ///         offset += page_size
 ///
 ///     return len(fact_topology.page_sizes)
@@ -180,8 +180,8 @@ fn add_consecutive_output_pages(
     Ok(fact_topology.page_sizes.len())
 }
 
-/// Given the fact_topologies of the tasks that were run by bootloader, configure the
-/// corresponding pages in the output builtin.
+/// Given the fact_topologies of the tasks that were run by bootloader,
+/// configure the corresponding pages in the output builtin.
 ///
 /// Assumes that the bootloader output 2 words per task.
 ///
@@ -207,8 +207,8 @@ pub fn configure_fact_topologies<FT: AsRef<FactTopology>>(
     output_start: &mut Relocatable,
     output_builtin: &mut OutputBuiltinRunner,
 ) -> Result<(), FactTopologyError> {
-    // Each task may use a few memory pages. Start from page 1 (as page 0 is reserved for the
-    // bootloader program and arguments).
+    // Each task may use a few memory pages. Start from page 1 (as page 0 is
+    // reserved for the bootloader program and arguments).
     let mut current_page_id: usize = 1;
     for fact_topology in plain_fact_topologies {
         // Skip bootloader output for each task
@@ -244,15 +244,16 @@ fn check_tree_structure(tree_structure: &[usize]) -> Result<(), TreeStructureErr
 
 const GPS_FACT_TOPOLOGY: &str = "gps_fact_topology";
 
-/// Extracts the tree structure from the output data attributes, or returns a default.
+/// Extracts the tree structure from the output data attributes, or returns a
+/// default.
 fn get_tree_structure_from_output_data(
     output_builtin_additional_data: &OutputBuiltinAdditionalData,
 ) -> Result<Vec<usize>, TreeStructureError> {
     let pages = &output_builtin_additional_data.pages;
     let attributes = &output_builtin_additional_data.attributes;
 
-    // If the GPS_FACT_TOPOLOGY attribute is present, use it. Otherwise, the task is expected to
-    // use exactly one page (page 0).
+    // If the GPS_FACT_TOPOLOGY attribute is present, use it. Otherwise, the task is
+    // expected to use exactly one page (page 0).
     let tree_structure = match attributes.get(GPS_FACT_TOPOLOGY) {
         Some(tree_structure_attr) => {
             check_tree_structure(tree_structure_attr)?;
@@ -278,8 +279,8 @@ fn get_page_sizes_from_pages(output_size: usize, pages: &Pages) -> Result<Vec<us
     let mut expected_page_id: usize = 1;
     // We don't expect anything on its start value.
     let mut expected_page_start: usize = 0;
-    // The size of page 0 is output_size if there are no other pages, or the start of page 1
-    // otherwise.
+    // The size of page 0 is output_size if there are no other pages, or the start
+    // of page 1 otherwise.
     let mut page0_size = output_size;
 
     let mut page_sizes: Vec<usize> = vec![0; pages.len() + 1];
@@ -369,18 +370,14 @@ pub fn get_task_fact_topology(
     match task {
         Task::Program(_program) => {
             let output_runner_data = output_runner_data.ok_or(FactTopologyError::Internal(
-                "Output runner data not set for program task"
-                    .to_string()
-                    .into_boxed_str(),
+                "Output runner data not set for program task".to_string().into_boxed_str(),
             ))?;
             get_program_task_fact_topology(output_size, output_builtin, output_runner_data)
         }
         Task::Pie(cairo_pie) => {
             if output_runner_data.is_some() {
                 return Err(FactTopologyError::Internal(
-                    "Output runner data set for Cairo PIE task"
-                        .to_string()
-                        .into_boxed_str(),
+                    "Output runner data set for Cairo PIE task".to_string().into_boxed_str(),
                 ));
             }
             let additional_data = {
@@ -519,9 +516,27 @@ mod tests {
         assert_eq!(
             output_builtin_state.pages,
             HashMap::from([
-                (1, PublicMemoryPage { start: 10, size: 1 }),
-                (2, PublicMemoryPage { start: 11, size: 2 }),
-                (3, PublicMemoryPage { start: 13, size: 1 })
+                (
+                    1,
+                    PublicMemoryPage {
+                        start: 10,
+                        size: 1
+                    }
+                ),
+                (
+                    2,
+                    PublicMemoryPage {
+                        start: 11,
+                        size: 2
+                    }
+                ),
+                (
+                    3,
+                    PublicMemoryPage {
+                        start: 13,
+                        size: 1
+                    }
+                )
             ])
         );
     }
@@ -550,10 +565,34 @@ mod tests {
         assert_eq!(
             output_builtin_state.pages,
             HashMap::from([
-                (1, PublicMemoryPage { start: 12, size: 1 }),
-                (2, PublicMemoryPage { start: 15, size: 1 }),
-                (3, PublicMemoryPage { start: 16, size: 2 }),
-                (4, PublicMemoryPage { start: 20, size: 3 })
+                (
+                    1,
+                    PublicMemoryPage {
+                        start: 12,
+                        size: 1
+                    }
+                ),
+                (
+                    2,
+                    PublicMemoryPage {
+                        start: 15,
+                        size: 1
+                    }
+                ),
+                (
+                    3,
+                    PublicMemoryPage {
+                        start: 16,
+                        size: 2
+                    }
+                ),
+                (
+                    4,
+                    PublicMemoryPage {
+                        start: 20,
+                        size: 3
+                    }
+                )
             ])
         );
     }
@@ -607,7 +646,13 @@ mod tests {
     #[test]
     fn test_get_tree_structure_default_with_pages() {
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::from([(1, PublicMemoryPage { start: 0, size: 10 })]),
+            pages: HashMap::from([(
+                1,
+                PublicMemoryPage {
+                    start: 0,
+                    size: 10,
+                },
+            )]),
             attributes: HashMap::new(),
         };
 
@@ -622,8 +667,20 @@ mod tests {
     fn test_get_page_sizes_from_pages() {
         let output_size = 10usize;
         let pages = HashMap::from([
-            (1, PublicMemoryPage { start: 0, size: 7 }),
-            (2, PublicMemoryPage { start: 7, size: 3 }),
+            (
+                1,
+                PublicMemoryPage {
+                    start: 0,
+                    size: 7,
+                },
+            ),
+            (
+                2,
+                PublicMemoryPage {
+                    start: 7,
+                    size: 3,
+                },
+            ),
         ]);
 
         let page_sizes =
@@ -643,8 +700,20 @@ mod tests {
     fn test_get_page_sizes_unexpected_page_id() {
         let output_size = 10usize;
         let pages = HashMap::from([
-            (1, PublicMemoryPage { start: 0, size: 7 }),
-            (3, PublicMemoryPage { start: 7, size: 3 }),
+            (
+                1,
+                PublicMemoryPage {
+                    start: 0,
+                    size: 7,
+                },
+            ),
+            (
+                3,
+                PublicMemoryPage {
+                    start: 7,
+                    size: 3,
+                },
+            ),
         ]);
 
         let result = get_page_sizes_from_pages(output_size, &pages);
@@ -655,8 +724,20 @@ mod tests {
     fn test_get_page_sizes_invalid_page_start() {
         let output_size = 10usize;
         let pages = HashMap::from([
-            (1, PublicMemoryPage { start: 12, size: 7 }),
-            (2, PublicMemoryPage { start: 19, size: 3 }),
+            (
+                1,
+                PublicMemoryPage {
+                    start: 12,
+                    size: 7,
+                },
+            ),
+            (
+                2,
+                PublicMemoryPage {
+                    start: 19,
+                    size: 3,
+                },
+            ),
         ]);
 
         let result = get_page_sizes_from_pages(output_size, &pages);
@@ -667,8 +748,20 @@ mod tests {
     fn test_get_page_sizes_unexpected_page_start() {
         let output_size = 10usize;
         let pages = HashMap::from([
-            (1, PublicMemoryPage { start: 0, size: 7 }),
-            (2, PublicMemoryPage { start: 8, size: 3 }),
+            (
+                1,
+                PublicMemoryPage {
+                    start: 0,
+                    size: 7,
+                },
+            ),
+            (
+                2,
+                PublicMemoryPage {
+                    start: 8,
+                    size: 3,
+                },
+            ),
         ]);
 
         let result = get_page_sizes_from_pages(output_size, &pages);
@@ -679,8 +772,20 @@ mod tests {
     fn test_get_page_sizes_output_not_fully_covered() {
         let output_size = 10usize;
         let pages = HashMap::from([
-            (1, PublicMemoryPage { start: 0, size: 7 }),
-            (2, PublicMemoryPage { start: 7, size: 2 }),
+            (
+                1,
+                PublicMemoryPage {
+                    start: 0,
+                    size: 7,
+                },
+            ),
+            (
+                2,
+                PublicMemoryPage {
+                    start: 7,
+                    size: 2,
+                },
+            ),
         ]);
 
         let result = get_page_sizes_from_pages(output_size, &pages);
