@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let program_name = simple_bootloader_compiled_path
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or_default();
+        .unwrap();
 
     let mut runner = cairo_run_program(
         &simple_bootloader_program,

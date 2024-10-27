@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .compiled_program_path
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or_default();
+        .unwrap();
 
     let program_input_contents = std::fs::read_to_string(&args.program_input)?;
 

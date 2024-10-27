@@ -58,7 +58,7 @@ impl Task {
 }
 
 // For now will support only CairoPiePath tasks and RunProgramTask task without program_input.
-// In the future, we may want to support for RunProgramTask with program_input.
+// In the future, we may want to add support for RunProgramTask with program_input.
 #[derive(Deserialize)]
 struct TaskSpecHelper {
     #[serde(rename = "type")]
@@ -81,7 +81,8 @@ impl<'de> Deserialize<'de> for TaskSpec {
     /// - `deserializer`: The deserializer used to parse the JSON into a `TaskSpec`.
     ///
     /// # Returns
-    /// - `Ok(TaskSpec)`: If successful, returns a `TaskSpec` with the appropriate task and Poseidon option.
+    /// - `Ok(TaskSpec)`: If successful, returns a `TaskSpec` with the appropriate task and Poseidon
+    ///   option.
     /// - `Err(D::Error)`: If deserialization fails or the task type is unsupported.
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

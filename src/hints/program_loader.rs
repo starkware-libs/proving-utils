@@ -129,8 +129,8 @@ impl<'vm> ProgramLoader<'vm> {
     /// Loads a Cairo program in the VM memory.
     ///
     /// Programs are loaded in two parts:
-    /// 1. The program header contains metadata (ex: entrypoint, program size,
-    ///    builtins used by the program).
+    /// 1. The program header contains metadata (ex: entrypoint, program size, builtins used by the
+    ///    program).
     /// 2. The program itself.
     ///
     /// Starting from `base_address`, the header contains the following fields:
