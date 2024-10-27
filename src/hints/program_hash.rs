@@ -30,14 +30,15 @@ pub enum ProgramHashError {
     #[error("Conversion from Felt252 to FieldElement failed")]
     Felt252ToFieldElementConversionFailed,
 }
+/*
+ Computes a hash chain over the data, in the following order:
+     h(data[0], h(data[1], h(..., h(data[n-2], data[n-1])))).
 
-/// Computes a hash chain over the data, in the following order:
-///     h(data[0], h(data[1], h(..., h(data[n-2], data[n-1])))).
-///
-/// Reimplements this Python function:
-/// def compute_hash_chain(data, hash_func=pedersen_hash):
-///     assert len(data) >= 1, f"len(data) for hash chain computation must be >= 1; got: {len(data)}."
-///     return functools.reduce(lambda x, y: hash_func(y, x), data[::-1])
+ Reimplements this Python function:
+ def compute_hash_chain(data, hash_func=pedersen_hash):
+     assert len(data) >= 1, f"len(data) for hash chain computation must be >= 1; got: {len(data)}."
+     return functools.reduce(lambda x, y: hash_func(y, x), data[::-1])
+*/
 fn compute_hash_chain<'a, I>(
     data: I,
     hash_func: HashFunction,
@@ -90,7 +91,8 @@ fn maybe_relocatable_to_field_element(
 /// Reimplements this Python function:
 /// def compute_program_hash_chain(program: ProgramBase, bootloader_version=0):
 ///     builtin_list = [from_bytes(builtin.encode("ascii")) for builtin in program.builtins]
-///     # The program header below is missing the data length, which is later added to the data_chain.
+///     # The program header below is missing the data length, which is later added to the
+///     # data_chain.
 ///     program_header = [bootloader_version, program.main, len(program.builtins)] + builtin_list
 ///     data_chain = program_header + program.data
 ///  
