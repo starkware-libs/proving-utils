@@ -425,7 +425,8 @@ pub fn call_task(
         Task::Pie(cairo_pie) => {
             let program_address: Relocatable = exec_scopes.get("program_address")?;
 
-            // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ + pc
+            // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ +
+            // pc
             let bootloader_identifiers = get_bootloader_program(exec_scopes)?;
             let ret_pc_label = get_identifier(&bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
             let call_task = get_identifier(
