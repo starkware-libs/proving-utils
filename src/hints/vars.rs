@@ -13,6 +13,9 @@ pub const OUTPUT_START: &str = "output_start";
 /// Deserialized simple bootloader input.
 pub const SIMPLE_BOOTLOADER_INPUT: &str = "simple_bootloader_input";
 
+/// Deserialized input proof for Cairo verifier.
+pub const VERIFIER_PROOF_INPUT: &str = "verifier_proof_input";
+
 /// Packed outputs.
 pub const PACKED_OUTPUTS: &str = "packed_outputs";
 

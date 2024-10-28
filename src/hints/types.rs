@@ -130,3 +130,8 @@ pub struct BootloaderInput {
     pub bootloader_config: BootloaderConfig,
     pub packed_outputs: Vec<PackedOutput>,
 }
+
+#[derive(Deserialize, Debug)]
+pub struct CairoVerifierInput {
+    pub proof: HashMap<String, serde_json::Value>,
+}
