@@ -113,11 +113,9 @@ pub fn cairo_run_program(
         );
         return Err(CairoRunError::Program(ProgramError::IO(io_error)));
     } else if program_name.contains("cairo_verifier") {
-        let io_error = io::Error::new(
-            ErrorKind::Other,
-            format!("Unimplemented program variant: {}", program_name),
-        );
-        return Err(CairoRunError::Program(ProgramError::IO(io_error)));
+        let cairo_verifier_input: CairoVerifierInput =
+            serde_json::from_str(&program_input_contents).unwrap();
+        exec_scopes.insert_value(VERIFIER_PROOF_INPUT, cairo_verifier_input.proof.clone());
     } else {
         let io_error = io::Error::new(
             ErrorKind::Other,
