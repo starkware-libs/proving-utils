@@ -99,7 +99,6 @@ pub fn cairo_run_program(
         // Note: the method used to set the bootloader input depends on
         // https://github.com/lambdaclass/cairo-vm/pull/1772 and may change depending on review.
         exec_scopes.insert_value(SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
-        exec_scopes.insert_value(BOOTLOADER_PROGRAM_IDENTIFIERS, program.clone());
     } else if program_name.contains("applicative_bootloader") {
         let io_error = io::Error::new(
             ErrorKind::Other,
@@ -124,6 +123,8 @@ pub fn cairo_run_program(
         return Err(CairoRunError::Program(ProgramError::IO(io_error)));
     }
 
+    // Insert the program object into the execution scopes
+    exec_scopes.insert_value(PROGRAM_OBJECT, program.clone());
     // Run the program with the configured execution scopes and cairo_run_config
     cairo_run_program_with_initial_scope(
         program,
