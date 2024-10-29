@@ -34,6 +34,7 @@ use crate::hints::simple_bootloader_hints::{
     divide_num_by_2, prepare_task_range_checks, set_ap_to_zero, set_current_task,
     set_tasks_variable,
 };
+use crate::hints::verifier_hints::load_and_parse_proof;
 
 /// A hint processor that can only execute the hints defined in this library.
 /// For large projects, you may want to compose a hint processor from multiple parts
@@ -138,6 +139,7 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             INNER_SELECT_BUILTINS_SELECT_BUILTIN => {
                 select_builtin(vm, exec_scopes, ids_data, ap_tracking)
             }
+            VERIFIER_LOAD_AND_PARSE_PROOF => load_and_parse_proof(exec_scopes),
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
@@ -212,7 +214,6 @@ impl HintProcessorLogic for BootloaderHintProcessor {
                 return result;
             }
         }
-
         self.builtin_hint_processor
             .execute_hint_extensive(vm, exec_scopes, hint_data, constants)
     }

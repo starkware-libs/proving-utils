@@ -6,10 +6,9 @@ use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     insert_value_from_var_name, insert_value_into_ap,
 };
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
-use cairo_vm::serde::deserialize_program::{ApTracking, Identifier};
+use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::exec_scope::ExecutionScopes;
-use cairo_vm::types::program::Program;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
@@ -23,8 +22,10 @@ use crate::hints::fact_topologies::{get_task_fact_topology, FactTopology};
 use crate::hints::load_cairo_pie::load_cairo_pie;
 use crate::hints::program_hash::compute_program_hash_chain;
 use crate::hints::program_loader::ProgramLoader;
-use crate::hints::types::{BootloaderVersion, ProgramIdentifiers, Task};
+use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
+
+use super::utils::{get_identifier, get_program_identifies};
 
 fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
@@ -220,7 +221,7 @@ fn check_cairo_pie_builtin_usage(
 
 /// Writes the updated builtin pointers after the program execution to the given return builtins
 /// address.
-///     
+///
 /// `used_builtins` is the list of builtins used by the program and thus updated by it.
 fn write_return_builtins(
     vm: &mut VirtualMachine,
@@ -326,36 +327,6 @@ pub fn write_return_builtins_hint(
     Ok(())
 }
 
-fn get_bootloader_program(exec_scopes: &ExecutionScopes) -> Result<ProgramIdentifiers, HintError> {
-    if let Ok(program) = exec_scopes.get::<Program>(vars::BOOTLOADER_PROGRAM_IDENTIFIERS) {
-        return Ok(program
-            .iter_identifiers()
-            .map(|(k, v)| (k.to_string(), v.clone()))
-            .collect());
-    }
-
-    Err(HintError::VariableNotInScopeError(
-        vars::BOOTLOADER_PROGRAM_IDENTIFIERS
-            .to_string()
-            .into_boxed_str(),
-    ))
-}
-
-fn get_identifier(
-    identifiers: &HashMap<String, Identifier>,
-    name: &str,
-) -> Result<usize, HintError> {
-    if let Some(identifier) = identifiers.get(name) {
-        if let Some(pc) = identifier.pc {
-            return Ok(pc);
-        }
-    }
-
-    Err(HintError::VariableNotInScopeError(
-        name.to_string().into_boxed_str(),
-    ))
-}
-
 /*
 Implements hint:
 %{
@@ -427,7 +398,7 @@ pub fn call_task(
 
             // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ +
             // pc
-            let bootloader_identifiers = get_bootloader_program(exec_scopes)?;
+            let bootloader_identifiers = get_program_identifies(exec_scopes)?;
             let ret_pc_label = get_identifier(&bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
             let call_task = get_identifier(
                 &bootloader_identifiers,
@@ -789,7 +760,7 @@ mod tests {
         );
         let bootloader_program = mock_program_with_identifiers(bootloader_identifiers);
         exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
-        exec_scopes.insert_value(vars::BOOTLOADER_PROGRAM_IDENTIFIERS, bootloader_program);
+        exec_scopes.insert_value(vars::PROGRAM_OBJECT, bootloader_program);
 
         // Load the program in memory
         load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
