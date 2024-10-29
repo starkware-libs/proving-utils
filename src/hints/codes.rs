@@ -248,3 +248,9 @@ ids.select_builtin = int(
   n_selected_builtins > 0 and memory[ids.selected_encodings] == memory[ids.all_encodings])
 if ids.select_builtin:
   n_selected_builtins = n_selected_builtins - 1";
+
+pub const VERIFIER_LOAD_AND_PARSE_PROOF: &str =
+    "from starkware.cairo.stark_verifier.air.parser import parse_proof
+ids.proof = segments.gen_arg(parse_proof(
+    identifiers=ids._context.identifiers,
+    proof_json=program_input[\"proof\"]))";
