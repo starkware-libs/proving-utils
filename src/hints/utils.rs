@@ -6,7 +6,12 @@ use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::program::Program;
 use cairo_vm::vm::errors::hint_errors::HintError;
 
-use super::vars;
+#[macro_export]
+macro_rules! maybe_relocatable_box {
+    ($val:expr) => {
+        Box::new(MaybeRelocatable::from($val)) as Box<dyn Any>
+    };
+}
 
 /// Retrieves program identifiers from the execution scopes.
 ///
@@ -24,8 +29,9 @@ use super::vars;
 ///   `exec_scopes`.
 pub fn get_program_identifies(
     exec_scopes: &ExecutionScopes,
+    program: &str,
 ) -> Result<ProgramIdentifiers, HintError> {
-    if let Ok(program) = exec_scopes.get::<Program>(vars::PROGRAM_OBJECT) {
+    if let Ok(program) = exec_scopes.get::<Program>(program) {
         return Ok(program
             .iter_identifiers()
             .map(|(k, v)| (k.to_string(), v.clone()))
@@ -33,7 +39,7 @@ pub fn get_program_identifies(
     }
 
     Err(HintError::VariableNotInScopeError(
-        vars::PROGRAM_OBJECT.to_string().into_boxed_str(),
+        program.to_string().into_boxed_str(),
     ))
 }
 
