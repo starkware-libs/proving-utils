@@ -1,8 +1,8 @@
 /// Deserialized bootloader input.
 pub const BOOTLOADER_INPUT: &str = "bootloader_input";
 
-/// The bootloader program, as a Program object.
-pub const BOOTLOADER_PROGRAM_IDENTIFIERS: &str = "bootloader_program";
+/// The program, as a Program object.
+pub const PROGRAM_OBJECT: &str = "program_object";
 
 /// Saved state of the output builtin.
 pub const OUTPUT_BUILTIN_STATE: &str = "output_builtin_state";
@@ -12,6 +12,9 @@ pub const OUTPUT_START: &str = "output_start";
 
 /// Deserialized simple bootloader input.
 pub const SIMPLE_BOOTLOADER_INPUT: &str = "simple_bootloader_input";
+
+/// Deserialized input proof for Cairo verifier.
+pub const VERIFIER_PROOF_INPUT: &str = "verifier_proof_input";
 
 /// Packed outputs.
 pub const PACKED_OUTPUTS: &str = "packed_outputs";
