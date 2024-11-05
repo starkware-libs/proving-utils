@@ -1,8 +1,8 @@
 /// Deserialized bootloader input.
 pub const BOOTLOADER_INPUT: &str = "bootloader_input";
 
-/// The bootloader program, as a Program object.
-pub const BOOTLOADER_PROGRAM_IDENTIFIERS: &str = "bootloader_program";
+/// The program, as a Program object.
+pub const PROGRAM_OBJECT: &str = "program_object";
 
 /// Saved state of the output builtin.
 pub const OUTPUT_BUILTIN_STATE: &str = "output_builtin_state";
