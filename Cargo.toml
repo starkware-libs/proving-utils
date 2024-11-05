@@ -23,6 +23,8 @@ starknet-types-core = "0.1.2"
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
+regex = "1.11.1"
+num-bigint = "0.4"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

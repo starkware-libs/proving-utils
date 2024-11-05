@@ -1,17 +1,26 @@
 /// Deserialized bootloader input.
 pub const BOOTLOADER_INPUT: &str = "bootloader_input";
 
-/// The program, as a Program object.
-pub const PROGRAM_OBJECT: &str = "program_object";
+/// The verified program - used in `load_and_parse_proof()`.
+pub const VERIFIER_PROGRAM: &str = "verifier_program";
+
+/// The bootloader program - used in `execute_task()`.
+pub const BOOTLOADER_PROGRAM: &str = "bootloader_program";
 
 /// Saved state of the output builtin.
 pub const OUTPUT_BUILTIN_STATE: &str = "output_builtin_state";
+
+/// Saved state of the output builtin for an applicative bootloader run.
+pub const APPLICATIVE_OUTPUT_BUILTIN_STATE: &str = "applicative_output_builtin_state";
 
 /// Output builtin segment start.
 pub const OUTPUT_START: &str = "output_start";
 
 /// Deserialized simple bootloader input.
 pub const SIMPLE_BOOTLOADER_INPUT: &str = "simple_bootloader_input";
+
+/// Deserialized applicative bootloader input.
+pub const APPLICATIVE_BOOTLOADER_INPUT: &str = "applicative_bootloader_input";
 
 /// Deserialized input proof for Cairo verifier.
 pub const VERIFIER_PROOF_INPUT: &str = "verifier_proof_input";
@@ -24,6 +33,9 @@ pub const PACKED_OUTPUT: &str = "packed_output";
 
 /// Fact topologies.
 pub const FACT_TOPOLOGIES: &str = "fact_topologies";
+
+/// Aggregator fact topologies for an applicative bootloader run.
+pub const AGGREGATOR_FACT_TOPOLOGIES: &str = "aggregator_fact_topologies";
 
 /// Simple bootloader tasks.
 pub const TASKS: &str = "tasks";
@@ -51,3 +63,6 @@ pub const N_SELECTED_BUILTINS: &str = "n_selected_builtins";
 
 /// "pre_execution_builtin_ptrs"
 pub const PRE_EXECUTION_BUILTIN_PTRS: &str = "pre_execution_builtin_ptrs";
+
+// component height const from the py file
+pub const COMPONENT_HEIGHT: u64 = 16;

@@ -1,8 +1,5 @@
 pub const BOOTLOADER_PREPARE_SIMPLE_BOOTLOADER_OUTPUT_SEGMENT: &str =
-    "from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
-bootloader_input = BootloaderInput.Schema().load(program_input)
-
-ids.simple_bootloader_output_start = segments.add()
+    "ids.simple_bootloader_output_start = segments.add()
 
 # Change output builtin state to a different segment in preparation for calling the
 # simple bootloader.
@@ -16,12 +13,17 @@ pub const BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT: &str =
     "from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput
 simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)";
 
+pub const BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT: &str =
+    "from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
+bootloader_input = BootloaderInput.Schema().load(program_input)";
+
 pub const BOOTLOADER_RESTORE_BOOTLOADER_OUTPUT: &str =
     "# Restore the bootloader's output builtin state.
 output_builtin.set_state(output_builtin_state)";
 
 pub const BOOTLOADER_LOAD_BOOTLOADER_CONFIG: &str =
     "from starkware.cairo.bootloaders.bootloader.objects import BootloaderConfig
+
 bootloader_config: BootloaderConfig = bootloader_input.bootloader_config
 
 ids.bootloader_config = segments.gen_arg(
@@ -29,6 +31,7 @@ ids.bootloader_config = segments.gen_arg(
         bootloader_config.simple_bootloader_program_hash,
         len(bootloader_config.supported_cairo_verifier_program_hashes),
         bootloader_config.supported_cairo_verifier_program_hashes,
+        bootloader_config.applicative_bootloader_program_hash,
     ],
 )";
 
@@ -254,3 +257,101 @@ pub const VERIFIER_LOAD_AND_PARSE_PROOF: &str =
 ids.proof = segments.gen_arg(parse_proof(
     identifiers=ids._context.identifiers,
     proof_json=program_input[\"proof\"]))";
+
+pub const VERIFIER_GET_INDEX_LAST_BIT: &str = "ids.bit = ids.current.index & 1";
+
+pub const VERIFIER_DIVIDE_QUERIES_IND_BY_COSET_SIZE_TO_FP_OFFSET: &str =
+    "memory[fp + 1] = to_felt_or_relocatable(ids.queries.index // ids.params.coset_size)";
+
+pub const APPLICATIVE_LOAD_INPUTS: &str =
+    "from starkware.cairo.bootloaders.applicative_bootloader.objects import (
+    ApplicativeBootloaderInput,
+)
+from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput
+
+# Create a segment for the aggregator output.
+ids.aggregator_output_ptr = segments.add()
+
+# Load the applicative bootloader input and the aggregator task.
+applicative_bootloader_input = ApplicativeBootloaderInput.Schema().load(program_input)
+# TODO(Rei, 01/06/2024): aggregator_task gets use_poseidon from outside? Think about this.
+aggregator_task = applicative_bootloader_input.aggregator_task
+
+# Create the simple bootloader input.
+simple_bootloader_input = SimpleBootloaderInput(
+    tasks=[aggregator_task], fact_topologies_path=None, single_page=True
+)
+
+# Change output builtin state to a different segment in preparation for running the
+# aggregator task.
+applicative_output_builtin_state = output_builtin.get_state()
+output_builtin.new_state(base=ids.aggregator_output_ptr)";
+
+pub const APPLICATIVE_SET_UP_UNPACKER_INPUTS: &str =
+    "from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
+
+# Save the aggregator's fact_topologies before running the bootloader.
+aggregator_fact_topologies = fact_topologies
+fact_topologies = []
+
+# Create a segment for the bootloader output.
+ids.bootloader_output_ptr = segments.add()
+
+# Create the bootloader input.
+bootloader_input = BootloaderInput(
+    tasks=applicative_bootloader_input.tasks,
+    fact_topologies_path=None,
+    bootloader_config=applicative_bootloader_input.bootloader_config,
+    packed_outputs=applicative_bootloader_input.packed_outputs,
+    single_page=True,
+)
+
+# Change output builtin state to a different segment in preparation for running the
+# bootloader.
+output_builtin.new_state(base=ids.bootloader_output_ptr)";
+
+pub const APPLICATIVE_RESTORE_OUTPUT_BUILTIN_STATE: &str = "# Restore the output builtin state.
+output_builtin.set_state(applicative_output_builtin_state)";
+
+pub const APPLICATIVE_FINALIZE_FACT_TOPOLOGIES_AND_PAGES: &str =
+    "from starkware.cairo.bootloaders.fact_topology import GPS_FACT_TOPOLOGY, FactTopology
+from starkware.cairo.bootloaders.simple_bootloader.utils import (
+    add_consecutive_output_pages,
+    write_to_fact_topologies_file,
+)
+
+assert len(aggregator_fact_topologies) == 1
+# Subtract the bootloader output length from the first page's length. Note that the
+# bootloader output is always fully contained in the first page.
+original_first_page_length = aggregator_fact_topologies[0].page_sizes[0]
+# The header contains the program hash and bootloader config.
+header_size = 1 + ids.BOOTLOADER_CONFIG_SIZE
+first_page_length = (
+    original_first_page_length - ids.bootloader_tasks_output_length + header_size
+)
+
+# Update the first page's length to account for the removed bootloader output, and the
+# added program hash and bootloader config.
+fact_topology = FactTopology(
+    tree_structure=aggregator_fact_topologies[0].tree_structure,
+    page_sizes=[first_page_length] + aggregator_fact_topologies[0].page_sizes[1:]
+)
+output_builtin.add_attribute(
+    attribute_name=GPS_FACT_TOPOLOGY,
+    attribute_value=aggregator_fact_topologies[0].tree_structure
+)
+
+# Configure the memory pages in the output builtin, based on plain_fact_topologies.
+add_consecutive_output_pages(
+    page_sizes=fact_topology.page_sizes[1:],
+    output_builtin=output_builtin,
+    cur_page_id=1,
+    output_start=ids.output_start + fact_topology.page_sizes[0],
+)
+
+# Dump fact topologies to a json file.
+if applicative_bootloader_input.fact_topologies_path is not None:
+    write_to_fact_topologies_file(
+        fact_topologies_path=applicative_bootloader_input.fact_topologies_path,
+        fact_topologies=[fact_topology],
+    )";

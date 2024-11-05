@@ -1,4 +1,5 @@
 use cairo_vm::types::builtin_name::BuiltinName;
+use cairo_vm::Felt252;
 use std::fs::File;
 use std::path::Path;
 
@@ -10,15 +11,45 @@ use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinSt
 use cairo_vm::vm::runners::cairo_pie::{
     BuiltinAdditionalData, OutputBuiltinAdditionalData, Pages, PublicMemoryPage,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::hints::types::{PackedOutput, Task};
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+const MAX_PAGE_SIZE: usize = 3800;
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 pub struct FactTopology {
-    #[allow(dead_code)]
     pub tree_structure: Vec<usize>,
     pub page_sizes: Vec<usize>,
+}
+
+impl FactTopology {
+    // Constructs a trivial FactTopology with a single page.
+    pub fn trivial(page0_size: usize) -> Self {
+        assert!(
+            page0_size <= MAX_PAGE_SIZE,
+            "Page size exceeded the maximum."
+        );
+        FactTopology {
+            tree_structure: vec![1, 0],
+            page_sizes: vec![page0_size],
+        }
+    }
+
+    // Returns the total size of the output in words (sum of page sizes).
+    pub fn get_output_size(&self) -> usize {
+        self.page_sizes.iter().sum()
+    }
+
+    // Returns the length of the fact tree structure.
+    pub fn get_fact_tree_structure_len(&self) -> usize {
+        self.tree_structure.len()
+    }
+
+    // Returns the number of pages in the fact topology.
+    pub fn get_n_pages(&self) -> usize {
+        self.page_sizes.len()
+    }
 }
 
 #[derive(Serialize)]
@@ -75,6 +106,9 @@ pub enum FactTopologyError {
     #[error("Composite packed outputs are not supported yet")]
     CompositePackedOutputNotSupported(PackedOutput),
 
+    #[error("Composite packed parsing failed: {0}")]
+    CompositePackedParsingFailed(Box<str>),
+
     #[error("Could not add page to output: {0}")]
     FailedToAddOutputPage(#[from] RunnerError),
 
@@ -117,10 +151,11 @@ impl From<WriteFactTopologiesError> for HintError {
 ///
 /// * `packed_outputs`: Packed outputs.
 /// * `fact_topologies`: Fact topologies.
-pub fn compute_fact_topologies<'a>(
+pub fn compute_fact_topologies(
     packed_outputs: &Vec<PackedOutput>,
-    fact_topologies: &'a Vec<FactTopology>,
-) -> Result<Vec<&'a FactTopology>, FactTopologyError> {
+    fact_topologies: &Vec<FactTopology>,
+    applicative_bootloader_program_hash: Felt252,
+) -> Result<Vec<FactTopology>, FactTopologyError> {
     if packed_outputs.len() != fact_topologies.len() {
         return Err(FactTopologyError::WrongNumberOfFactTopologies(
             packed_outputs.len(),
@@ -132,13 +167,18 @@ pub fn compute_fact_topologies<'a>(
 
     for (packed_output, fact_topology) in std::iter::zip(packed_outputs, fact_topologies) {
         match packed_output {
-            PackedOutput::Plain(_) => {
-                plain_fact_topologies.push(fact_topology);
+            PackedOutput::Plain => {
+                plain_fact_topologies.push(fact_topology.clone());
             }
-            PackedOutput::Composite(_) => {
-                return Err(FactTopologyError::CompositePackedOutputNotSupported(
-                    packed_output.clone(),
-                ));
+            PackedOutput::Composite(composite_packed_output) => {
+                let subtask_plain_fact_topologies = composite_packed_output
+                    .get_plain_fact_topologies(applicative_bootloader_program_hash)
+                    .map_err(|e| {
+                        FactTopologyError::CompositePackedParsingFailed(
+                            format!("{:?}", e).into_boxed_str(),
+                        )
+                    })?;
+                plain_fact_topologies.extend(subtask_plain_fact_topologies);
             }
         }
     }
@@ -148,36 +188,36 @@ pub fn compute_fact_topologies<'a>(
 
 /// Adds page to the output builtin for the specified fact topology.
 ///
-/// * `fact_topology`: Fact topology.
+/// * `page_sizes`: Fact topology's page sizes.
 /// * `output_builtin`: Output builtin of the VM.
 /// * `current_page_id`: First page ID to use.
 /// * `output_start`: Start of the output range for this fact topology.
 ///
 /// Reimplements the following Python code:
 ///     offset = 0
-///     for i, page_size in enumerate(fact_topology.page_sizes):
+///     for i, page_size in enumerate(page_sizes):
 ///         output_builtin.add_page(
 ///             page_id=cur_page_id + i, page_start=output_start + offset, page_size=page_size
 ///         )
 ///         offset += page_size
 ///
 ///     return len(fact_topology.page_sizes)
-fn add_consecutive_output_pages(
-    fact_topology: &FactTopology,
+pub fn add_consecutive_output_pages(
+    page_sizes: &[usize],
     output_builtin: &mut OutputBuiltinRunner,
     current_page_id: usize,
     output_start: Relocatable,
 ) -> Result<usize, FactTopologyError> {
     let mut offset = 0;
 
-    for (i, page_size) in fact_topology.page_sizes.iter().copied().enumerate() {
+    for (i, page_size) in page_sizes.iter().copied().enumerate() {
         let page_id = current_page_id + i;
         let page_start = (output_start + offset)?;
         output_builtin.add_page(page_id, page_start, page_size)?;
         offset += page_size;
     }
 
-    Ok(fact_topology.page_sizes.len())
+    Ok(page_sizes.len())
 }
 
 /// Given the fact_topologies of the tasks that were run by bootloader, configure the
@@ -215,7 +255,7 @@ pub fn configure_fact_topologies<FT: AsRef<FactTopology>>(
         *output_start = (*output_start + 2usize)?;
 
         current_page_id += add_consecutive_output_pages(
-            fact_topology.as_ref(),
+            &fact_topology.as_ref().page_sizes,
             output_builtin,
             current_page_id,
             *output_start,
@@ -242,7 +282,7 @@ fn check_tree_structure(tree_structure: &[usize]) -> Result<(), TreeStructureErr
     Ok(())
 }
 
-const GPS_FACT_TOPOLOGY: &str = "gps_fact_topology";
+pub const GPS_FACT_TOPOLOGY: &str = "gps_fact_topology";
 
 /// Extracts the tree structure from the output data attributes, or returns a default.
 fn get_tree_structure_from_output_data(
