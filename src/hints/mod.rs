@@ -10,13 +10,14 @@ mod program_loader;
 mod select_builtins;
 mod simple_bootloader_hints;
 mod types;
+mod utils;
 mod vars;
+mod verifier_hints;
 
 pub use hint_processors::{BootloaderHintProcessor, MinimalBootloaderHintProcessor};
 pub use types::{
-    BootloaderConfig, BootloaderInput, PackedOutput, SimpleBootloaderInput, Task, TaskSpec,
+    BootloaderConfig, BootloaderInput, CairoVerifierInput, PackedOutput, SimpleBootloaderInput,
+    Task, TaskSpec,
 };
 
-pub use vars::BOOTLOADER_INPUT;
-pub use vars::BOOTLOADER_PROGRAM_IDENTIFIERS;
-pub use vars::SIMPLE_BOOTLOADER_INPUT;
+pub use vars::{BOOTLOADER_INPUT, PROGRAM_OBJECT, SIMPLE_BOOTLOADER_INPUT, VERIFIER_PROOF_INPUT};
