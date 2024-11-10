@@ -16,8 +16,11 @@ mod verifier_hints;
 
 pub use hint_processors::{BootloaderHintProcessor, MinimalBootloaderHintProcessor};
 pub use types::{
-    BootloaderConfig, BootloaderInput, CairoVerifierInput, PackedOutput, SimpleBootloaderInput,
-    Task, TaskSpec,
+    ApplicativeBootloaderInput, BootloaderConfig, BootloaderInput, CairoVerifierInput,
+    PackedOutput, ProgramWithInput, SimpleBootloaderInput, Task, TaskSpec,
 };
 
-pub use vars::{BOOTLOADER_INPUT, PROGRAM_OBJECT, SIMPLE_BOOTLOADER_INPUT, VERIFIER_PROOF_INPUT};
+pub use vars::{
+    APPLICATIVE_BOOTLOADER_INPUT, BOOTLOADER_INPUT, BOOTLOADER_PROGRAM, COMPONENT_HEIGHT,
+    SIMPLE_BOOTLOADER_INPUT, VERIFIER_PROGRAM, VERIFIER_PROOF_INPUT,
+};
