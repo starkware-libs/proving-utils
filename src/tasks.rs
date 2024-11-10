@@ -4,7 +4,7 @@ use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::program::Program;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 
-use crate::{Task, TaskSpec};
+use crate::{ProgramWithInput, Task, TaskSpec};
 
 #[derive(thiserror::Error, Debug)]
 pub enum BootloaderTaskError {
@@ -29,11 +29,15 @@ pub enum BootloaderTaskError {
 pub fn create_program_task_spec(
     program_path: &Path,
     use_poseidon: bool,
+    program_input: Option<String>,
 ) -> Result<TaskSpec, BootloaderTaskError> {
     let program =
         Program::from_file(program_path, Some("main")).map_err(BootloaderTaskError::Program)?;
     Ok(TaskSpec {
-        task: Task::Program(program),
+        task: Task::Program(ProgramWithInput {
+            program,
+            program_input,
+        }),
         use_poseidon,
     })
 }
