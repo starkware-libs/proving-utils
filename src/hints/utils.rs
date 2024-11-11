@@ -18,14 +18,15 @@ macro_rules! maybe_relocatable_box {
 /// # Arguments
 /// * `exec_scopes` - A reference to `ExecutionScopes`, which holds the execution environment
 ///   variables.
+/// * `program` - A `&str` representing the name of the program whose identifiers are being sought.
 ///
 /// # Returns
 /// * `Result<ProgramIdentifiers, HintError>` - Returns a `HashMap` containing the program
 ///   identifiers (each as a key-value pair where both key and value are cloned as `String`), or a
-///   `HintError` if the `PROGRAM_OBJECT` is not found in the scope.
+///   `HintError` if the specified program is not found in `exec_scopes`.
 ///
 /// # Errors
-/// * `HintError::VariableNotInScopeError` - Returned if `PROGRAM_OBJECT` is not present in
+/// * `HintError::VariableNotInScopeError` - Returned if the specified `program` is not found in
 ///   `exec_scopes`.
 pub fn get_program_identifies(
     exec_scopes: &ExecutionScopes,
