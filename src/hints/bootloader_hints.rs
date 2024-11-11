@@ -12,7 +12,6 @@ use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
-use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::runners::builtin_runner::OutputBuiltinState;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use num_traits::ToPrimitive;
@@ -23,6 +22,8 @@ use crate::hints::types::{
     BootloaderInput, CompositePackedOutput, PackedOutput, SimpleBootloaderInput,
 };
 use crate::hints::vars;
+
+use super::utils::gen_arg;
 
 /// Implements
 /// %{
@@ -123,38 +124,6 @@ pub fn restore_bootloader_output(
     vm.get_output_builtin_mut()?.set_state(output_builtin_state);
 
     Ok(())
-}
-/// Mimics the behaviour of the Python VM `gen_arg`.
-///
-/// Creates a new segment for each vector encountered in `args`. For each new
-/// segment, the pointer to the segment will be added to the current segment.
-///
-/// Example: `vec![1, 2, vec![3, 4]]`
-/// -> Allocates segment N, starts writing at offset 0:
-/// (N, 0): 1       # Write the values of the vector one by one
-/// (N, 1): 2
-/// -> a vector is encountered, allocate a new segment
-/// (N, 2): N+1     # Pointer to the new segment
-/// (N+1, 0): 3     # Write the values of the nested vector
-/// (N+1, 1): 4
-pub fn gen_arg(
-    vm: &mut VirtualMachine,
-    args: &Vec<Box<dyn Any>>,
-) -> Result<Relocatable, MemoryError> {
-    let base = vm.segments.add();
-    let mut ptr = base;
-    for arg in args {
-        if let Some(value) = arg.downcast_ref::<MaybeRelocatable>() {
-            ptr = vm.segments.load_data(ptr, &[value.clone()])?;
-        } else if let Some(vector) = arg.downcast_ref::<Vec<Box<dyn Any>>>() {
-            let nested_base = gen_arg(vm, vector)?;
-            ptr = vm.segments.load_data(ptr, &[nested_base.into()])?;
-        } else {
-            return Err(MemoryError::GenArgInvalidType);
-        }
-    }
-
-    Ok(base)
 }
 
 /// Implements
