@@ -761,7 +761,7 @@ mod tests {
         );
         let bootloader_program = mock_program_with_identifiers(bootloader_identifiers);
         exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
-        exec_scopes.insert_value(vars::PROGRAM_OBJECT, bootloader_program);
+        exec_scopes.insert_value(vars::BOOTLOADER_PROGRAM, bootloader_program);
 
         // Load the program in memory
         load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
