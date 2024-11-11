@@ -1,4 +1,5 @@
 mod bootloader_hints;
+mod cairo_structs;
 mod codes;
 mod execute_task_hints;
 mod fact_topologies;
@@ -13,6 +14,7 @@ mod types;
 mod utils;
 mod vars;
 mod verifier_hints;
+mod verifier_utils;
 
 pub use hint_processors::{BootloaderHintProcessor, MinimalBootloaderHintProcessor};
 pub use types::{
