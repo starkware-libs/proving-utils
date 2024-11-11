@@ -1,6 +1,7 @@
 use crate::hints::fact_topologies::{
     compute_fact_topologies, configure_fact_topologies, write_to_fact_topologies_file, FactTopology,
 };
+use crate::maybe_relocatable_box;
 use cairo_vm::any_box;
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_integer_from_var_name, get_ptr_from_var_name, insert_value_from_var_name,
@@ -25,9 +26,6 @@ use crate::hints::vars;
 
 /// Implements
 /// %{
-///     from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
-///     bootloader_input = BootloaderInput.Schema().load(program_input)
-///
 ///     ids.simple_bootloader_output_start = segments.add()
 ///
 ///     # Change output builtin state to a different segment in preparation for calling the
@@ -41,10 +39,6 @@ pub fn prepare_simple_bootloader_output_segment(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    // Python: bootloader_input = BootloaderInput.Schema().load(program_input)
-    // -> Assert that the bootloader input has been loaded when setting up the VM
-    let _bootloader_input: &BootloaderInput = exec_scopes.get_ref(vars::BOOTLOADER_INPUT)?;
-
     // Python: ids.simple_bootloader_output_start = segments.add()
     let new_segment_base = vm.add_memory_segment();
     insert_value_from_var_name(
@@ -74,16 +68,35 @@ pub fn prepare_simple_bootloader_output_segment(
     Ok(())
 }
 
-/// ```text
 /// Implements
 /// %{
 ///     from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput
-///     simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)";
+///     simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)"
 /// %}
 /// ```
 pub fn load_simple_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
     // Make sure SIMPLE_BOOTLOADER_INPUT is already loaded.
-    let _: SimpleBootloaderInput = exec_scopes.get(vars::SIMPLE_BOOTLOADER_INPUT)?;
+    let _: SimpleBootloaderInput =
+        exec_scopes
+            .get(vars::SIMPLE_BOOTLOADER_INPUT)
+            .map_err(|_| {
+                HintError::VariableNotInScopeError(vars::SIMPLE_BOOTLOADER_INPUT.to_string().into())
+            })?;
+
+    Ok(())
+}
+
+/// Implements
+/// %{
+///     from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
+///     bootloader_input = BootloaderInput.Schema().load(program_input)
+/// %}
+/// ```
+pub fn load_unpacker_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
+    // Make sure BOOTLOADER_INPUT is already loaded.
+    let _: BootloaderInput = exec_scopes.get(vars::BOOTLOADER_INPUT).map_err(|_| {
+        HintError::VariableNotInScopeError(vars::BOOTLOADER_INPUT.to_string().into())
+    })?;
 
     Ok(())
 }
@@ -124,10 +137,12 @@ pub fn restore_bootloader_output(
 /// (N, 2): N+1     # Pointer to the new segment
 /// (N+1, 0): 3     # Write the values of the nested vector
 /// (N+1, 1): 4
-fn gen_arg(vm: &mut VirtualMachine, args: &Vec<Box<dyn Any>>) -> Result<Relocatable, MemoryError> {
+pub fn gen_arg(
+    vm: &mut VirtualMachine,
+    args: &Vec<Box<dyn Any>>,
+) -> Result<Relocatable, MemoryError> {
     let base = vm.segments.add();
     let mut ptr = base;
-
     for arg in args {
         if let Some(value) = arg.downcast_ref::<MaybeRelocatable>() {
             ptr = vm.segments.load_data(ptr, &[value.clone()])?;
@@ -151,6 +166,7 @@ fn gen_arg(vm: &mut VirtualMachine, args: &Vec<Box<dyn Any>>) -> Result<Relocata
 ///         bootloader_config.simple_bootloader_program_hash,
 ///         len(bootloader_config.supported_cairo_verifier_program_hashes),
 ///         bootloader_config.supported_cairo_verifier_program_hashes,
+///         bootloader_config.applicative_bootloader_program_hash,
 ///     ],
 /// )
 pub fn load_bootloader_config(
@@ -167,6 +183,7 @@ pub fn load_bootloader_config(
     //     bootloader_config.simple_bootloader_program_hash,
     //     len(bootloader_config.supported_cairo_verifier_program_hashes),
     //     bootloader_config.supported_cairo_verifier_program_hashes,
+    //     bootloader_config.applicative_bootloader_program_hash,
     // ]
     let mut program_hashes = Vec::<Box<dyn Any>>::new();
     for program_hash in &config.supported_cairo_verifier_program_hashes {
@@ -174,13 +191,10 @@ pub fn load_bootloader_config(
     }
 
     let args: Vec<Box<dyn Any>> = vec![
-        any_box!(MaybeRelocatable::from(
-            config.simple_bootloader_program_hash
-        )),
-        any_box!(MaybeRelocatable::from(
-            config.supported_cairo_verifier_program_hashes.len()
-        )),
+        maybe_relocatable_box!(config.simple_bootloader_program_hash),
+        maybe_relocatable_box!(config.supported_cairo_verifier_program_hashes.len()),
         any_box!(program_hashes),
+        maybe_relocatable_box!(config.applicative_bootloader_program_hash),
     ];
 
     // Store the args in the VM memory
@@ -244,7 +258,7 @@ pub fn is_plain_packed_output(
 ) -> Result<(), HintError> {
     let packed_output: PackedOutput = exec_scopes.get(vars::PACKED_OUTPUT)?;
     let result = match packed_output {
-        PackedOutput::Plain(_) => 1,
+        PackedOutput::Plain => 1,
         _ => 0,
     };
     insert_value_into_ap(vm, result)?;
@@ -332,8 +346,17 @@ pub fn compute_and_configure_fact_topologies(
     let mut output_start: Relocatable = exec_scopes.get(vars::OUTPUT_START)?;
     let output_builtin = vm.get_output_builtin_mut()?;
 
-    let plain_fact_topologies = compute_fact_topologies(&packed_outputs, &fact_topologies)
-        .map_err(Into::<HintError>::into)?;
+    let bootloader_input: BootloaderInput = exec_scopes.get(vars::BOOTLOADER_INPUT)?;
+    let applicative_bootloader_program_hash = bootloader_input
+        .bootloader_config
+        .applicative_bootloader_program_hash;
+
+    let plain_fact_topologies = compute_fact_topologies(
+        &packed_outputs,
+        &fact_topologies,
+        applicative_bootloader_program_hash,
+    )
+    .map_err(Into::<HintError>::into)?;
 
     configure_fact_topologies(&plain_fact_topologies, &mut output_start, output_builtin)
         .map_err(Into::<HintError>::into)?;
@@ -381,7 +404,7 @@ pub fn compute_and_configure_fact_topologies_simple(
     let output_builtin = vm.get_output_builtin_mut()?;
     let mut tasks_output_start = Relocatable {
         segment_index: output_builtin.base() as isize,
-        offset: 0,
+        offset: 1,
     };
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
@@ -403,7 +426,7 @@ fn unwrap_composite_output(
     packed_output: PackedOutput,
 ) -> Result<CompositePackedOutput, HintError> {
     match packed_output {
-        PackedOutput::Plain(_) => Err(HintError::CustomHint(
+        PackedOutput::Plain => Err(HintError::CustomHint(
             "Expected packed output to be composite"
                 .to_string()
                 .into_boxed_str(),
