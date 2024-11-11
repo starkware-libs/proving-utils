@@ -26,6 +26,7 @@ use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
 
 use super::utils::{get_identifier, get_program_identifies};
+use super::vars::BOOTLOADER_PROGRAM;
 
 fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
@@ -398,7 +399,7 @@ pub fn call_task(
 
             // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ +
             // pc
-            let bootloader_identifiers = get_program_identifies(exec_scopes)?;
+            let bootloader_identifiers = get_program_identifies(exec_scopes, BOOTLOADER_PROGRAM)?;
             let ret_pc_label = get_identifier(&bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
             let call_task = get_identifier(
                 &bootloader_identifiers,
