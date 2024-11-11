@@ -36,6 +36,14 @@ use crate::hints::simple_bootloader_hints::{
 };
 use crate::hints::verifier_hints::load_and_parse_proof;
 
+use super::applicative_bootloader_hints::{
+    finalize_fact_topologies_and_pages, prepare_aggregator_simple_bootloader_output_segment,
+    prepare_root_task_unpacker_bootloader_output_segment, restore_applicative_output_state,
+};
+use super::bootloader_hints::load_unpacker_bootloader_input;
+use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
+use super::vector_commitment::set_bit_from_index;
+
 /// A hint processor that can only execute the hints defined in this library.
 /// For large projects, you may want to compose a hint processor from multiple parts
 /// (ex: Starknet OS, bootloader and Cairo VM). This hint processor is as minimal as possible
@@ -73,6 +81,9 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
                 prepare_simple_bootloader_input(exec_scopes)
             }
             BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT => load_simple_bootloader_input(exec_scopes),
+            BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT => {
+                load_unpacker_bootloader_input(exec_scopes)
+            }
             BOOTLOADER_LOAD_BOOTLOADER_CONFIG => {
                 load_bootloader_config(vm, exec_scopes, ids_data, ap_tracking)
             }
@@ -139,7 +150,33 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             INNER_SELECT_BUILTINS_SELECT_BUILTIN => {
                 select_builtin(vm, exec_scopes, ids_data, ap_tracking)
             }
-            VERIFIER_LOAD_AND_PARSE_PROOF => load_and_parse_proof(exec_scopes),
+            VERIFIER_LOAD_AND_PARSE_PROOF => {
+                load_and_parse_proof(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            VERIFIER_GET_INDEX_LAST_BIT => set_bit_from_index(vm, ids_data, ap_tracking),
+            VERIFIER_DIVIDE_QUERIES_IND_BY_COSET_SIZE_TO_FP_OFFSET => {
+                divide_queries_ind_by_coset_size_to_fp_offset(vm, ids_data, ap_tracking)
+            }
+            APPLICATIVE_LOAD_INPUTS => prepare_aggregator_simple_bootloader_output_segment(
+                vm,
+                exec_scopes,
+                ids_data,
+                ap_tracking,
+            ),
+            APPLICATIVE_SET_UP_UNPACKER_INPUTS => {
+                prepare_root_task_unpacker_bootloader_output_segment(
+                    vm,
+                    exec_scopes,
+                    ids_data,
+                    ap_tracking,
+                )
+            }
+            APPLICATIVE_RESTORE_OUTPUT_BUILTIN_STATE => {
+                restore_applicative_output_state(vm, exec_scopes)
+            }
+            APPLICATIVE_FINALIZE_FACT_TOPOLOGIES_AND_PAGES => {
+                finalize_fact_topologies_and_pages(vm, exec_scopes, ids_data, ap_tracking)
+            }
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
