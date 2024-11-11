@@ -6,8 +6,8 @@ use cairo_vm::{types::exec_scope::ExecutionScopes, vm::errors::hint_errors::Hint
 use serde_json::{from_value, Value as JsonValue};
 use std::collections::HashMap;
 
-use super::bootloader_hints::gen_arg;
 use super::types::{ExtractedProofValues, OwnedPublicInput};
+use super::utils::gen_arg;
 use super::vars::VERIFIER_PROGRAM;
 use super::verifier_utils::extract_from_ids_and_public_input;
 use crate::hints::cairo_structs::ToVec;

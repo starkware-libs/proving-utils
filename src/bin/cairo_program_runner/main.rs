@@ -119,11 +119,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         dynamic_layout_params,
     )?;
 
-    if let Some(ref file_name) = args.cairo_pie_output {
+    // Handle Cairo PIE output if specified
+    if let Some(pie_output_path) = args.cairo_pie_output {
         runner
             .get_cairo_pie()
             .map_err(CairoRunError::Runner)?
-            .write_zip_file(file_name)?
+            .write_zip_file(pie_output_path.as_ref())?;
+        // Return early if outputting PIE
+        return Ok(());
     }
 
     if let Some(ref air_public_input_file) = args.air_public_input {

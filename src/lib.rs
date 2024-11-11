@@ -89,9 +89,6 @@ pub fn cairo_run_program(
         .create_config()
     };
 
-    // The following attribute is used to make clippy ignore the repeated if-else block. Should be
-    // removed all blocks are implemented.
-    #[allow(clippy::if_same_then_else)]
     if program_name.contains("simple_bootloader") {
         let simple_bootloader_input: SimpleBootloaderInput =
             serde_json::from_str(&program_input_contents).unwrap();
@@ -99,22 +96,27 @@ pub fn cairo_run_program(
         // Note: the method used to set the bootloader input depends on
         // https://github.com/lambdaclass/cairo-vm/pull/1772 and may change depending on review.
         exec_scopes.insert_value(SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
+
+        // Insert the bootloader object into the execution scopes
+        exec_scopes.insert_value(BOOTLOADER_PROGRAM, program.clone());
     } else if program_name.contains("applicative_bootloader") {
-        let io_error = io::Error::new(
-            ErrorKind::Other,
-            format!("Unimplemented program variant: {}", program_name),
-        );
-        return Err(CairoRunError::Program(ProgramError::IO(io_error)));
+        let applicative_bootloader_input: ApplicativeBootloaderInput =
+            serde_json::from_str(&program_input_contents).unwrap();
+        exec_scopes.insert_value(APPLICATIVE_BOOTLOADER_INPUT, applicative_bootloader_input);
+        // Insert the bootloader object into the execution scopes
+        exec_scopes.insert_value(BOOTLOADER_PROGRAM, program.clone());
     } else if program_name.contains("bootloader") {
-        let io_error = io::Error::new(
-            ErrorKind::Other,
-            format!("Unimplemented program variant: {}", program_name),
-        );
-        return Err(CairoRunError::Program(ProgramError::IO(io_error)));
+        let bootloader_input: BootloaderInput =
+            serde_json::from_str(&program_input_contents).unwrap();
+        exec_scopes.insert_value(BOOTLOADER_INPUT, bootloader_input);
+
+        // Insert the bootloader object into the execution scopes
+        exec_scopes.insert_value(BOOTLOADER_PROGRAM, program.clone());
     } else if program_name.contains("cairo_verifier") {
         let cairo_verifier_input: CairoVerifierInput =
             serde_json::from_str(&program_input_contents).unwrap();
         exec_scopes.insert_value(VERIFIER_PROOF_INPUT, cairo_verifier_input.proof.clone());
+        exec_scopes.insert_value(VERIFIER_PROGRAM, program.clone());
     } else {
         let io_error = io::Error::new(
             ErrorKind::Other,
@@ -123,13 +125,13 @@ pub fn cairo_run_program(
         return Err(CairoRunError::Program(ProgramError::IO(io_error)));
     }
 
-    // Insert the program object into the execution scopes
-    exec_scopes.insert_value(PROGRAM_OBJECT, program.clone());
     // Run the program with the configured execution scopes and cairo_run_config
-    cairo_run_program_with_initial_scope(
+    let runner = cairo_run_program_with_initial_scope(
         program,
         &cairo_run_config,
         &mut hint_processor,
         exec_scopes,
-    )
+    )?;
+
+    Ok(runner)
 }
