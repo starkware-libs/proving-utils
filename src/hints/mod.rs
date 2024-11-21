@@ -12,7 +12,7 @@ mod program_hash;
 mod program_loader;
 mod select_builtins;
 mod simple_bootloader_hints;
-mod types;
+pub mod types;
 mod utils;
 mod vars;
 mod vector_commitment;
@@ -26,6 +26,6 @@ pub use types::{
 };
 
 pub use vars::{
-    APPLICATIVE_BOOTLOADER_INPUT, BOOTLOADER_INPUT, BOOTLOADER_PROGRAM, COMPONENT_HEIGHT,
-    SIMPLE_BOOTLOADER_INPUT, VERIFIER_PROGRAM, VERIFIER_PROOF_INPUT,
+    APPLICATIVE_BOOTLOADER_INPUT, BOOTLOADER_INPUT, COMPONENT_HEIGHT, PROGRAM_INPUT,
+    PROGRAM_OBJECT, SIMPLE_BOOTLOADER_INPUT,
 };

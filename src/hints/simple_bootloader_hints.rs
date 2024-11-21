@@ -8,7 +8,6 @@ use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::exec_scope::ExecutionScopes;
-use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::Felt252;
@@ -18,7 +17,7 @@ use starknet_types_core::felt::NonZeroFelt;
 use crate::cairo_run_program;
 use crate::hints::execute_task_hints::ALL_BUILTINS;
 use crate::hints::fact_topologies::FactTopology;
-use crate::hints::types::SimpleBootloaderInput;
+use crate::hints::types::{RunMode, SimpleBootloaderInput};
 use crate::hints::vars;
 
 use super::Task;
@@ -130,7 +129,7 @@ pub fn set_current_task(
 
     // Check if the task is a `Program` with a non-`None` input
     let final_task = if let Task::Program(program_with_inputs) = &task {
-        if let Some(program_input) = program_with_inputs.program_input.as_ref() {
+        if program_with_inputs.program_input.is_some() {
             // We have a program input. That is, the program uses hints.
             // We will run the program separately from the Cairo VM in a new runner and collect
             // the PIE output. We will then load the PIE output into the current VM as a new PIE
@@ -141,13 +140,11 @@ pub fn set_current_task(
             // necessary or worth it for now.
 
             // Run the program and generate the PIE file.
-            // Currently, we only need support for the `cairo_verifier` with input.
+            let run_config = RunMode::Validation.create_config();
             let pie = cairo_run_program(
                 &program_with_inputs.program,
-                "cairo_verifier",
-                program_input.clone(),
-                LayoutName::all_cairo,
-                None,
+                program_with_inputs.program_input.clone(),
+                run_config,
             )
             .map_err(|e| HintError::CustomHint(format!("Cairo run error: {}", e).into()))?
             .get_cairo_pie()

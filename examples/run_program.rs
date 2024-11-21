@@ -2,6 +2,7 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use cairo_program_runner::cairo_run_program;
+use cairo_program_runner::types::RunMode;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 
@@ -25,17 +26,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         }}"#,
         fibonacci_compiled_program_path.display()
     );
-    let program_name = simple_bootloader_compiled_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap();
+
+    let cairo_run_config = RunMode::Proof {
+        layout: LayoutName::starknet_with_keccak,
+        dynamic_layout_params: None,
+    }
+    .create_config();
 
     let mut runner = cairo_run_program(
         &simple_bootloader_program,
-        program_name,
-        program_input_contents,
-        LayoutName::starknet_with_keccak,
-        None,
+        Some(program_input_contents),
+        cairo_run_config,
     )?;
 
     let mut output_buffer = "Program Output:\n".to_string();

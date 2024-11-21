@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use bincode::enc::write::Writer;
+use cairo_program_runner::types::RunMode;
 use cairo_vm::types::layout::CairoLayoutParams;
 use cairo_vm::types::layout_name::LayoutName;
 
@@ -20,22 +21,24 @@ struct Args {
     #[clap(long = "compiled_program_path", help = "Path to the compiled program")]
     compiled_program_path: PathBuf,
     #[clap(long = "program_input", help = "Path to the program input file.")]
-    program_input: PathBuf,
+    program_input: Option<PathBuf>,
     #[clap(
         long = "cairo_pie_output",
         help = "Path to the Cairo PIE output file. Cannot be used in proof_mode.",
-        conflicts_with_all = &["air_public_input", "air_private_input"]
+        conflicts_with_all = &["air_public_input", "air_private_input", "proof_mode"]
     )]
     cairo_pie_output: Option<PathBuf>,
     #[clap(
         long = "air_public_input",
         conflicts_with = "cairo_pie_output",
+        requires_all = &["proof_mode", "air_private_input"],
         help = "Path to the AIR public input file. Can only be used in proof_mode."
     )]
     air_public_input: Option<PathBuf>,
     #[clap(
         long = "air_private_input",
         conflicts_with = "cairo_pie_output",
+        requires_all = &["proof_mode", "air_public_input"],
         help = "Path to the AIR private input file. Can only be used in proof_mode."
     )]
     air_private_input: Option<PathBuf>,
@@ -51,6 +54,13 @@ struct Args {
         required_if_eq("layout", LayoutName::dynamic.to_str())
     )]
     dynamic_params_file: Option<PathBuf>,
+    #[clap(
+        long = "proof_mode",
+        help = "Enable proof mode config.",
+        conflicts_with = "cairo_pie_output",
+        requires_all = &["air_public_input", "air_private_input"]
+    )]
+    proof_mode: bool,
 }
 struct FileWriter {
     buf_writer: io::BufWriter<std::fs::File>,
@@ -91,14 +101,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         Err(err) => err.exit(),
     };
     let program = Program::from_file(args.compiled_program_path.as_path(), Some("main"))?;
-
-    let program_name = args
-        .compiled_program_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap();
-
-    let program_input_contents = std::fs::read_to_string(&args.program_input)?;
+    let program_input_contents: Option<String>;
+    if let Some(ref input_path) = args.program_input {
+        program_input_contents = Some(std::fs::read_to_string(input_path)?);
+    } else {
+        program_input_contents = Option::None;
+    }
 
     let dynamic_layout_params = match args.dynamic_params_file {
         Some(file) => {
@@ -111,13 +119,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         None => None,
     };
-    let runner = cairo_run_program(
-        &program,
-        program_name,
-        program_input_contents,
-        args.layout,
-        dynamic_layout_params,
-    )?;
+
+    let cairo_run_config = if args.proof_mode {
+        RunMode::Proof {
+            layout: args.layout,
+            dynamic_layout_params,
+        }
+        .create_config()
+    } else {
+        RunMode::Validation.create_config()
+    };
+
+    let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
 
     // Handle Cairo PIE output if specified
     if let Some(pie_output_path) = args.cairo_pie_output {
@@ -125,7 +138,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             .get_cairo_pie()
             .map_err(CairoRunError::Runner)?
             .write_zip_file(pie_output_path.as_ref())?;
-        // Return early if outputting PIE
+    }
+
+    if !args.proof_mode {
+        // Return early if not in proof mode
         return Ok(());
     }
 

@@ -22,7 +22,7 @@ use crate::hints::{
 
 use super::{
     fact_topologies::FactTopology, vars, ApplicativeBootloaderInput, BootloaderInput,
-    SimpleBootloaderInput,
+    SimpleBootloaderInput, APPLICATIVE_BOOTLOADER_INPUT,
 };
 
 /// Implements
@@ -56,6 +56,9 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
+    let program_input: &String = exec_scopes.get_ref(vars::PROGRAM_INPUT)?;
+    let applicative_bootloader_input: ApplicativeBootloaderInput =
+        serde_json::from_str(program_input).unwrap();
     // Python: ids.aggregator_output_ptr = segments.add()
     let new_segment_base = vm.add_memory_segment();
     insert_value_from_var_name(
@@ -66,18 +69,19 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
         ap_tracking,
     )?;
 
-    // Python: simple_bootloader_input = SimpleBootloaderInput(
+    // Python:
+    // applicative_bootloader_input = ApplicativeBootloaderInput.Schema().load(program_input)
+    // simple_bootloader_input = SimpleBootloaderInput(
     //     tasks=[aggregator_task], fact_topologies_path=None, single_page=True
     // )
-    let applicative_bootloader_input: &ApplicativeBootloaderInput =
-        exec_scopes.get_ref(vars::APPLICATIVE_BOOTLOADER_INPUT)?;
 
-    let simple_bootloader_input = SimpleBootloaderInput {
+    let simple_bootloader_input: SimpleBootloaderInput = SimpleBootloaderInput {
         tasks: vec![applicative_bootloader_input.aggregator_task.clone()],
         fact_topologies_path: None,
         single_page: true,
     };
 
+    exec_scopes.insert_value(APPLICATIVE_BOOTLOADER_INPUT, applicative_bootloader_input);
     exec_scopes.insert_value(vars::SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
 
     // Python:

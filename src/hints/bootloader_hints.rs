@@ -24,6 +24,7 @@ use crate::hints::types::{
 use crate::hints::vars;
 
 use super::utils::gen_arg;
+use super::{BOOTLOADER_INPUT, PROGRAM_INPUT, SIMPLE_BOOTLOADER_INPUT};
 
 /// Implements
 /// %{
@@ -76,14 +77,11 @@ pub fn prepare_simple_bootloader_output_segment(
 /// %}
 /// ```
 pub fn load_simple_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
-    // Make sure SIMPLE_BOOTLOADER_INPUT is already loaded.
-    let _: SimpleBootloaderInput =
-        exec_scopes
-            .get(vars::SIMPLE_BOOTLOADER_INPUT)
-            .map_err(|_| {
-                HintError::VariableNotInScopeError(vars::SIMPLE_BOOTLOADER_INPUT.to_string().into())
-            })?;
-
+    // Load SIMPLE_BOOTLOADER_INPUT into the execution scope.
+    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
+    let simple_bootloader_input: SimpleBootloaderInput =
+        serde_json::from_str(program_input).unwrap();
+    exec_scopes.insert_value(SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
     Ok(())
 }
 
@@ -94,11 +92,11 @@ pub fn load_simple_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result
 /// %}
 /// ```
 pub fn load_unpacker_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
-    // Make sure BOOTLOADER_INPUT is already loaded.
-    let _: BootloaderInput = exec_scopes.get(vars::BOOTLOADER_INPUT).map_err(|_| {
-        HintError::VariableNotInScopeError(vars::BOOTLOADER_INPUT.to_string().into())
-    })?;
+    // Load BOOTLOADER_INPUT into the execution scope.
+    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
 
+    let bootloader_input: BootloaderInput = serde_json::from_str(program_input).unwrap();
+    exec_scopes.insert_value(BOOTLOADER_INPUT, bootloader_input);
     Ok(())
 }
 

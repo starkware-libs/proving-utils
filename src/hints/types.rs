@@ -3,8 +3,11 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use cairo_vm::air_public_input::{MemorySegmentAddresses, PublicMemoryEntry};
+use cairo_vm::cairo_run::CairoRunConfig;
 use cairo_vm::serde::deserialize_program::Identifier;
 use cairo_vm::types::errors::program_errors::ProgramError;
+use cairo_vm::types::layout::CairoLayoutParams;
+use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 use cairo_vm::vm::runners::cairo_pie::{CairoPie, StrippedProgram};
 use cairo_vm::Felt252;
@@ -408,4 +411,44 @@ pub struct OwnedPublicInput {
     pub memory_segments: HashMap<String, MemorySegmentAddresses>,
     pub public_memory: Vec<PublicMemoryEntry>,
     pub dynamic_params: Option<HashMap<String, u128>>,
+}
+
+pub enum RunMode {
+    Proof {
+        layout: LayoutName,
+        dynamic_layout_params: Option<CairoLayoutParams>,
+    },
+    Validation,
+}
+
+impl RunMode {
+    pub fn create_config(self) -> CairoRunConfig<'static> {
+        match self {
+            RunMode::Proof {
+                layout,
+                dynamic_layout_params,
+            } => CairoRunConfig {
+                entrypoint: "main",
+                trace_enabled: true,
+                relocate_mem: true,
+                layout,
+                proof_mode: true,
+                secure_run: None,
+                disable_trace_padding: false,
+                allow_missing_builtins: None,
+                dynamic_layout_params,
+            },
+            RunMode::Validation => CairoRunConfig {
+                entrypoint: "main",
+                trace_enabled: false,
+                relocate_mem: false,
+                layout: LayoutName::all_cairo,
+                proof_mode: false,
+                secure_run: None,
+                disable_trace_padding: false,
+                allow_missing_builtins: None,
+                dynamic_layout_params: None,
+            },
+        }
+    }
 }
