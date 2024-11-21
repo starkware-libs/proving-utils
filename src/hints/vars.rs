@@ -1,11 +1,11 @@
 /// Deserialized bootloader input.
+pub const PROGRAM_INPUT: &str = "program_input";
+
+/// Deserialized bootloader input.
+pub const PROGRAM_OBJECT: &str = "program_object";
+
+/// Deserialized bootloader input.
 pub const BOOTLOADER_INPUT: &str = "bootloader_input";
-
-/// The verifier program - used in `load_and_parse_proof()`.
-pub const VERIFIER_PROGRAM: &str = "verifier_program";
-
-/// The bootloader program - used in `execute_task()`.
-pub const BOOTLOADER_PROGRAM: &str = "bootloader_program";
 
 /// Saved state of the output builtin.
 pub const OUTPUT_BUILTIN_STATE: &str = "output_builtin_state";
@@ -21,9 +21,6 @@ pub const SIMPLE_BOOTLOADER_INPUT: &str = "simple_bootloader_input";
 
 /// Deserialized applicative bootloader input.
 pub const APPLICATIVE_BOOTLOADER_INPUT: &str = "applicative_bootloader_input";
-
-/// Deserialized input proof for Cairo verifier.
-pub const VERIFIER_PROOF_INPUT: &str = "verifier_proof_input";
 
 /// Packed outputs.
 pub const PACKED_OUTPUTS: &str = "packed_outputs";

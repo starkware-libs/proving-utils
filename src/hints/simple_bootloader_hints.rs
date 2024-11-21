@@ -130,7 +130,7 @@ pub fn set_current_task(
 
     // Check if the task is a `Program` with a non-`None` input
     let final_task = if let Task::Program(program_with_inputs) = &task {
-        if let Some(program_input) = program_with_inputs.program_input.as_ref() {
+        if program_with_inputs.program_input.is_some() {
             // We have a program input. That is, the program uses hints.
             // We will run the program separately from the Cairo VM in a new runner and collect
             // the PIE output. We will then load the PIE output into the current VM as a new PIE
@@ -141,13 +141,12 @@ pub fn set_current_task(
             // necessary or worth it for now.
 
             // Run the program and generate the PIE file.
-            // Currently, we only need support for the `cairo_verifier` with input.
             let pie = cairo_run_program(
                 &program_with_inputs.program,
-                "cairo_verifier",
-                program_input.clone(),
+                program_with_inputs.program_input.clone(),
                 LayoutName::all_cairo,
                 None,
+                false,
             )
             .map_err(|e| HintError::CustomHint(format!("Cairo run error: {}", e).into()))?
             .get_cairo_pie()

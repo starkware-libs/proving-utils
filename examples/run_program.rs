@@ -25,17 +25,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         }}"#,
         fibonacci_compiled_program_path.display()
     );
-    let program_name = simple_bootloader_compiled_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap();
 
     let mut runner = cairo_run_program(
         &simple_bootloader_program,
-        program_name,
-        program_input_contents,
+        Some(program_input_contents),
         LayoutName::starknet_with_keccak,
         None,
+        true,
     )?;
 
     let mut output_buffer = "Program Output:\n".to_string();
