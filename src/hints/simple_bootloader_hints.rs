@@ -14,13 +14,10 @@ use cairo_vm::Felt252;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
-use crate::cairo_run_program;
 use crate::hints::execute_task_hints::ALL_BUILTINS;
 use crate::hints::fact_topologies::FactTopology;
-use crate::hints::types::{RunMode, SimpleBootloaderInput};
+use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
-
-use super::Task;
 
 /// Implements
 /// n_tasks = len(simple_bootloader_input.tasks)
@@ -127,44 +124,7 @@ pub fn set_current_task(
     let task = simple_bootloader_input.tasks[task_id].load_task();
     let use_poseidon = simple_bootloader_input.tasks[task_id].use_poseidon;
 
-    // Check if the task is a `Program` with a non-`None` input
-    let final_task = if let Task::Program(program_with_inputs) = &task {
-        if program_with_inputs.program_input.is_some() {
-            // We have a program input. That is, the program uses hints.
-            // We will run the program separately from the Cairo VM in a new runner and collect
-            // the PIE output. We will then load the PIE output into the current VM as a new PIE
-            // task. This is a workaround for the fact that the Rust Cairo VM does not support
-            // nested programs with hints, and supporting this would require a significant change
-            // involving the code on lambdaclass's side.
-            // Consider if we want to invest time in this change in the future, but doesn't seem
-            // necessary or worth it for now.
-
-            // Run the program and generate the PIE file.
-            let run_config = RunMode::Validation.create_config();
-            let pie = cairo_run_program(
-                &program_with_inputs.program,
-                program_with_inputs.program_input.clone(),
-                run_config,
-            )
-            .map_err(|e| HintError::CustomHint(format!("Cairo run error: {}", e).into()))?
-            .get_cairo_pie()
-            .map_err(|e| {
-                HintError::CustomHint(format!("Error getting PIE from runner: {}", e).into())
-            })?;
-
-            // Create a PIE task from the temporary PIE file path
-            Task::Pie(pie)
-        } else {
-            // If `program_input` is `None`, use the original task
-            task.clone()
-        }
-    } else {
-        // If it's not a `Program` task, use the original task
-        task.clone()
-    };
-
-    // Insert the final task (either the original or the generated PIE task) into exec_scopes
-    exec_scopes.insert_value(vars::TASK, final_task);
+    exec_scopes.insert_value(vars::TASK, task.clone());
     exec_scopes.insert_value(vars::USE_POSEIDON, use_poseidon);
 
     Ok(())

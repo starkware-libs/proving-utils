@@ -5,7 +5,9 @@ use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_integer_from_var_name, get_ptr_from_var_name, get_relocatable_from_var_name,
     insert_value_from_var_name, insert_value_into_ap,
 };
-use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+use cairo_vm::hint_processor::hint_processor_definition::{
+    HintExtension, HintProcessor, HintReference,
+};
 use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::exec_scope::ExecutionScopes;
@@ -26,8 +28,8 @@ use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
 
 use super::utils::{get_identifier, get_program_identifies};
-use super::PROGRAM_OBJECT;
 
+use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
 fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
         .map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
@@ -366,11 +368,12 @@ Implements hint:
 %}
 */
 pub fn call_task(
+    hint_processor: &mut dyn HintProcessor,
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
-) -> Result<(), HintError> {
+) -> Result<HintExtension, HintError> {
     // assert isinstance(task, Task)
     let task: Task = exec_scopes.get(vars::TASK)?;
 
@@ -380,18 +383,78 @@ pub fn call_task(
 
     let mut new_task_locals = HashMap::new();
 
+    let mut hint_extension: HintExtension;
+
     match &task {
         // if isinstance(task, RunProgramTask):
-        Task::Program(_program) => {
-            let program_input = HashMap::<String, Box<dyn Any>>::new();
-            // new_task_locals['program_input'] = task.program_input
-            new_task_locals.insert("program_input".to_string(), any_box![program_input]);
-            // new_task_locals['WITH_BOOTLOADER'] = True
-            new_task_locals.insert("WITH_BOOTLOADER".to_string(), any_box![true]);
+        Task::Program(program_with_input) => {
+            if let Some(program_input) = program_with_input.program_input.as_ref() {
+                // vm_load_program(task.program, program_address)
+                hint_extension = HashMap::new();
 
-            // TODO: the content of this function is mostly useless for the Rust VM.
-            //       check with SW if there is nothing of interest here.
-            // vm_load_program(task.program, program_address)
+                let program_hints_collection = &program_with_input
+                    .program
+                    .shared_program_data
+                    .hints_collection;
+
+                let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS)?;
+                let references = &program_with_input
+                    .program
+                    .shared_program_data
+                    .reference_manager;
+
+                for (pc, hint_range) in &program_hints_collection.hints_ranges {
+                    // Adjust the PC to the program address
+                    let adjusted_pc = (program_address + pc.offset)?;
+
+                    let start = hint_range.0;
+                    let end = start + hint_range.1.get();
+
+                    let mut compiled_hints = Vec::new();
+
+                    for idx in start..end {
+                        let hint = &program_hints_collection.hints[idx];
+
+                        let compiled_hint = hint_processor
+                            .compile_hint(
+                                &hint.code,
+                                &hint.flow_tracking_data.ap_tracking,
+                                &hint.flow_tracking_data.reference_ids,
+                                references,
+                            )
+                            .map_err(|_| HintError::CustomHint(hint.code.clone().into()))?;
+
+                        compiled_hints.push(compiled_hint);
+                    }
+
+                    hint_extension.insert(adjusted_pc, compiled_hints);
+                }
+                new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input.clone()]);
+                new_task_locals.insert(
+                    PROGRAM_OBJECT.to_string(),
+                    any_box![program_with_input.program.clone()],
+                );
+
+                let concrete_hint_processor = hint_processor
+                    .as_any_mut()
+                    .downcast_mut::<BootloaderHintProcessor>()
+                    .ok_or(HintError::CustomHint(
+                        "Failed to downcast hint_processor to BootloaderHintProcessor".into(),
+                    ))?;
+                // Use the program constants as additional constants for the hint processor.
+                // Overwrite the existing additional constants from previous tasks.
+                concrete_hint_processor.additional_constants =
+                    program_with_input.program.constants.clone();
+                concrete_hint_processor.change_needed = true;
+            } else {
+                let program_input = HashMap::<String, Box<dyn Any>>::new();
+                // new_task_locals['program_input'] = task.program_input
+                new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input]);
+                // new_task_locals['WITH_BOOTLOADER'] = True
+                new_task_locals.insert("WITH_BOOTLOADER".to_string(), any_box![true]);
+
+                hint_extension = HintExtension::default();
+            }
         }
         // elif isinstance(task, CairoPieTask):
         Task::Pie(cairo_pie) => {
@@ -422,6 +485,8 @@ pub fn call_task(
                 ret_pc,
             )
             .map_err(Into::<HintError>::into)?;
+
+            hint_extension = HintExtension::default();
         }
     }
 
@@ -440,7 +505,7 @@ pub fn call_task(
 
     exec_scopes.enter_scope(new_task_locals);
 
-    Ok(())
+    Ok(hint_extension)
 }
 
 // Implements hint: "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)"
@@ -448,18 +513,12 @@ pub fn is_poseidon_to_ap(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
-    let task: Task = exec_scopes.get(vars::TASK)?;
     insert_value_into_ap(
         vm,
-        match &task {
-            Task::Program(_) => 0,
-            Task::Pie(_) => {
-                if exec_scopes.get(vars::USE_POSEIDON)? {
-                    1
-                } else {
-                    0
-                }
-            }
+        if exec_scopes.get(vars::USE_POSEIDON)? {
+            1
+        } else {
+            0
         },
     )
 }

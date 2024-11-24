@@ -61,6 +61,9 @@ impl MinimalBootloaderHintProcessor {
 }
 
 impl HintProcessorLogic for MinimalBootloaderHintProcessor {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
     fn execute_hint(
         &mut self,
         vm: &mut VirtualMachine,
@@ -136,7 +139,6 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             EXECUTE_TASK_ASSERT_PROGRAM_ADDRESS => {
                 assert_program_address(vm, exec_scopes, ids_data, ap_tracking)
             }
-            EXECUTE_TASK_CALL_TASK => call_task(vm, exec_scopes, ids_data, ap_tracking),
             EXECUTE_TASK_WRITE_RETURN_BUILTINS => {
                 write_return_builtins_hint(vm, exec_scopes, ids_data, ap_tracking)
             }
@@ -193,6 +195,8 @@ impl ResourceTracker for MinimalBootloaderHintProcessor {}
 pub struct BootloaderHintProcessor {
     bootloader_hint_processor: MinimalBootloaderHintProcessor,
     builtin_hint_processor: BuiltinHintProcessor,
+    pub additional_constants: HashMap<String, Felt252>,
+    pub change_needed: bool,
 }
 
 impl Default for BootloaderHintProcessor {
@@ -204,8 +208,10 @@ impl Default for BootloaderHintProcessor {
 impl BootloaderHintProcessor {
     pub fn new() -> Self {
         Self {
-            bootloader_hint_processor: MinimalBootloaderHintProcessor {},
+            bootloader_hint_processor: MinimalBootloaderHintProcessor::new(),
             builtin_hint_processor: BuiltinHintProcessor::new_empty(),
+            additional_constants: HashMap::new(),
+            change_needed: false,
         }
     }
 
@@ -217,6 +223,9 @@ impl BootloaderHintProcessor {
 }
 
 impl HintProcessorLogic for BootloaderHintProcessor {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
     fn execute_hint(
         &mut self,
         _vm: &mut VirtualMachine,
@@ -239,20 +248,44 @@ impl HintProcessorLogic for BootloaderHintProcessor {
         constants: &HashMap<String, Felt>,
     ) -> Result<HintExtension, HintError> {
         // Cascade through the internal hint processors until we find the hint implementation.
+        let mut curr_consts = constants;
+        if !self.additional_constants.is_empty() {
+            if self.change_needed {
+                for (key, value) in constants {
+                    self.additional_constants.insert(key.clone(), *value);
+                }
+                self.change_needed = false;
+            }
+            curr_consts = &self.additional_constants;
+        }
 
         match self.bootloader_hint_processor.execute_hint_extensive(
             vm,
             exec_scopes,
             hint_data,
-            constants,
+            curr_consts,
         ) {
             Err(HintError::UnknownHint(_)) => {}
             result => {
                 return result;
             }
         }
+
+        let hint_data_dc = hint_data
+            .downcast_ref::<HintProcessorData>()
+            .ok_or(HintError::WrongHintData)?;
+        if hint_data_dc.code.as_str() == EXECUTE_TASK_CALL_TASK {
+            return call_task(
+                self,
+                vm,
+                exec_scopes,
+                &hint_data_dc.ids_data,
+                &hint_data_dc.ap_tracking,
+            );
+        }
+
         self.builtin_hint_processor
-            .execute_hint_extensive(vm, exec_scopes, hint_data, constants)
+            .execute_hint_extensive(vm, exec_scopes, hint_data, curr_consts)
     }
 }
 
