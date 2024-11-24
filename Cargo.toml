@@ -9,7 +9,7 @@ edition = "2021"
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "serde",
 ] }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "0d869361d5c2c6098170b751c1bdcb8eb071da8e", features = [
+cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "4c6ee5214b0c15d2b1cde1ed7c973a65bae5fcfe", features = [
     "extensive_hints",
     "mod_builtin",
     "clap",
