@@ -452,3 +452,8 @@ impl RunMode {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct SimpleOutputInput {
+    pub output: Vec<Number>,
+}

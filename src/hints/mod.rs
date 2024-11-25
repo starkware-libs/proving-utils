@@ -12,6 +12,7 @@ mod program_hash;
 mod program_loader;
 mod select_builtins;
 mod simple_bootloader_hints;
+mod simple_output_hints;
 pub mod types;
 mod utils;
 mod vars;

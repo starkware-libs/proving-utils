@@ -63,3 +63,6 @@ pub const PRE_EXECUTION_BUILTIN_PTRS: &str = "pre_execution_builtin_ptrs";
 
 // component height const from the py file
 pub const COMPONENT_HEIGHT: u64 = 16;
+
+/// Simple output input.
+pub const SIMPLE_OUTPUT_INPUT: &str = "simple_output_input";

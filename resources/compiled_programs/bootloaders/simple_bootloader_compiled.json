@@ -13,7 +13,7 @@
         "add_mod",
         "mul_mod"
     ],
-    "compiler_version": "0.13.3",
+    "compiler_version": "0.13.4",
     "data": [
         "0x40780017fff7fff",
         "0xb",
@@ -472,7 +472,7 @@
             "/var/lib/engflow/worker/exec/bazel-out/k8-opt-exec-4C6BFEDB-ST-03cbce6a7308/bin/src/starkware/cairo/lang/compiler/cairo_compile_exe.runfiles/__main__/src/starkware/cairo/common/builtin_poseidon/poseidon.cairo": "from starkware.cairo.common.cairo_builtins import PoseidonBuiltin\nfrom starkware.cairo.common.poseidon_state import PoseidonBuiltinState\n\n// Hashes two elements and retrieves a single field element output.\nfunc poseidon_hash{poseidon_ptr: PoseidonBuiltin*}(x: felt, y: felt) -> (res: felt) {\n    // To distinguish between the use cases the capacity element is initialized to 2.\n    assert poseidon_ptr.input = PoseidonBuiltinState(s0=x, s1=y, s2=2);\n\n    let res = poseidon_ptr.output.s0;\n    let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n    return (res=res);\n}\n\n// Hashes one element and retrieves a single field element output.\nfunc poseidon_hash_single{poseidon_ptr: PoseidonBuiltin*}(x: felt) -> (res: felt) {\n    // Pad the rate with a zero.\n    // To distinguish between the use cases the capacity element is initialized to 1.\n    assert poseidon_ptr.input = PoseidonBuiltinState(s0=x, s1=0, s2=1);\n\n    let res = poseidon_ptr.output.s0;\n    let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n    return (res=res);\n}\n\n// Hashes n elements and retrieves a single field element output.\nfunc poseidon_hash_many{poseidon_ptr: PoseidonBuiltin*}(n: felt, elements: felt*) -> (res: felt) {\n    let elements_end = &elements[n];\n    // Apply the sponge construction to digest many elements.\n    // To distinguish between the use cases the capacity element is initialized to 0.\n    // To distinguish between different input sizes always pad with 1 and possibly with another 0 to\n    // complete to an even sized input.\n    tempvar state = PoseidonBuiltinState(s0=0, s1=0, s2=0);\n    tempvar elements = elements;\n    tempvar poseidon_ptr = poseidon_ptr;\n\n    loop:\n    if (nondet %{ ids.elements_end - ids.elements >= 10 %} != 0) {\n        assert poseidon_ptr.input = PoseidonBuiltinState(\n            s0=state.s0 + elements[0], s1=state.s1 + elements[1], s2=state.s2\n        );\n        let state = poseidon_ptr.output;\n        let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n        assert poseidon_ptr.input = PoseidonBuiltinState(\n            s0=state.s0 + elements[2], s1=state.s1 + elements[3], s2=state.s2\n        );\n        let state = poseidon_ptr.output;\n        let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n        assert poseidon_ptr.input = PoseidonBuiltinState(\n            s0=state.s0 + elements[4], s1=state.s1 + elements[5], s2=state.s2\n        );\n        let state = poseidon_ptr.output;\n        let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n        assert poseidon_ptr.input = PoseidonBuiltinState(\n            s0=state.s0 + elements[6], s1=state.s1 + elements[7], s2=state.s2\n        );\n        let state = poseidon_ptr.output;\n        let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n        assert poseidon_ptr.input = PoseidonBuiltinState(\n            s0=state.s0 + elements[8], s1=state.s1 + elements[9], s2=state.s2\n        );\n        let state = poseidon_ptr.output;\n        let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n        tempvar state = state;\n        tempvar elements = &elements[10];\n        tempvar poseidon_ptr = poseidon_ptr;\n        jmp loop;\n    }\n\n    if (nondet %{ ids.elements_end - ids.elements >= 2 %} != 0) {\n        assert poseidon_ptr.input = PoseidonBuiltinState(\n            s0=state.s0 + elements[0], s1=state.s1 + elements[1], s2=state.s2\n        );\n        let state = poseidon_ptr.output;\n        let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n\n        tempvar state = state;\n        tempvar elements = &elements[2];\n        tempvar poseidon_ptr = poseidon_ptr;\n        jmp loop;\n    }\n\n    tempvar n = elements_end - elements;\n\n    if (n == 0) {\n        // Pad input with [1, 0].\n        assert poseidon_ptr.input = PoseidonBuiltinState(s0=state.s0 + 1, s1=state.s1, s2=state.s2);\n        let res = poseidon_ptr.output.s0;\n        let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n        return (res=res);\n    }\n\n    assert n = 1;\n    // Pad input with [1].\n    assert poseidon_ptr.input = PoseidonBuiltinState(\n        s0=state.s0 + elements[0], s1=state.s1 + 1, s2=state.s2\n    );\n    let res = poseidon_ptr.output.s0;\n    let poseidon_ptr = poseidon_ptr + PoseidonBuiltin.SIZE;\n    return (res=res);\n}\n",
             "/var/lib/engflow/worker/exec/bazel-out/k8-opt-exec-4C6BFEDB-ST-03cbce6a7308/bin/src/starkware/cairo/lang/compiler/cairo_compile_exe.runfiles/__main__/src/starkware/cairo/lang/compiler/lib/registers.cairo": "// Returns the contents of the fp and pc registers of the calling function.\n// The pc register's value is the address of the instruction that follows directly after the\n// invocation of get_fp_and_pc().\nfunc get_fp_and_pc() -> (fp_val: felt*, pc_val: felt*) {\n    // The call instruction itself already places the old fp and the return pc at\n    // [ap - 2], [ap - 1].\n    return (fp_val=cast([ap - 2], felt*), pc_val=cast([ap - 1], felt*));\n}\n\n// Returns the content of the ap register just before this function was invoked.\n@known_ap_change\nfunc get_ap() -> (ap_val: felt*) {\n    // Once get_ap() is invoked, fp points to ap + 2 (since the call instruction placed the old fp\n    // and pc in memory, advancing ap accordingly).\n    // Hence, the desired ap value is fp - 2.\n    let (fp_val, pc_val) = get_fp_and_pc();\n    return (ap_val=fp_val - 2);\n}\n",
             "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/execute_task.cairo": "from starkware.cairo.builtin_selection.inner_select_builtins import inner_select_builtins\nfrom starkware.cairo.builtin_selection.select_input_builtins import select_input_builtins\nfrom starkware.cairo.builtin_selection.validate_builtins import validate_builtins\nfrom starkware.cairo.common.builtin_poseidon.poseidon import PoseidonBuiltin, poseidon_hash_many\nfrom starkware.cairo.common.cairo_builtins import HashBuiltin\nfrom starkware.cairo.common.hash_chain import hash_chain\nfrom starkware.cairo.common.registers import get_ap, get_fp_and_pc\n\nconst BOOTLOADER_VERSION = 0;\n\n// Use an empty struct to encode an arbitrary-length array.\nstruct BuiltinList {\n}\n\nstruct ProgramHeader {\n    // The data length field specifies the length of the data (i.e., program header + program)\n    // and guarantees unique decoding of the program hash.\n    data_length: felt,\n    bootloader_version: felt,\n    program_main: felt,\n    n_builtins: felt,\n    // 'builtin_list' is a continuous memory segment containing the ASCII encoding of the (ordered)\n    // builtins used by the program.\n    builtin_list: BuiltinList,\n}\n\nstruct BuiltinData {\n    output: felt,\n    pedersen: felt,\n    range_check: felt,\n    ecdsa: felt,\n    bitwise: felt,\n    ec_op: felt,\n    keccak: felt,\n    poseidon: felt,\n    range_check96: felt,\n    add_mod: felt,\n    mul_mod: felt,\n}\n\n// Computes the hash of a program.\n// Arguments:\n//  * program_data_ptr - the pointer to the program to be hashed.\n//  * use_poseidon - a flag that determines whether the hashing will use Poseidon hash.\n// Return values:\n//  * hash - the computed program hash.\nfunc compute_program_hash{pedersen_ptr: HashBuiltin*, poseidon_ptr: PoseidonBuiltin*}(\n    program_data_ptr: felt*, use_poseidon: felt\n) -> (hash: felt) {\n    if (use_poseidon == 1) {\n        let (hash) = poseidon_hash_many{poseidon_ptr=poseidon_ptr}(\n            n=program_data_ptr[0], elements=&program_data_ptr[1]\n        );\n        return (hash=hash);\n    } else {\n        let (hash) = hash_chain{hash_ptr=pedersen_ptr}(data_ptr=program_data_ptr);\n        return (hash=hash);\n    }\n}\n\n// Executes a single task.\n// The task is passed in the 'task' hint variable.\n// Outputs of the task are prefixed by:\n//   a. Output size (including this prefix)\n//   b. hash_chain(ProgramHeader || task.program.data) where ProgramHeader is defined below.\n// The function returns a pointer to the updated builtin pointers after executing the task.\nfunc execute_task{builtin_ptrs: BuiltinData*, self_range_check_ptr}(\n    builtin_encodings: BuiltinData*, builtin_instance_sizes: BuiltinData*, use_poseidon: felt\n) {\n    // Allocate memory for local variables.\n    alloc_locals;\n\n    // Get the value of fp.\n    let (local __fp__, _) = get_fp_and_pc();\n\n    // Pointer to the program data (which starts with ProgramHeader).\n    local program_data_ptr: felt*;\n    %{ ids.program_data_ptr = program_data_base = segments.add() %}\n\n    // The struct of input builtin pointers pointed by the given builtin_ptrs.\n    let input_builtin_ptrs: BuiltinData* = builtin_ptrs;\n    local output_ptr = input_builtin_ptrs.output;\n\n    let program_header = cast(program_data_ptr, ProgramHeader*);\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.utils import load_program\n\n        # Call load_program to load the program header and code to memory.\n        program_address, program_data_size = load_program(\n            task=task, memory=memory, program_header=ids.program_header,\n            builtins_offset=ids.ProgramHeader.builtin_list)\n        segments.finalize(program_data_base.segment_index, program_data_size)\n    %}\n\n    // Verify that the bootloader version is compatible with the bootloader.\n    assert program_header.bootloader_version = BOOTLOADER_VERSION;\n\n    // Call hash_chain, to verify the program hash.\n    let pedersen_ptr = cast(input_builtin_ptrs.pedersen, HashBuiltin*);\n    let poseidon_ptr = cast(input_builtin_ptrs.poseidon, PoseidonBuiltin*);\n    with pedersen_ptr, poseidon_ptr {\n        let (hash) = compute_program_hash(\n            program_data_ptr=program_data_ptr, use_poseidon=use_poseidon\n        );\n    }\n\n    // Write hash_chain result to output_ptr + 1.\n    assert [output_ptr + 1] = hash;\n    %{\n        # Validate hash.\n        from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain\n\n        assert memory[ids.output_ptr + 1] == compute_program_hash_chain(\n            program=task.get_program(),\n            use_poseidon=bool(ids.use_poseidon)), 'Computed hash does not match input.'\n    %}\n\n    // Set the program entry point, so the bootloader can later run the program.\n    local builtin_list: felt* = &program_header.builtin_list;\n    local n_builtins = program_header.n_builtins;\n    tempvar program_address = builtin_list + n_builtins;\n    %{\n        # Sanity check.\n        assert ids.program_address == program_address\n    %}\n    tempvar program_main = program_header.program_main;\n    // The address in memory where the main function of the task is loaded.\n    local program_entry_point: felt* = program_address + program_main;\n\n    // Fill in all builtin pointers which may be used by the task.\n    // Skip the 2 slots prefix that we add to the task output.\n    local pre_execution_builtin_ptrs: BuiltinData = BuiltinData(\n        output=output_ptr + 2,\n        pedersen=cast(pedersen_ptr, felt),\n        range_check=input_builtin_ptrs.range_check,\n        ecdsa=input_builtin_ptrs.ecdsa,\n        bitwise=input_builtin_ptrs.bitwise,\n        ec_op=input_builtin_ptrs.ec_op,\n        keccak=input_builtin_ptrs.keccak,\n        poseidon=cast(poseidon_ptr, felt),\n        range_check96=input_builtin_ptrs.range_check96,\n        add_mod=input_builtin_ptrs.add_mod,\n        mul_mod=input_builtin_ptrs.mul_mod,\n    );\n\n    // Call select_input_builtins to get the relevant input builtin pointers for the task.\n    select_input_builtins(\n        all_encodings=builtin_encodings,\n        all_ptrs=&pre_execution_builtin_ptrs,\n        n_all_builtins=BuiltinData.SIZE,\n        selected_encodings=builtin_list,\n        n_selected_builtins=n_builtins,\n    );\n\n    call_task:\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.objects import (\n            CairoPieTask,\n            RunProgramTask,\n            Task,\n        )\n        from starkware.cairo.bootloaders.simple_bootloader.utils import (\n            load_cairo_pie,\n            prepare_output_runner,\n        )\n\n        assert isinstance(task, Task)\n        n_builtins = len(task.get_program().builtins)\n        new_task_locals = {}\n        if isinstance(task, RunProgramTask):\n            new_task_locals['program_input'] = task.program_input\n            new_task_locals['WITH_BOOTLOADER'] = True\n\n            vm_load_program(task.program, program_address)\n        elif isinstance(task, CairoPieTask):\n            ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ + pc\n            load_cairo_pie(\n                task=task.cairo_pie, memory=memory, segments=segments,\n                program_address=program_address, execution_segment_address= ap - n_builtins,\n                builtin_runners=builtin_runners, ret_fp=fp, ret_pc=ret_pc)\n        else:\n            raise NotImplementedError(f'Unexpected task type: {type(task).__name__}.')\n\n        output_runner_data = prepare_output_runner(\n            task=task,\n            output_builtin=output_builtin,\n            output_ptr=ids.pre_execution_builtin_ptrs.output)\n        vm_enter_scope(new_task_locals)\n    %}\n\n    // Call the inner program's main() function.\n    call abs program_entry_point;\n\n    ret_pc_label:\n    %{\n        vm_exit_scope()\n        # Note that bootloader_input will only be available in the next hint.\n    %}\n\n    // Note that used_builtins_addr cannot be set in a hint because doing so will allow a malicious\n    // prover to lie about the outputs of a valid program.\n    let (ap_val) = get_ap();\n    local used_builtins_addr: felt* = cast(ap_val - n_builtins, felt*);\n\n    // Call inner_select_builtins to validate that the values of the builtin pointers for the next\n    // task are updated according to the task return builtin pointers.\n\n    // Allocate a struct containing all builtin pointers just after the program returns.\n    local return_builtin_ptrs: BuiltinData;\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.utils import write_return_builtins\n\n        # Fill the values of all builtin pointers after executing the task.\n        builtins = task.get_program().builtins\n        write_return_builtins(\n            memory=memory, return_builtins_addr=ids.return_builtin_ptrs.address_,\n            used_builtins=builtins, used_builtins_addr=ids.used_builtins_addr,\n            pre_execution_builtins_addr=ids.pre_execution_builtin_ptrs.address_, task=task)\n\n        vm_enter_scope({'n_selected_builtins': n_builtins})\n    %}\n    let select_builtins_ret = inner_select_builtins(\n        all_encodings=builtin_encodings,\n        all_ptrs=&return_builtin_ptrs,\n        selected_encodings=builtin_list,\n        selected_ptrs=used_builtins_addr,\n        n_builtins=BuiltinData.SIZE,\n    );\n    %{ vm_exit_scope() %}\n\n    // Assert that the correct number of builtins was selected.\n    // Note that builtin_list is a pointer to the list containing the selected encodings.\n    assert n_builtins = select_builtins_ret.selected_encodings_end - builtin_list;\n\n    // Call validate_builtins to validate that the builtin pointers have advanced correctly.\n    validate_builtins{range_check_ptr=self_range_check_ptr}(\n        prev_builtin_ptrs=&pre_execution_builtin_ptrs,\n        new_builtin_ptrs=&return_builtin_ptrs,\n        builtin_instance_sizes=builtin_instance_sizes,\n        n_builtins=BuiltinData.SIZE,\n    );\n\n    // Verify that [output_ptr] = return_builtin_ptrs.output - output_ptr.\n    // Output size should be 2 + the number of output slots that were consumed by the task.\n    local output_size = return_builtin_ptrs.output - output_ptr;\n    assert [output_ptr] = output_size;\n\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.utils import get_task_fact_topology\n\n        # Add the fact topology of the current task to 'fact_topologies'.\n        output_start = ids.pre_execution_builtin_ptrs.output\n        output_end = ids.return_builtin_ptrs.output\n        fact_topologies.append(get_task_fact_topology(\n            output_size=output_end - output_start,\n            task=task,\n            output_builtin=output_builtin,\n            output_runner_data=output_runner_data,\n        ))\n    %}\n\n    let builtin_ptrs = &return_builtin_ptrs;\n    return ();\n}\n",
-            "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo": "from starkware.cairo.bootloaders.simple_bootloader.execute_task import BuiltinData, execute_task\nfrom starkware.cairo.common.cairo_builtins import HashBuiltin, PoseidonBuiltin\nfrom starkware.cairo.common.registers import get_fp_and_pc\n\n// Loads the programs and executes them.\n//\n// Hint Arguments:\n// simple_bootloader_input - contains the tasks to execute.\n//\n// Returns:\n// Updated builtin pointers after executing all programs.\n// fact_topologies - that corresponds to the tasks (hint variable).\nfunc run_simple_bootloader{\n    output_ptr: felt*,\n    pedersen_ptr: HashBuiltin*,\n    range_check_ptr,\n    ecdsa_ptr,\n    bitwise_ptr,\n    ec_op_ptr,\n    keccak_ptr,\n    poseidon_ptr: PoseidonBuiltin*,\n    range_check96_ptr,\n    add_mod_ptr,\n    mul_mod_ptr,\n}() {\n    alloc_locals;\n    local task_range_check_ptr;\n\n    %{\n        n_tasks = len(simple_bootloader_input.tasks)\n        memory[ids.output_ptr] = n_tasks\n\n        # Task range checks are located right after simple bootloader validation range checks, and\n        # this is validated later in this function.\n        ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks\n\n        # A list of fact_toplogies that instruct how to generate the fact from the program output\n        # for each task.\n        fact_topologies = []\n    %}\n\n    let n_tasks = [output_ptr];\n    let output_ptr = output_ptr + 1;\n\n    // A struct containing the pointer to each builtin.\n    local builtin_ptrs_before: BuiltinData = BuiltinData(\n        output=cast(output_ptr, felt),\n        pedersen=cast(pedersen_ptr, felt),\n        range_check=task_range_check_ptr,\n        ecdsa=ecdsa_ptr,\n        bitwise=bitwise_ptr,\n        ec_op=ec_op_ptr,\n        keccak=keccak_ptr,\n        poseidon=cast(poseidon_ptr, felt),\n        range_check96=range_check96_ptr,\n        add_mod=add_mod_ptr,\n        mul_mod=mul_mod_ptr,\n    );\n\n    // A struct containing the encoding of each builtin.\n    local builtin_encodings: BuiltinData = BuiltinData(\n        output='output',\n        pedersen='pedersen',\n        range_check='range_check',\n        ecdsa='ecdsa',\n        bitwise='bitwise',\n        ec_op='ec_op',\n        keccak='keccak',\n        poseidon='poseidon',\n        range_check96='range_check96',\n        add_mod='add_mod',\n        mul_mod='mul_mod',\n    );\n\n    local builtin_instance_sizes: BuiltinData = BuiltinData(\n        output=1,\n        pedersen=3,\n        range_check=1,\n        ecdsa=2,\n        bitwise=5,\n        ec_op=7,\n        keccak=16,\n        poseidon=6,\n        range_check96=1,\n        add_mod=7,\n        mul_mod=7,\n    );\n\n    // Call execute_tasks.\n    let (__fp__, _) = get_fp_and_pc();\n\n    %{ tasks = simple_bootloader_input.tasks %}\n    let builtin_ptrs = &builtin_ptrs_before;\n    let self_range_check_ptr = range_check_ptr;\n    with builtin_ptrs, self_range_check_ptr {\n        execute_tasks(\n            builtin_encodings=&builtin_encodings,\n            builtin_instance_sizes=&builtin_instance_sizes,\n            n_tasks=n_tasks,\n        );\n    }\n\n    // Verify that the task range checks appear after the self range checks of execute_task.\n    assert self_range_check_ptr = task_range_check_ptr;\n\n    // Return the updated builtin pointers.\n    local builtin_ptrs: BuiltinData* = builtin_ptrs;\n    let output_ptr = cast(builtin_ptrs.output, felt*);\n    let pedersen_ptr = cast(builtin_ptrs.pedersen, HashBuiltin*);\n    let range_check_ptr = builtin_ptrs.range_check;\n    let ecdsa_ptr = builtin_ptrs.ecdsa;\n    let bitwise_ptr = builtin_ptrs.bitwise;\n    let ec_op_ptr = builtin_ptrs.ec_op;\n    let keccak_ptr = builtin_ptrs.keccak;\n    let poseidon_ptr = cast(builtin_ptrs.poseidon, PoseidonBuiltin*);\n    let range_check96_ptr = builtin_ptrs.range_check96;\n    let add_mod_ptr = builtin_ptrs.add_mod;\n    let mul_mod_ptr = builtin_ptrs.mul_mod;\n\n    // 'execute_tasks' runs untrusted code and uses the range_check builtin to verify that\n    // the builtin pointers were advanced correctly by said code.\n    // Since range_check itself is used for the verification, we cannot assume that the verification\n    // above is sound unless we know that the self range checks that were used during verification\n    // are indeed valid (that is, within the segment of the range_check builtin).\n    // Following the Cairo calling convention, we can guarantee the validity of the self range\n    // checks by making sure that range_check_ptr >= self_range_check_ptr.\n    // The following check validates that the inequality above holds without using the range check\n    // builtin.\n    let additional_range_checks = range_check_ptr - self_range_check_ptr;\n    verify_non_negative(num=additional_range_checks, n_bits=64);\n\n    return ();\n}\n\n// Verifies that a field element is in the range [0, 2^n_bits), without relying on the range_check\n// builtin.\nfunc verify_non_negative(num: felt, n_bits: felt) {\n    if (n_bits == 0) {\n        assert num = 0;\n        return ();\n    }\n\n    tempvar num_div2 = nondet %{ ids.num // 2 %};\n    tempvar bit = num - (num_div2 + num_div2);\n    // Check that bit is 0 or 1.\n    assert bit = bit * bit;\n    return verify_non_negative(num=num_div2, n_bits=n_bits - 1);\n}\n\n// Executes the last n_tasks from simple_bootloader_input.tasks.\n//\n// Arguments:\n// builtin_encodings - String encodings of the builtins.\n// builtin_instance_sizes - Mapping to builtin sizes.\n// n_tasks - The number of tasks to execute.\n//\n// Implicit arguments:\n// builtin_ptrs - Pointer to the builtin pointers before/after executing the tasks.\n// self_range_check_ptr - range_check pointer (used for validating the builtins).\n//\n// Hint arguments:\n// tasks - A list of tasks to execute.\nfunc execute_tasks{builtin_ptrs: BuiltinData*, self_range_check_ptr}(\n    builtin_encodings: BuiltinData*, builtin_instance_sizes: BuiltinData*, n_tasks: felt\n) {\n    if (n_tasks == 0) {\n        return ();\n    }\n\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.objects import Task\n\n        # Pass current task to execute_task.\n        task_id = len(simple_bootloader_input.tasks) - ids.n_tasks\n        task = simple_bootloader_input.tasks[task_id].load_task()\n    %}\n    tempvar use_poseidon = nondet %{ 1 if task.use_poseidon else 0 %};\n    // Call execute_task to execute the current task.\n    execute_task(\n        builtin_encodings=builtin_encodings,\n        builtin_instance_sizes=builtin_instance_sizes,\n        use_poseidon=use_poseidon,\n    );\n\n    return execute_tasks(\n        builtin_encodings=builtin_encodings,\n        builtin_instance_sizes=builtin_instance_sizes,\n        n_tasks=n_tasks - 1,\n    );\n}\n",
+            "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo": "from starkware.cairo.bootloaders.simple_bootloader.execute_task import BuiltinData, execute_task\nfrom starkware.cairo.common.cairo_builtins import HashBuiltin, PoseidonBuiltin\nfrom starkware.cairo.common.registers import get_fp_and_pc\n\n// Loads the given tasks and executes them.\n// Outputs the program hashes of the tasks, and their outputs.\n//\n// Hint Arguments:\n// simple_bootloader_input - contains the tasks to execute.\n//\n// Returns (written to output_ptr):\n// - The number of tasks executed.\n// - For each task:\n//   - Size.\n//   - Program hash.\n//   - The output of the program (of length=Size-2).\n//\n// Furthermore, returns:\n// Updated builtin pointers after executing all programs.\n// fact_topologies - that corresponds to the tasks (hint variable).\nfunc run_simple_bootloader{\n    output_ptr: felt*,\n    pedersen_ptr: HashBuiltin*,\n    range_check_ptr,\n    ecdsa_ptr,\n    bitwise_ptr,\n    ec_op_ptr,\n    keccak_ptr,\n    poseidon_ptr: PoseidonBuiltin*,\n    range_check96_ptr,\n    add_mod_ptr,\n    mul_mod_ptr,\n}() {\n    alloc_locals;\n    local task_range_check_ptr;\n\n    %{\n        n_tasks = len(simple_bootloader_input.tasks)\n        memory[ids.output_ptr] = n_tasks\n\n        # Task range checks are located right after simple bootloader validation range checks, and\n        # this is validated later in this function.\n        ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks\n\n        # A list of fact_toplogies that instruct how to generate the fact from the program output\n        # for each task.\n        fact_topologies = []\n    %}\n\n    let n_tasks = [output_ptr];\n    let output_ptr = output_ptr + 1;\n\n    // A struct containing the pointer to each builtin.\n    local builtin_ptrs_before: BuiltinData = BuiltinData(\n        output=cast(output_ptr, felt),\n        pedersen=cast(pedersen_ptr, felt),\n        range_check=task_range_check_ptr,\n        ecdsa=ecdsa_ptr,\n        bitwise=bitwise_ptr,\n        ec_op=ec_op_ptr,\n        keccak=keccak_ptr,\n        poseidon=cast(poseidon_ptr, felt),\n        range_check96=range_check96_ptr,\n        add_mod=add_mod_ptr,\n        mul_mod=mul_mod_ptr,\n    );\n\n    // A struct containing the encoding of each builtin.\n    local builtin_encodings: BuiltinData = BuiltinData(\n        output='output',\n        pedersen='pedersen',\n        range_check='range_check',\n        ecdsa='ecdsa',\n        bitwise='bitwise',\n        ec_op='ec_op',\n        keccak='keccak',\n        poseidon='poseidon',\n        range_check96='range_check96',\n        add_mod='add_mod',\n        mul_mod='mul_mod',\n    );\n\n    local builtin_instance_sizes: BuiltinData = BuiltinData(\n        output=1,\n        pedersen=3,\n        range_check=1,\n        ecdsa=2,\n        bitwise=5,\n        ec_op=7,\n        keccak=16,\n        poseidon=6,\n        range_check96=1,\n        add_mod=7,\n        mul_mod=7,\n    );\n\n    // Call execute_tasks.\n    let (__fp__, _) = get_fp_and_pc();\n\n    %{ tasks = simple_bootloader_input.tasks %}\n    let builtin_ptrs = &builtin_ptrs_before;\n    let self_range_check_ptr = range_check_ptr;\n    with builtin_ptrs, self_range_check_ptr {\n        execute_tasks(\n            builtin_encodings=&builtin_encodings,\n            builtin_instance_sizes=&builtin_instance_sizes,\n            n_tasks=n_tasks,\n        );\n    }\n\n    // Verify that the task range checks appear after the self range checks of execute_task.\n    assert self_range_check_ptr = task_range_check_ptr;\n\n    // Return the updated builtin pointers.\n    local builtin_ptrs: BuiltinData* = builtin_ptrs;\n    let output_ptr = cast(builtin_ptrs.output, felt*);\n    let pedersen_ptr = cast(builtin_ptrs.pedersen, HashBuiltin*);\n    let range_check_ptr = builtin_ptrs.range_check;\n    let ecdsa_ptr = builtin_ptrs.ecdsa;\n    let bitwise_ptr = builtin_ptrs.bitwise;\n    let ec_op_ptr = builtin_ptrs.ec_op;\n    let keccak_ptr = builtin_ptrs.keccak;\n    let poseidon_ptr = cast(builtin_ptrs.poseidon, PoseidonBuiltin*);\n    let range_check96_ptr = builtin_ptrs.range_check96;\n    let add_mod_ptr = builtin_ptrs.add_mod;\n    let mul_mod_ptr = builtin_ptrs.mul_mod;\n\n    // 'execute_tasks' runs untrusted code and uses the range_check builtin to verify that\n    // the builtin pointers were advanced correctly by said code.\n    // Since range_check itself is used for the verification, we cannot assume that the verification\n    // above is sound unless we know that the self range checks that were used during verification\n    // are indeed valid (that is, within the segment of the range_check builtin).\n    // Following the Cairo calling convention, we can guarantee the validity of the self range\n    // checks by making sure that range_check_ptr >= self_range_check_ptr.\n    // The following check validates that the inequality above holds without using the range check\n    // builtin.\n    let additional_range_checks = range_check_ptr - self_range_check_ptr;\n    verify_non_negative(num=additional_range_checks, n_bits=64);\n\n    return ();\n}\n\n// Verifies that a field element is in the range [0, 2^n_bits), without relying on the range_check\n// builtin.\nfunc verify_non_negative(num: felt, n_bits: felt) {\n    if (n_bits == 0) {\n        assert num = 0;\n        return ();\n    }\n\n    tempvar num_div2 = nondet %{ ids.num // 2 %};\n    tempvar bit = num - (num_div2 + num_div2);\n    // Check that bit is 0 or 1.\n    assert bit = bit * bit;\n    return verify_non_negative(num=num_div2, n_bits=n_bits - 1);\n}\n\n// Executes the last n_tasks from simple_bootloader_input.tasks.\n//\n// Arguments:\n// builtin_encodings - String encodings of the builtins.\n// builtin_instance_sizes - Mapping to builtin sizes.\n// n_tasks - The number of tasks to execute.\n//\n// Implicit arguments:\n// builtin_ptrs - Pointer to the builtin pointers before/after executing the tasks.\n// self_range_check_ptr - range_check pointer (used for validating the builtins).\n//\n// Hint arguments:\n// tasks - A list of tasks to execute.\nfunc execute_tasks{builtin_ptrs: BuiltinData*, self_range_check_ptr}(\n    builtin_encodings: BuiltinData*, builtin_instance_sizes: BuiltinData*, n_tasks: felt\n) {\n    if (n_tasks == 0) {\n        return ();\n    }\n\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.objects import Task\n\n        # Pass current task to execute_task.\n        task_id = len(simple_bootloader_input.tasks) - ids.n_tasks\n        task = simple_bootloader_input.tasks[task_id].load_task()\n    %}\n    tempvar use_poseidon = nondet %{ 1 if task.use_poseidon else 0 %};\n    // Call execute_task to execute the current task.\n    execute_task(\n        builtin_encodings=builtin_encodings,\n        builtin_instance_sizes=builtin_instance_sizes,\n        use_poseidon=use_poseidon,\n    );\n\n    return execute_tasks(\n        builtin_encodings=builtin_encodings,\n        builtin_instance_sizes=builtin_instance_sizes,\n        n_tasks=n_tasks - 1,\n    );\n}\n",
             "/var/lib/engflow/worker/exec/src/starkware/cairo/builtin_selection/inner_select_builtins.cairo": "// An helper function to extract selected_ptrs from all_ptrs according to the builtin encodings\n// that appear in the selected_encodings list.\n// The caller needs to pass n_selected_builtins as a hint.\n// Returns a pointer to the next memory slot after the selected_encodings list, see \"Assumptions\".\n//\n// For example, given the following setup:\n//   - all_encodings points to [\"output\", \"pedersen\", \"range-check\"].\n//   - selected_encodings points to [\"output\", \"range-check\"]\n//   - all_ptrs points to [output_ptr, pedersen_ptr, range_check_ptr]\n//   - The caller asserts that the return value is selected_encodings + n_selected_builtins(2).\n// The function will check that selected_encodings points to [output_ptr, range_check_ptr].\n//\n// n_builtins is the length of the list of *all pointers*.\n// Assumptions:\n// * The caller has to check that n_selected_builtins = selected_encodings_end - selected_encodings.\n// * All lists are sorted according to the order of builtins input in Cairo programs.\n// * len(selected_encodings) <= len(all_encodings) == len(all_ptrs).\nfunc inner_select_builtins(\n    all_encodings: felt*,\n    all_ptrs: felt*,\n    selected_encodings: felt*,\n    selected_ptrs: felt*,\n    n_builtins,\n) -> (selected_encodings_end: felt*) {\n    // Number of memory cells used when n_builtins = 0.\n    const FUNC_MEMORY_NO_BUILTINS = 1;\n    // Number of memory cells used *in a single iteration* when n_builtins > 0.\n    const FUNC_MEMORY_WITH_BUILTINS = 10;\n\n    if (n_builtins == 0) {\n        // Return a pointer to the end of the selected_encodings list.\n        return (selected_encodings_end=selected_encodings);\n    }\n\n    alloc_locals;\n    // select_builtin equals 1 if the first builtin should be selected and 0 otherwise.\n    local select_builtin;\n    %{\n        # A builtin should be selected iff its encoding appears in the selected encodings list\n        # and the list wasn't exhausted.\n        # Note that testing inclusion by a single comparison is possible since the lists are sorted.\n        ids.select_builtin = int(\n          n_selected_builtins > 0 and memory[ids.selected_encodings] == memory[ids.all_encodings])\n        if ids.select_builtin:\n          n_selected_builtins = n_selected_builtins - 1\n    %}\n    // Verify that select_builtin is a bit.\n    select_builtin = select_builtin * select_builtin;\n\n    local curr_builtin_encoding = [all_encodings];\n    local curr_builtin_ptr = [all_ptrs];\n\n    if (select_builtin != 0) {\n        // Verify that the current builtin is indeed selected, by asserting that its encoding\n        // appears in the selected encodings list.\n        curr_builtin_encoding = [selected_encodings];\n        // Copy the current builtin pointer between selected_ptrs and all_ptrs.\n        curr_builtin_ptr = [selected_ptrs];\n    }\n\n    // Advance all list pointers accordingly and continue selection by calling inner_select_builtins\n    // recursively.\n    // Lists of selected builtins/encodings should advance only if the current builtin was selected.\n    return inner_select_builtins(\n        all_encodings=all_encodings + 1,\n        all_ptrs=all_ptrs + 1,\n        selected_encodings=selected_encodings + select_builtin,\n        selected_ptrs=selected_ptrs + select_builtin,\n        n_builtins=n_builtins - 1,\n    );\n}\n",
             "/var/lib/engflow/worker/exec/src/starkware/cairo/builtin_selection/select_input_builtins.cairo": "from starkware.cairo.builtin_selection.inner_select_builtins import inner_select_builtins\nfrom starkware.cairo.common.registers import get_fp_and_pc\n\n// A wrapper for 'inner_select_builtins' function (see its documentation).\n// Returns the selected builtin pointers (e.g., if n_selected_builtins=2, returns two values).\nfunc select_input_builtins(\n    all_encodings: felt*,\n    all_ptrs: felt*,\n    n_all_builtins: felt,\n    selected_encodings: felt*,\n    n_selected_builtins,\n) {\n    // Number of memory cells used, without taking the inner function memory into account.\n    const FUNC_MEMORY_WITHOUT_INNER_FUNC = 11;\n    const INNER_FUNC_MEMORY_PER_ITERATION = inner_select_builtins.FUNC_MEMORY_WITH_BUILTINS;\n    const INNER_FUNC_MEMORY_FINAL_ITERATION = inner_select_builtins.FUNC_MEMORY_NO_BUILTINS;\n    // 'inner_select_builtins' has n_all_builtins iterations, until the final halting one, when\n    // called with n_builtins = n_all_builtins.\n    let inner_func_memory = n_all_builtins * INNER_FUNC_MEMORY_PER_ITERATION +\n        INNER_FUNC_MEMORY_FINAL_ITERATION;\n    let total_func_memory = inner_func_memory + FUNC_MEMORY_WITHOUT_INNER_FUNC;\n\n    let frame = call get_fp_and_pc;\n    // The selected builtin pointers are the return values at the end of the function memory.\n    let selected_ptrs = frame.fp_val + total_func_memory;\n    %{ vm_enter_scope({'n_selected_builtins': ids.n_selected_builtins}) %}\n    let inner_ret = inner_select_builtins(\n        all_encodings=all_encodings,\n        all_ptrs=all_ptrs,\n        selected_encodings=selected_encodings,\n        selected_ptrs=selected_ptrs,\n        n_builtins=n_all_builtins,\n    );\n    %{ vm_exit_scope() %}\n    // Assert that the correct number of builtins was selected.\n    n_selected_builtins = inner_ret.selected_encodings_end - selected_encodings;\n\n    ap += n_selected_builtins;\n    ret;\n}\n",
             "/var/lib/engflow/worker/exec/src/starkware/cairo/builtin_selection/validate_builtins.cairo": "// Validates that the builtin pointer of a single builtin was advanced correctly.\n// The inputs are:\n//   The previous builtin pointer.\n//   The new builtin pointer.\n//   The size of the builtin instances.\n// The function validates that the difference between the new builtin pointer and the old builtin\n// pointer is a positive integer divisible by the given builtin instance size.\n//\n// The function consumes 1 range check instance starting at range_check_ptr and returns the\n// updated range check pointer.\nfunc validate_builtin{range_check_ptr}(\n    prev_builtin_ptr: felt*, new_builtin_ptr: felt*, builtin_instance_size: felt\n) {\n    // Check that the difference is positive and divisible by builtin_instance_size by checking that\n    // 0 <= div_res < RANGE_CHECK_BOUND and diff = div_res * builtin_instance_size.\n    tempvar diff = new_builtin_ptr - prev_builtin_ptr;\n    tempvar div_res = diff / builtin_instance_size;\n    div_res = [range_check_ptr];\n    let range_check_ptr = range_check_ptr + 1;\n    return ();\n}\n\n// Validates that the builtin pointers were advanced correctly.\n//\n// The inputs are:\n//   The previous list of builtin pointers.\n//   The new list of builtin pointers.\n//   The sizes of the builtin instances.\n//   The number of builtins.\n//\n// For each builtin the function validates that the difference between the new builtin pointer and\n// the old builtin pointer is a nonnegative integer divisible by the corresponding builtin\n// instance size.\n//\n// The function consumes n_builtins range check instances starting at range_check_ptr and returns\n// the updated range check pointer.\nfunc validate_builtins{range_check_ptr}(\n    prev_builtin_ptrs: felt*, new_builtin_ptrs: felt*, builtin_instance_sizes: felt*, n_builtins\n) {\n    if (n_builtins == 0) {\n        return ();\n    }\n\n    validate_builtin(\n        prev_builtin_ptr=cast([prev_builtin_ptrs], felt*),\n        new_builtin_ptr=cast([new_builtin_ptrs], felt*),\n        builtin_instance_size=[builtin_instance_sizes],\n    );\n\n    return validate_builtins(\n        prev_builtin_ptrs=prev_builtin_ptrs + 1,\n        new_builtin_ptrs=new_builtin_ptrs + 1,\n        builtin_instance_sizes=builtin_instance_sizes + 1,\n        n_builtins=n_builtins - 1,\n    );\n}\n",
@@ -483,7 +483,7 @@
             "/var/lib/engflow/worker/exec/src/starkware/cairo/common/poseidon_state.cairo": "// Represents a Poseidon state.\nstruct PoseidonBuiltinState {\n    s0: felt,\n    s1: felt,\n    s2: felt,\n}\n",
             "/var/lib/engflow/worker/exec/src/starkware/cairo/common/registers.cairo": "from starkware.cairo.lang.compiler.lib.registers import get_ap, get_fp_and_pc\n\n// Takes the value of a label (relative to program base) and returns the actual runtime address of\n// that label in the memory.\n//\n// Usage example:\n//\n// func do_callback(...) {\n//     ...\n// }\n//\n// func do_thing_then_callback(callback) {\n//     ...\n//     call abs callback;\n// }\n//\n// func main() {\n//     let (callback_address) = get_label_location(do_callback);\n//     do_thing_then_callback(callback=callback_address);\n// }\nfunc get_label_location(label_value: codeoffset) -> (res: felt*) {\n    let (_, pc_val) = get_fp_and_pc();\n\n    ret_pc_label:\n    return (res=pc_val + (label_value - ret_pc_label));\n}\n",
             "<start>": "__start__:\nap += main.Args.SIZE + main.ImplicitArgs.SIZE;\ncall main;\n\n__end__:\njmp rel 0;\n",
-            "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo": "%builtins output pedersen range_check ecdsa bitwise ec_op keccak poseidon range_check96 add_mod mul_mod\n\nfrom starkware.cairo.bootloaders.simple_bootloader.run_simple_bootloader import (\n    run_simple_bootloader,\n)\nfrom starkware.cairo.common.cairo_builtins import HashBuiltin, PoseidonBuiltin\nfrom starkware.cairo.common.registers import get_fp_and_pc\n\nfunc main{\n    output_ptr: felt*,\n    pedersen_ptr: HashBuiltin*,\n    range_check_ptr,\n    ecdsa_ptr,\n    bitwise_ptr,\n    ec_op_ptr,\n    keccak_ptr,\n    poseidon_ptr: PoseidonBuiltin*,\n    range_check96_ptr,\n    add_mod_ptr,\n    mul_mod_ptr,\n}() {\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput\n        simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)\n    %}\n\n    // Execute tasks.\n    run_simple_bootloader();\n\n    %{\n        # Dump fact topologies to a json file.\n        from starkware.cairo.bootloaders.simple_bootloader.utils import (\n            configure_fact_topologies,\n            write_to_fact_topologies_file,\n        )\n\n        # The task-related output is prefixed by a single word that contains the number of tasks.\n        tasks_output_start = output_builtin.base + 1\n\n        if not simple_bootloader_input.single_page:\n            # Configure the memory pages in the output builtin, based on fact_topologies.\n            configure_fact_topologies(\n                fact_topologies=fact_topologies, output_start=tasks_output_start,\n                output_builtin=output_builtin,\n            )\n\n        if simple_bootloader_input.fact_topologies_path is not None:\n            write_to_fact_topologies_file(\n                fact_topologies_path=simple_bootloader_input.fact_topologies_path,\n                fact_topologies=fact_topologies,\n            )\n    %}\n    return ();\n}\n"
+            "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo": "%builtins output pedersen range_check ecdsa bitwise ec_op keccak poseidon range_check96 add_mod mul_mod\n\nfrom starkware.cairo.bootloaders.simple_bootloader.run_simple_bootloader import (\n    run_simple_bootloader,\n)\nfrom starkware.cairo.common.cairo_builtins import HashBuiltin, PoseidonBuiltin\nfrom starkware.cairo.common.registers import get_fp_and_pc\n\n// For documentation of the simple bootloader, see the docstring of `run_simple_bootloader'.\n// Hint arguments:\n// program_input - contains the tasks to execute. Formatted as a SimpleBootloaderInput object.\nfunc main{\n    output_ptr: felt*,\n    pedersen_ptr: HashBuiltin*,\n    range_check_ptr,\n    ecdsa_ptr,\n    bitwise_ptr,\n    ec_op_ptr,\n    keccak_ptr,\n    poseidon_ptr: PoseidonBuiltin*,\n    range_check96_ptr,\n    add_mod_ptr,\n    mul_mod_ptr,\n}() {\n    %{\n        from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput\n        simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)\n    %}\n\n    // Execute tasks.\n    run_simple_bootloader();\n\n    %{\n        # Dump fact topologies to a json file.\n        from starkware.cairo.bootloaders.simple_bootloader.utils import (\n            configure_fact_topologies,\n            write_to_fact_topologies_file,\n        )\n\n        # The task-related output is prefixed by a single word that contains the number of tasks.\n        tasks_output_start = output_builtin.base + 1\n\n        if not simple_bootloader_input.single_page:\n            # Configure the memory pages in the output builtin, based on fact_topologies.\n            configure_fact_topologies(\n                fact_topologies=fact_topologies, output_start=tasks_output_start,\n                output_builtin=output_builtin,\n            )\n\n        if simple_bootloader_input.fact_topologies_path is not None:\n            write_to_fact_topologies_file(\n                fact_topologies_path=simple_bootloader_input.fact_topologies_path,\n                fact_topologies=fact_topologies,\n            )\n    %}\n    return ();\n}\n"
         },
         "instruction_locations": {
             "0": {
@@ -10453,12 +10453,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 18,
-                    "end_line": 26,
+                    "end_line": 34,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 26
+                    "start_line": 34
                 }
             },
             "312": {
@@ -10491,24 +10491,24 @@
                     {
                         "location": {
                             "end_col": 7,
-                            "end_line": 40,
+                            "end_line": 48,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 5,
-                            "start_line": 29
+                            "start_line": 37
                         },
                         "n_prefix_newlines": 1
                     }
                 ],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "314": {
@@ -10540,12 +10540,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "315": {
@@ -10577,12 +10577,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "316": {
@@ -10614,12 +10614,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "317": {
@@ -10651,12 +10651,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "318": {
@@ -10688,12 +10688,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "319": {
@@ -10725,12 +10725,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "320": {
@@ -10762,12 +10762,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "321": {
@@ -10799,12 +10799,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "322": {
@@ -10836,12 +10836,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "323": {
@@ -10873,12 +10873,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 58,
+                    "end_line": 66,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "324": {
@@ -10911,12 +10911,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "326": {
@@ -10949,12 +10949,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "328": {
@@ -10987,12 +10987,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "330": {
@@ -11025,12 +11025,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "332": {
@@ -11063,12 +11063,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "334": {
@@ -11101,12 +11101,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "336": {
@@ -11139,12 +11139,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "338": {
@@ -11177,12 +11177,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "340": {
@@ -11215,12 +11215,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "342": {
@@ -11253,12 +11253,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "344": {
@@ -11291,12 +11291,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 73,
+                    "end_line": 81,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "346": {
@@ -11330,12 +11330,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "348": {
@@ -11369,12 +11369,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "350": {
@@ -11408,12 +11408,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "352": {
@@ -11447,12 +11447,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "354": {
@@ -11486,12 +11486,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "356": {
@@ -11525,12 +11525,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "358": {
@@ -11564,12 +11564,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "360": {
@@ -11603,12 +11603,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "362": {
@@ -11642,12 +11642,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "364": {
@@ -11681,12 +11681,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "366": {
@@ -11720,12 +11720,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 87,
+                    "end_line": 95,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "368": {
@@ -11760,12 +11760,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 38,
-                    "end_line": 90,
+                    "end_line": 98,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 23,
-                    "start_line": 90
+                    "start_line": 98
                 }
             },
             "370": {
@@ -11804,60 +11804,60 @@
                     {
                         "location": {
                             "end_col": 48,
-                            "end_line": 92,
+                            "end_line": 100,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 5,
-                            "start_line": 92
+                            "start_line": 100
                         },
                         "n_prefix_newlines": 0
                     }
                 ],
                 "inst": {
                     "end_col": 30,
-                    "end_line": 46,
+                    "end_line": 54,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 44,
-                            "end_line": 93,
+                            "end_line": 101,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 46,
-                                    "end_line": 163,
+                                    "end_line": 171,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "parent_location": [
                                         {
                                             "end_col": 10,
-                                            "end_line": 100,
+                                            "end_line": 108,
                                             "input_file": {
                                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                             },
                                             "start_col": 9,
-                                            "start_line": 96
+                                            "start_line": 104
                                         },
                                         "While trying to retrieve the implicit argument 'builtin_ptrs' in:"
                                     ],
                                     "start_col": 20,
-                                    "start_line": 163
+                                    "start_line": 171
                                 },
                                 "While expanding the reference 'builtin_ptrs' in:"
                             ],
                             "start_col": 25,
-                            "start_line": 93
+                            "start_line": 101
                         },
                         "While expanding the reference 'builtin_ptrs_before' in:"
                     ],
                     "start_col": 11,
-                    "start_line": 46
+                    "start_line": 54
                 }
             },
             "372": {
@@ -11895,48 +11895,48 @@
                 "hints": [],
                 "inst": {
                     "end_col": 20,
-                    "end_line": 16,
+                    "end_line": 24,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 47,
-                            "end_line": 94,
+                            "end_line": 102,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 68,
-                                    "end_line": 163,
+                                    "end_line": 171,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "parent_location": [
                                         {
                                             "end_col": 10,
-                                            "end_line": 100,
+                                            "end_line": 108,
                                             "input_file": {
                                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                             },
                                             "start_col": 9,
-                                            "start_line": 96
+                                            "start_line": 104
                                         },
                                         "While trying to retrieve the implicit argument 'self_range_check_ptr' in:"
                                     ],
                                     "start_col": 48,
-                                    "start_line": 163
+                                    "start_line": 171
                                 },
                                 "While expanding the reference 'self_range_check_ptr' in:"
                             ],
                             "start_col": 32,
-                            "start_line": 94
+                            "start_line": 102
                         },
                         "While expanding the reference 'range_check_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 16
+                    "start_line": 24
                 }
             },
             "373": {
@@ -11974,24 +11974,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 28,
-                    "end_line": 61,
+                    "end_line": 69,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 49,
-                            "end_line": 97,
+                            "end_line": 105,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 32,
-                            "start_line": 97
+                            "start_line": 105
                         },
                         "While expanding the reference 'builtin_encodings' in:"
                     ],
                     "start_col": 11,
-                    "start_line": 61
+                    "start_line": 69
                 }
             },
             "375": {
@@ -12029,24 +12029,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 33,
-                    "end_line": 75,
+                    "end_line": 83,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 59,
-                            "end_line": 98,
+                            "end_line": 106,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 37,
-                            "start_line": 98
+                            "start_line": 106
                         },
                         "While expanding the reference 'builtin_instance_sizes' in:"
                     ],
                     "start_col": 11,
-                    "start_line": 75
+                    "start_line": 83
                 }
             },
             "377": {
@@ -12084,24 +12084,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 31,
-                    "end_line": 42,
+                    "end_line": 50,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 28,
-                            "end_line": 99,
+                            "end_line": 107,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 21,
-                            "start_line": 99
+                            "start_line": 107
                         },
                         "While expanding the reference 'n_tasks' in:"
                     ],
                     "start_col": 19,
-                    "start_line": 42
+                    "start_line": 50
                 }
             },
             "378": {
@@ -12139,12 +12139,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 10,
-                    "end_line": 100,
+                    "end_line": 108,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 9,
-                    "start_line": 96
+                    "start_line": 104
                 }
             },
             "380": {
@@ -12182,12 +12182,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 56,
-                    "end_line": 104,
+                    "end_line": 112,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 104
+                    "start_line": 112
                 }
             },
             "381": {
@@ -12225,12 +12225,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 53,
-                    "end_line": 107,
+                    "end_line": 115,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 107
+                    "start_line": 115
                 }
             },
             "382": {
@@ -12269,36 +12269,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 51,
-                    "end_line": 110,
+                    "end_line": 118,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 50,
-                            "end_line": 129,
+                            "end_line": 137,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 52,
-                                    "end_line": 130,
+                                    "end_line": 138,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 29,
-                                    "start_line": 130
+                                    "start_line": 138
                                 },
                                 "While expanding the reference 'additional_range_checks' in:"
                             ],
                             "start_col": 35,
-                            "start_line": 129
+                            "start_line": 137
                         },
                         "While expanding the reference 'range_check_ptr' in:"
                     ],
                     "start_col": 27,
-                    "start_line": 110
+                    "start_line": 118
                 }
             },
             "383": {
@@ -12338,24 +12338,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 73,
-                    "end_line": 129,
+                    "end_line": 137,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 52,
-                            "end_line": 130,
+                            "end_line": 138,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 29,
-                            "start_line": 130
+                            "start_line": 138
                         },
                         "While expanding the reference 'additional_range_checks' in:"
                     ],
                     "start_col": 35,
-                    "start_line": 129
+                    "start_line": 137
                 }
             },
             "384": {
@@ -12395,12 +12395,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 63,
-                    "end_line": 130,
+                    "end_line": 138,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 61,
-                    "start_line": 130
+                    "start_line": 138
                 }
             },
             "386": {
@@ -12440,12 +12440,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 64,
-                    "end_line": 130,
+                    "end_line": 138,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 130
+                    "start_line": 138
                 }
             },
             "388": {
@@ -12485,36 +12485,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 54,
-                    "end_line": 108,
+                    "end_line": 116,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 22,
-                            "end_line": 14,
+                            "end_line": 22,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'output_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 14
+                            "start_line": 22
                         },
                         "While expanding the reference 'output_ptr' in:"
                     ],
                     "start_col": 22,
-                    "start_line": 108
+                    "start_line": 116
                 }
             },
             "389": {
@@ -12554,36 +12554,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 65,
-                    "end_line": 109,
+                    "end_line": 117,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 31,
-                            "end_line": 15,
+                            "end_line": 23,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'pedersen_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 15
+                            "start_line": 23
                         },
                         "While expanding the reference 'pedersen_ptr' in:"
                     ],
                     "start_col": 24,
-                    "start_line": 109
+                    "start_line": 117
                 }
             },
             "390": {
@@ -12623,36 +12623,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 51,
-                    "end_line": 110,
+                    "end_line": 118,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 20,
-                            "end_line": 16,
+                            "end_line": 24,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'range_check_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 16
+                            "start_line": 24
                         },
                         "While expanding the reference 'range_check_ptr' in:"
                     ],
                     "start_col": 27,
-                    "start_line": 110
+                    "start_line": 118
                 }
             },
             "391": {
@@ -12692,36 +12692,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 39,
-                    "end_line": 111,
+                    "end_line": 119,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 14,
-                            "end_line": 17,
+                            "end_line": 25,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'ecdsa_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 17
+                            "start_line": 25
                         },
                         "While expanding the reference 'ecdsa_ptr' in:"
                     ],
                     "start_col": 21,
-                    "start_line": 111
+                    "start_line": 119
                 }
             },
             "392": {
@@ -12761,36 +12761,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 43,
-                    "end_line": 112,
+                    "end_line": 120,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 16,
-                            "end_line": 18,
+                            "end_line": 26,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'bitwise_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 18
+                            "start_line": 26
                         },
                         "While expanding the reference 'bitwise_ptr' in:"
                     ],
                     "start_col": 23,
-                    "start_line": 112
+                    "start_line": 120
                 }
             },
             "393": {
@@ -12830,36 +12830,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 39,
-                    "end_line": 113,
+                    "end_line": 121,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 14,
-                            "end_line": 19,
+                            "end_line": 27,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'ec_op_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 19
+                            "start_line": 27
                         },
                         "While expanding the reference 'ec_op_ptr' in:"
                     ],
                     "start_col": 21,
-                    "start_line": 113
+                    "start_line": 121
                 }
             },
             "394": {
@@ -12899,36 +12899,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 41,
-                    "end_line": 114,
+                    "end_line": 122,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 15,
-                            "end_line": 20,
+                            "end_line": 28,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'keccak_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 20
+                            "start_line": 28
                         },
                         "While expanding the reference 'keccak_ptr' in:"
                     ],
                     "start_col": 22,
-                    "start_line": 114
+                    "start_line": 122
                 }
             },
             "395": {
@@ -12968,36 +12968,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 69,
-                    "end_line": 115,
+                    "end_line": 123,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 35,
-                            "end_line": 21,
+                            "end_line": 29,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'poseidon_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 21
+                            "start_line": 29
                         },
                         "While expanding the reference 'poseidon_ptr' in:"
                     ],
                     "start_col": 24,
-                    "start_line": 115
+                    "start_line": 123
                 }
             },
             "396": {
@@ -13037,36 +13037,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 55,
-                    "end_line": 116,
+                    "end_line": 124,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 22,
-                            "end_line": 22,
+                            "end_line": 30,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'range_check96_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 22
+                            "start_line": 30
                         },
                         "While expanding the reference 'range_check96_ptr' in:"
                     ],
                     "start_col": 29,
-                    "start_line": 116
+                    "start_line": 124
                 }
             },
             "397": {
@@ -13106,36 +13106,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 43,
-                    "end_line": 117,
+                    "end_line": 125,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 16,
-                            "end_line": 23,
+                            "end_line": 31,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'add_mod_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 23
+                            "start_line": 31
                         },
                         "While expanding the reference 'add_mod_ptr' in:"
                     ],
                     "start_col": 23,
-                    "start_line": 117
+                    "start_line": 125
                 }
             },
             "398": {
@@ -13175,36 +13175,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 43,
-                    "end_line": 118,
+                    "end_line": 126,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 16,
-                            "end_line": 24,
+                            "end_line": 32,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 15,
-                                    "end_line": 132,
+                                    "end_line": 140,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 132
+                                    "start_line": 140
                                 },
                                 "While trying to retrieve the implicit argument 'mul_mod_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 24
+                            "start_line": 32
                         },
                         "While expanding the reference 'mul_mod_ptr' in:"
                     ],
                     "start_col": 23,
-                    "start_line": 118
+                    "start_line": 126
                 }
             },
             "399": {
@@ -13244,12 +13244,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 15,
-                    "end_line": 132,
+                    "end_line": 140,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 132
+                    "start_line": 140
                 }
             },
             "400": {
@@ -13270,12 +13270,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 138,
+                    "end_line": 146,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 138
+                    "start_line": 146
                 }
             },
             "402": {
@@ -13296,12 +13296,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 24,
-                    "end_line": 139,
+                    "end_line": 147,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 9,
-                    "start_line": 139
+                    "start_line": 147
                 }
             },
             "404": {
@@ -13322,12 +13322,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 19,
-                    "end_line": 140,
+                    "end_line": 148,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 9,
-                    "start_line": 140
+                    "start_line": 148
                 }
             },
             "405": {
@@ -13349,24 +13349,24 @@
                     {
                         "location": {
                             "end_col": 50,
-                            "end_line": 143,
+                            "end_line": 151,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 5,
-                            "start_line": 143
+                            "start_line": 151
                         },
                         "n_prefix_newlines": 0
                     }
                 ],
                 "inst": {
                     "end_col": 50,
-                    "end_line": 143,
+                    "end_line": 151,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 143
+                    "start_line": 151
                 }
             },
             "407": {
@@ -13388,12 +13388,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 45,
-                    "end_line": 144,
+                    "end_line": 152,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 26,
-                    "start_line": 144
+                    "start_line": 152
                 }
             },
             "408": {
@@ -13416,12 +13416,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 46,
-                    "end_line": 144,
+                    "end_line": 152,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 19,
-                    "start_line": 144
+                    "start_line": 152
                 }
             },
             "409": {
@@ -13445,12 +13445,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 28,
-                    "end_line": 146,
+                    "end_line": 154,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 146
+                    "start_line": 154
                 }
             },
             "410": {
@@ -13474,24 +13474,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 21,
-                    "end_line": 143,
+                    "end_line": 151,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 44,
-                            "end_line": 147,
+                            "end_line": 155,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 36,
-                            "start_line": 147
+                            "start_line": 155
                         },
                         "While expanding the reference 'num_div2' in:"
                     ],
                     "start_col": 13,
-                    "start_line": 143
+                    "start_line": 151
                 }
             },
             "411": {
@@ -13515,12 +13515,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 63,
-                    "end_line": 147,
+                    "end_line": 155,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 53,
-                    "start_line": 147
+                    "start_line": 155
                 }
             },
             "413": {
@@ -13544,12 +13544,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 64,
-                    "end_line": 147,
+                    "end_line": 155,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 12,
-                    "start_line": 147
+                    "start_line": 155
                 }
             },
             "415": {
@@ -13573,12 +13573,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 65,
-                    "end_line": 147,
+                    "end_line": 155,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 147
+                    "start_line": 155
                 }
             },
             "416": {
@@ -13602,12 +13602,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 166,
+                    "end_line": 174,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 166
+                    "start_line": 174
                 }
             },
             "418": {
@@ -13631,36 +13631,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 46,
-                    "end_line": 163,
+                    "end_line": 171,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 46,
-                            "end_line": 163,
+                            "end_line": 171,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 19,
-                                    "end_line": 167,
+                                    "end_line": 175,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 9,
-                                    "start_line": 167
+                                    "start_line": 175
                                 },
                                 "While trying to retrieve the implicit argument 'builtin_ptrs' in:"
                             ],
                             "start_col": 20,
-                            "start_line": 163
+                            "start_line": 171
                         },
                         "While expanding the reference 'builtin_ptrs' in:"
                     ],
                     "start_col": 20,
-                    "start_line": 163
+                    "start_line": 171
                 }
             },
             "419": {
@@ -13684,36 +13684,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 68,
-                    "end_line": 163,
+                    "end_line": 171,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 68,
-                            "end_line": 163,
+                            "end_line": 171,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 19,
-                                    "end_line": 167,
+                                    "end_line": 175,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 9,
-                                    "start_line": 167
+                                    "start_line": 175
                                 },
                                 "While trying to retrieve the implicit argument 'self_range_check_ptr' in:"
                             ],
                             "start_col": 48,
-                            "start_line": 163
+                            "start_line": 171
                         },
                         "While expanding the reference 'self_range_check_ptr' in:"
                     ],
                     "start_col": 48,
-                    "start_line": 163
+                    "start_line": 171
                 }
             },
             "420": {
@@ -13737,12 +13737,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 19,
-                    "end_line": 167,
+                    "end_line": 175,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 9,
-                    "start_line": 167
+                    "start_line": 175
                 }
             },
             "421": {
@@ -13767,36 +13767,36 @@
                     {
                         "location": {
                             "end_col": 7,
-                            "end_line": 176,
+                            "end_line": 184,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 5,
-                            "start_line": 170
+                            "start_line": 178
                         },
                         "n_prefix_newlines": 1
                     },
                     {
                         "location": {
                             "end_col": 71,
-                            "end_line": 177,
+                            "end_line": 185,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 5,
-                            "start_line": 177
+                            "start_line": 185
                         },
                         "n_prefix_newlines": 0
                     }
                 ],
                 "inst": {
                     "end_col": 71,
-                    "end_line": 177,
+                    "end_line": 185,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 177
+                    "start_line": 185
                 }
             },
             "423": {
@@ -13821,7 +13821,7 @@
                 "hints": [],
                 "inst": {
                     "end_col": 46,
-                    "end_line": 163,
+                    "end_line": 171,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
@@ -13835,12 +13835,12 @@
                             "parent_location": [
                                 {
                                     "end_col": 6,
-                                    "end_line": 183,
+                                    "end_line": 191,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 179
+                                    "start_line": 187
                                 },
                                 "While trying to retrieve the implicit argument 'builtin_ptrs' in:"
                             ],
@@ -13850,7 +13850,7 @@
                         "While expanding the reference 'builtin_ptrs' in:"
                     ],
                     "start_col": 20,
-                    "start_line": 163
+                    "start_line": 171
                 }
             },
             "424": {
@@ -13875,7 +13875,7 @@
                 "hints": [],
                 "inst": {
                     "end_col": 68,
-                    "end_line": 163,
+                    "end_line": 171,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
@@ -13889,12 +13889,12 @@
                             "parent_location": [
                                 {
                                     "end_col": 6,
-                                    "end_line": 183,
+                                    "end_line": 191,
                                     "input_file": {
                                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 179
+                                    "start_line": 187
                                 },
                                 "While trying to retrieve the implicit argument 'self_range_check_ptr' in:"
                             ],
@@ -13904,7 +13904,7 @@
                         "While expanding the reference 'self_range_check_ptr' in:"
                     ],
                     "start_col": 48,
-                    "start_line": 163
+                    "start_line": 171
                 }
             },
             "425": {
@@ -13929,24 +13929,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 36,
-                    "end_line": 164,
+                    "end_line": 172,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 44,
-                            "end_line": 180,
+                            "end_line": 188,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 27,
-                            "start_line": 180
+                            "start_line": 188
                         },
                         "While expanding the reference 'builtin_encodings' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 164
+                    "start_line": 172
                 }
             },
             "426": {
@@ -13971,24 +13971,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 74,
-                    "end_line": 164,
+                    "end_line": 172,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 54,
-                            "end_line": 181,
+                            "end_line": 189,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 32,
-                            "start_line": 181
+                            "start_line": 189
                         },
                         "While expanding the reference 'builtin_instance_sizes' in:"
                     ],
                     "start_col": 38,
-                    "start_line": 164
+                    "start_line": 172
                 }
             },
             "427": {
@@ -14013,24 +14013,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 25,
-                    "end_line": 177,
+                    "end_line": 185,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 34,
-                            "end_line": 182,
+                            "end_line": 190,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 22,
-                            "start_line": 182
+                            "start_line": 190
                         },
                         "While expanding the reference 'use_poseidon' in:"
                     ],
                     "start_col": 13,
-                    "start_line": 177
+                    "start_line": 185
                 }
             },
             "428": {
@@ -14055,12 +14055,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 6,
-                    "end_line": 183,
+                    "end_line": 191,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 179
+                    "start_line": 187
                 }
             },
             "430": {
@@ -14085,24 +14085,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 36,
-                    "end_line": 164,
+                    "end_line": 172,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 44,
-                            "end_line": 186,
+                            "end_line": 194,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 27,
-                            "start_line": 186
+                            "start_line": 194
                         },
                         "While expanding the reference 'builtin_encodings' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 164
+                    "start_line": 172
                 }
             },
             "431": {
@@ -14127,24 +14127,24 @@
                 "hints": [],
                 "inst": {
                     "end_col": 74,
-                    "end_line": 164,
+                    "end_line": 172,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 54,
-                            "end_line": 187,
+                            "end_line": 195,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "start_col": 32,
-                            "start_line": 187
+                            "start_line": 195
                         },
                         "While expanding the reference 'builtin_instance_sizes' in:"
                     ],
                     "start_col": 38,
-                    "start_line": 164
+                    "start_line": 172
                 }
             },
             "432": {
@@ -14169,12 +14169,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 28,
-                    "end_line": 188,
+                    "end_line": 196,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 17,
-                    "start_line": 188
+                    "start_line": 196
                 }
             },
             "434": {
@@ -14199,12 +14199,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 6,
-                    "end_line": 189,
+                    "end_line": 197,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 12,
-                    "start_line": 185
+                    "start_line": 193
                 }
             },
             "436": {
@@ -14229,12 +14229,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 7,
-                    "end_line": 189,
+                    "end_line": 197,
                     "input_file": {
                         "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 185
+                    "start_line": 193
                 }
             },
             "437": {
@@ -14265,48 +14265,48 @@
                     {
                         "location": {
                             "end_col": 7,
-                            "end_line": 25,
+                            "end_line": 28,
                             "input_file": {
                                 "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                             },
                             "start_col": 5,
-                            "start_line": 22
+                            "start_line": 25
                         },
                         "n_prefix_newlines": 1
                     }
                 ],
                 "inst": {
                     "end_col": 22,
-                    "end_line": 10,
+                    "end_line": 13,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 22,
-                            "end_line": 14,
+                            "end_line": 22,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'output_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 14
+                            "start_line": 22
                         },
                         "While expanding the reference 'output_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 10
+                    "start_line": 13
                 }
             },
             "438": {
@@ -14336,36 +14336,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 31,
-                    "end_line": 11,
+                    "end_line": 14,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 31,
-                            "end_line": 15,
+                            "end_line": 23,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'pedersen_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 15
+                            "start_line": 23
                         },
                         "While expanding the reference 'pedersen_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 11
+                    "start_line": 14
                 }
             },
             "439": {
@@ -14395,36 +14395,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 20,
-                    "end_line": 12,
+                    "end_line": 15,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 20,
-                            "end_line": 16,
+                            "end_line": 24,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'range_check_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 16
+                            "start_line": 24
                         },
                         "While expanding the reference 'range_check_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 12
+                    "start_line": 15
                 }
             },
             "440": {
@@ -14454,36 +14454,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 14,
-                    "end_line": 13,
+                    "end_line": 16,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 14,
-                            "end_line": 17,
+                            "end_line": 25,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'ecdsa_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 17
+                            "start_line": 25
                         },
                         "While expanding the reference 'ecdsa_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 13
+                    "start_line": 16
                 }
             },
             "441": {
@@ -14513,36 +14513,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 16,
-                    "end_line": 14,
+                    "end_line": 17,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 16,
-                            "end_line": 18,
+                            "end_line": 26,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'bitwise_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 18
+                            "start_line": 26
                         },
                         "While expanding the reference 'bitwise_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 14
+                    "start_line": 17
                 }
             },
             "442": {
@@ -14572,36 +14572,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 14,
-                    "end_line": 15,
+                    "end_line": 18,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 14,
-                            "end_line": 19,
+                            "end_line": 27,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'ec_op_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 19
+                            "start_line": 27
                         },
                         "While expanding the reference 'ec_op_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 15
+                    "start_line": 18
                 }
             },
             "443": {
@@ -14631,36 +14631,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 15,
-                    "end_line": 16,
+                    "end_line": 19,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 15,
-                            "end_line": 20,
+                            "end_line": 28,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'keccak_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 20
+                            "start_line": 28
                         },
                         "While expanding the reference 'keccak_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 16
+                    "start_line": 19
                 }
             },
             "444": {
@@ -14690,36 +14690,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 35,
-                    "end_line": 17,
+                    "end_line": 20,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 35,
-                            "end_line": 21,
+                            "end_line": 29,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'poseidon_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 21
+                            "start_line": 29
                         },
                         "While expanding the reference 'poseidon_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 17
+                    "start_line": 20
                 }
             },
             "445": {
@@ -14749,36 +14749,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 22,
-                    "end_line": 18,
+                    "end_line": 21,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 22,
-                            "end_line": 22,
+                            "end_line": 30,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'range_check96_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 22
+                            "start_line": 30
                         },
                         "While expanding the reference 'range_check96_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 18
+                    "start_line": 21
                 }
             },
             "446": {
@@ -14808,36 +14808,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 16,
-                    "end_line": 19,
+                    "end_line": 22,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 16,
-                            "end_line": 23,
+                            "end_line": 31,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'add_mod_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 23
+                            "start_line": 31
                         },
                         "While expanding the reference 'add_mod_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 19
+                    "start_line": 22
                 }
             },
             "447": {
@@ -14867,36 +14867,36 @@
                 "hints": [],
                 "inst": {
                     "end_col": 16,
-                    "end_line": 20,
+                    "end_line": 23,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "parent_location": [
                         {
                             "end_col": 16,
-                            "end_line": 24,
+                            "end_line": 32,
                             "input_file": {
                                 "filename": "/var/lib/engflow/worker/exec/src/starkware/cairo/bootloaders/simple_bootloader/run_simple_bootloader.cairo"
                             },
                             "parent_location": [
                                 {
                                     "end_col": 28,
-                                    "end_line": 28,
+                                    "end_line": 31,
                                     "input_file": {
                                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                                     },
                                     "start_col": 5,
-                                    "start_line": 28
+                                    "start_line": 31
                                 },
                                 "While trying to retrieve the implicit argument 'mul_mod_ptr' in:"
                             ],
                             "start_col": 5,
-                            "start_line": 24
+                            "start_line": 32
                         },
                         "While expanding the reference 'mul_mod_ptr' in:"
                     ],
                     "start_col": 5,
-                    "start_line": 20
+                    "start_line": 23
                 }
             },
             "448": {
@@ -14926,12 +14926,12 @@
                 "hints": [],
                 "inst": {
                     "end_col": 28,
-                    "end_line": 28,
+                    "end_line": 31,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 28
+                    "start_line": 31
                 }
             },
             "450": {
@@ -14962,24 +14962,24 @@
                     {
                         "location": {
                             "end_col": 7,
-                            "end_line": 52,
+                            "end_line": 55,
                             "input_file": {
                                 "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                             },
                             "start_col": 5,
-                            "start_line": 30
+                            "start_line": 33
                         },
                         "n_prefix_newlines": 1
                     }
                 ],
                 "inst": {
                     "end_col": 15,
-                    "end_line": 53,
+                    "end_line": 56,
                     "input_file": {
                         "filename": "src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo"
                     },
                     "start_col": 5,
-                    "start_line": 53
+                    "start_line": 56
                 }
             }
         }

@@ -355,3 +355,9 @@ if applicative_bootloader_input.fact_topologies_path is not None:
         fact_topologies_path=applicative_bootloader_input.fact_topologies_path,
         fact_topologies=[fact_topology],
     )";
+
+pub const SIMPLE_OUTPUT_LOAD_PROGRAM_INPUT: &str = "output = program_input[\"output\"]";
+
+pub const SIMPLE_OUTPUT_WRITE_OUTPUT: &str = "segments.write_arg(ids.output_ptr, output)";
+
+pub const SIMPLE_OUTPUT_LEN_OUTPUT_TO_AP: &str = "memory[ap] = to_felt_or_relocatable(len(output))";

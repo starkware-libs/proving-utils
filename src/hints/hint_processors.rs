@@ -42,6 +42,7 @@ use super::applicative_bootloader_hints::{
 };
 use super::bootloader_hints::load_unpacker_bootloader_input;
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
+use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, write_simple_output};
 use super::vector_commitment::set_bit_from_index;
 
 /// A hint processor that can only execute the hints defined in this library.
@@ -188,6 +189,46 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
 
 impl ResourceTracker for MinimalBootloaderHintProcessor {}
 
+#[derive(Default)]
+pub struct MinimalTestProgramsHintProcessor;
+
+impl MinimalTestProgramsHintProcessor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn execute_hint(
+        &mut self,
+        vm: &mut VirtualMachine,
+        exec_scopes: &mut ExecutionScopes,
+        hint_data: &Box<dyn Any>,
+        _constants: &HashMap<String, Felt252>,
+    ) -> Result<(), HintError> {
+        let hint_data = hint_data
+            .downcast_ref::<HintProcessorData>()
+            .ok_or(HintError::WrongHintData)?;
+
+        let ids_data = &hint_data.ids_data;
+        let ap_tracking = &hint_data.ap_tracking;
+
+        match hint_data.code.as_str() {
+            SIMPLE_OUTPUT_LOAD_PROGRAM_INPUT => load_simple_output_input(exec_scopes),
+            SIMPLE_OUTPUT_WRITE_OUTPUT => {
+                write_simple_output(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            SIMPLE_OUTPUT_LEN_OUTPUT_TO_AP => len_output_to_ap(vm, exec_scopes),
+            unknown_hint_code => Err(HintError::UnknownHint(
+                unknown_hint_code.to_string().into_boxed_str(),
+            )),
+        }
+    }
+}
+
 /// A hint processor for use cases where we only care about the bootloader hints.
 ///
 /// When executing a hint, this hint processor will first check the hints defined in this library,
@@ -195,6 +236,7 @@ impl ResourceTracker for MinimalBootloaderHintProcessor {}
 pub struct BootloaderHintProcessor {
     bootloader_hint_processor: MinimalBootloaderHintProcessor,
     builtin_hint_processor: BuiltinHintProcessor,
+    test_programs_hint_processor: MinimalTestProgramsHintProcessor,
     pub additional_constants: HashMap<String, Felt252>,
     pub change_needed: bool,
 }
@@ -210,6 +252,7 @@ impl BootloaderHintProcessor {
         Self {
             bootloader_hint_processor: MinimalBootloaderHintProcessor::new(),
             builtin_hint_processor: BuiltinHintProcessor::new_empty(),
+            test_programs_hint_processor: MinimalTestProgramsHintProcessor::new(),
             additional_constants: HashMap::new(),
             change_needed: false,
         }
@@ -284,8 +327,24 @@ impl HintProcessorLogic for BootloaderHintProcessor {
             );
         }
 
-        self.builtin_hint_processor
-            .execute_hint_extensive(vm, exec_scopes, hint_data, curr_consts)
+        match self.builtin_hint_processor.execute_hint_extensive(
+            vm,
+            exec_scopes,
+            hint_data,
+            curr_consts,
+        ) {
+            Err(HintError::UnknownHint(_)) => {}
+            result => {
+                return result;
+            }
+        }
+
+        self.test_programs_hint_processor.execute_hint_extensive(
+            vm,
+            exec_scopes,
+            hint_data,
+            curr_consts,
+        )
     }
 }
 
