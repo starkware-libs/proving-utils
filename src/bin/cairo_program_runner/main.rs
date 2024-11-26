@@ -18,8 +18,8 @@ use tempfile::NamedTempFile;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(long = "compiled_program_path", help = "Path to the compiled program")]
-    compiled_program_path: PathBuf,
+    #[clap(long = "program", help = "Path to the compiled program")]
+    program: PathBuf,
     #[clap(long = "program_input", help = "Path to the program input file.")]
     program_input: Option<PathBuf>,
     #[clap(
@@ -100,7 +100,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Ok(args) => args,
         Err(err) => err.exit(),
     };
-    let program = Program::from_file(args.compiled_program_path.as_path(), Some("main"))?;
+    let program = Program::from_file(args.program.as_path(), Some("main"))?;
     let program_input_contents: Option<String>;
     if let Some(ref input_path) = args.program_input {
         program_input_contents = Some(std::fs::read_to_string(input_path)?);
