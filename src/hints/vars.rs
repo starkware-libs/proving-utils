@@ -1,7 +1,7 @@
-/// Deserialized bootloader input.
+/// General program input.
 pub const PROGRAM_INPUT: &str = "program_input";
 
-/// Deserialized bootloader input.
+/// General program object.
 pub const PROGRAM_OBJECT: &str = "program_object";
 
 /// Deserialized bootloader input.
@@ -66,3 +66,6 @@ pub const COMPONENT_HEIGHT: u64 = 16;
 
 /// Simple output input.
 pub const SIMPLE_OUTPUT_INPUT: &str = "simple_output_input";
+
+/// Mock Cairo verifier input.
+pub const MOCK_CAIRO_VERIFIER_INPUT: &str = "mock_cairo_verifier_input";

@@ -361,3 +361,22 @@ pub const SIMPLE_OUTPUT_LOAD_PROGRAM_INPUT: &str = "output = program_input[\"out
 pub const SIMPLE_OUTPUT_WRITE_OUTPUT: &str = "segments.write_arg(ids.output_ptr, output)";
 
 pub const SIMPLE_OUTPUT_LEN_OUTPUT_TO_AP: &str = "memory[ap] = to_felt_or_relocatable(len(output))";
+
+pub const MOCK_CAIRO_VERIFIER_LOAD_INPUT: &str =
+    "from starkware.cairo.cairo_verifier.mock_cairo_verifier_input import MockCairoVerifierInput
+
+# Get output to apply hash state.
+mock_cairo_verifier_input = MockCairoVerifierInput.load(program_input)
+program_hash = mock_cairo_verifier_input.program_hash
+program_output = mock_cairo_verifier_input.program_output
+ids.output = segments.gen_arg(program_output)";
+
+pub const MOCK_CAIRO_VERIFIER_OUTPUT_LEN_TO_FP: &str =
+    "memory[fp + 1] = to_felt_or_relocatable(len(program_output))";
+
+pub const MOCK_CAIRO_VERIFIER_HASH_TO_FP: &str =
+    "memory[fp + 2] = to_felt_or_relocatable(program_hash)";
+
+pub const MOCK_CAIRO_VERIFIER_GET_N_STEPS: &str = "n_steps = program_input[\"n_steps\"]";
+
+pub const MOCK_CAIRO_VERIFIER_N_STEPS_TO_AP: &str = "memory[ap] = to_felt_or_relocatable(n_steps)";

@@ -457,3 +457,10 @@ impl RunMode {
 pub struct SimpleOutputInput {
     pub output: Vec<Number>,
 }
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct MockCairoVerifierInput {
+    pub n_steps: u128,
+    pub program_hash: Felt252,
+    pub program_output: Vec<Felt252>,
+}
