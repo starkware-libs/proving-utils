@@ -42,6 +42,10 @@ use super::applicative_bootloader_hints::{
 };
 use super::bootloader_hints::load_unpacker_bootloader_input;
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
+use super::mock_cairo_verifier_hints::{
+    load_mock_cairo_verifier_input, mock_cairo_verifier_hash_to_fp,
+    mock_cairo_verifier_len_output_to_fp, mock_cairo_verifier_n_steps_to_ap,
+};
 use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, write_simple_output};
 use super::vector_commitment::set_bit_from_index;
 
@@ -222,6 +226,15 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
                 write_simple_output(vm, exec_scopes, ids_data, ap_tracking)
             }
             SIMPLE_OUTPUT_LEN_OUTPUT_TO_AP => len_output_to_ap(vm, exec_scopes),
+            MOCK_CAIRO_VERIFIER_LOAD_INPUT => {
+                load_mock_cairo_verifier_input(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            MOCK_CAIRO_VERIFIER_OUTPUT_LEN_TO_FP => {
+                mock_cairo_verifier_len_output_to_fp(vm, exec_scopes)
+            }
+            MOCK_CAIRO_VERIFIER_HASH_TO_FP => mock_cairo_verifier_hash_to_fp(vm, exec_scopes),
+            MOCK_CAIRO_VERIFIER_GET_N_STEPS => Ok(()),
+            MOCK_CAIRO_VERIFIER_N_STEPS_TO_AP => mock_cairo_verifier_n_steps_to_ap(vm, exec_scopes),
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
