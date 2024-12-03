@@ -6,7 +6,7 @@ use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     insert_value_from_var_name, insert_value_into_ap,
 };
 use cairo_vm::hint_processor::hint_processor_definition::{
-    HintExtension, HintProcessor, HintReference,
+    HintExtension, HintProcessorLogic, HintReference,
 };
 use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::builtin_name::BuiltinName;
@@ -368,7 +368,7 @@ Implements hint:
 %}
 */
 pub fn call_task(
-    hint_processor: &mut dyn HintProcessor,
+    hint_processor: &mut BootloaderHintProcessor,
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
@@ -434,18 +434,10 @@ pub fn call_task(
                     PROGRAM_OBJECT.to_string(),
                     any_box![program_with_input.program.clone()],
                 );
-
-                let concrete_hint_processor = hint_processor
-                    .as_any_mut()
-                    .downcast_mut::<BootloaderHintProcessor>()
-                    .ok_or(HintError::CustomHint(
-                        "Failed to downcast hint_processor to BootloaderHintProcessor".into(),
-                    ))?;
                 // Use the program constants as additional constants for the hint processor.
                 // Overwrite the existing additional constants from previous tasks.
-                concrete_hint_processor.additional_constants =
-                    program_with_input.program.constants.clone();
-                concrete_hint_processor.change_needed = true;
+                hint_processor.additional_constants = program_with_input.program.constants.clone();
+                hint_processor.change_needed = true;
             } else {
                 let program_input = HashMap::<String, Box<dyn Any>>::new();
                 // new_task_locals['program_input'] = task.program_input

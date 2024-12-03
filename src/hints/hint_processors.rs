@@ -66,9 +66,6 @@ impl MinimalBootloaderHintProcessor {
 }
 
 impl HintProcessorLogic for MinimalBootloaderHintProcessor {
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
     fn execute_hint(
         &mut self,
         vm: &mut VirtualMachine,
@@ -203,9 +200,6 @@ impl MinimalTestProgramsHintProcessor {
 }
 
 impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
     fn execute_hint(
         &mut self,
         vm: &mut VirtualMachine,
@@ -279,9 +273,6 @@ impl BootloaderHintProcessor {
 }
 
 impl HintProcessorLogic for BootloaderHintProcessor {
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
     fn execute_hint(
         &mut self,
         _vm: &mut VirtualMachine,
