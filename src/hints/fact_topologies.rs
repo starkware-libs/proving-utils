@@ -241,7 +241,6 @@ pub fn add_consecutive_output_pages(
 ///         output_start=output_start,
 ///     )
 ///     output_start += sum(fact_topology.page_sizes)
-
 pub fn configure_fact_topologies<FT: AsRef<FactTopology>>(
     plain_fact_topologies: &[FT],
     output_start: &mut Relocatable,
