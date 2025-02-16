@@ -3,7 +3,7 @@
     "builtins": [
         "output"
     ],
-    "compiler_version": "0.13.4",
+    "compiler_version": "0.14.0",
     "data": [
         "0x40780017fff7fff",
         "0x1",
