@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
-    get_integer_from_var_name, get_ptr_from_var_name, insert_value_from_var_name,
-    insert_value_into_ap,
+    get_constant_from_var_name, get_integer_from_var_name, get_ptr_from_var_name,
+    insert_value_from_var_name, insert_value_into_ap,
 };
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
+use cairo_vm::vm::runners::builtin_runner::EcOpBuiltinRunner;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::Felt252;
 use num_traits::ToPrimitive;
@@ -128,6 +130,61 @@ pub fn set_current_task(
     exec_scopes.insert_value(vars::USE_POSEIDON, use_poseidon);
 
     Ok(())
+}
+
+/// Implements
+/// from starkware.cairo.lang.builtins.ec.ec_op_builtin_runner import (
+///     ec_op_auto_deduction_rule_wrapper,
+/// )
+/// ids.new_ec_op_ptr = segments.add()
+/// vm_add_auto_deduction_rule(
+///     segment_index=ids.new_ec_op_ptr.segment_index,
+///     rule=ec_op_auto_deduction_rule_wrapper(ec_op_cache={}),
+/// )
+pub fn simple_bootloader_simulate_ec_op(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let mut ec_op_runner = EcOpBuiltinRunner::new(Some(1), false);
+    ec_op_runner.initialize_segments(&mut vm.segments);
+    let new_ec_op_ptr = Relocatable {
+        segment_index: ec_op_runner.base as isize,
+        offset: 0,
+    };
+    insert_value_from_var_name("new_ec_op_ptr", new_ec_op_ptr, vm, ids_data, ap_tracking)?;
+    vm.simulated_builtin_runners.push(ec_op_runner.into());
+
+    Ok(())
+}
+
+/// Implements
+/// curr_m = ids.m
+/// for i in range(ids.M_MAX_BITS):
+///     memory[ids.m_bit_unpacking + i] = curr_m % 2
+///     curr_m = curr_m >> 1
+pub fn simulate_ec_op_fill_mem_with_bits_of_m(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+    constants: &HashMap<String, Felt252>,
+) -> Result<(), HintError> {
+    let mut curr_m = get_integer_from_var_name("m", vm, ids_data, ap_tracking)?.to_biguint();
+    let m_max_bits = get_constant_from_var_name("M_MAX_BITS", constants)?;
+    let m_bit_unpacking = get_ptr_from_var_name("m_bit_unpacking", vm, ids_data, ap_tracking)?;
+    (0..m_max_bits.to_usize().unwrap()).try_for_each(|i| {
+        let bit = MaybeRelocatable::Int((&curr_m % 2u32).into());
+        curr_m >>= 1;
+        vm.insert_value((m_bit_unpacking + i)?, bit)
+    })?;
+
+    Ok(())
+}
+
+/// Implements
+/// assert False, "ec_op failed."
+pub fn simulate_ec_op_assert_false() -> Result<(), HintError> {
+    Err(HintError::CustomHint("ec_op failed.".into()))
 }
 
 #[cfg(test)]
