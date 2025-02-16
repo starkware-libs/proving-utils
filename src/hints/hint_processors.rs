@@ -46,6 +46,10 @@ use super::mock_cairo_verifier_hints::{
     load_mock_cairo_verifier_input, mock_cairo_verifier_hash_to_fp,
     mock_cairo_verifier_len_output_to_fp, mock_cairo_verifier_n_steps_to_ap,
 };
+use super::simple_bootloader_hints::{
+    simple_bootloader_simulate_ec_op, simulate_ec_op_assert_false,
+    simulate_ec_op_fill_mem_with_bits_of_m,
+};
 use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, write_simple_output};
 use super::vector_commitment::set_bit_from_index;
 
@@ -71,7 +75,7 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
         vm: &mut VirtualMachine,
         exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
-        _constants: &HashMap<String, Felt252>,
+        constants: &HashMap<String, Felt252>,
     ) -> Result<(), HintError> {
         let hint_data = hint_data
             .downcast_ref::<HintProcessorData>()
@@ -181,6 +185,13 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             APPLICATIVE_FINALIZE_FACT_TOPOLOGIES_AND_PAGES => {
                 finalize_fact_topologies_and_pages(vm, exec_scopes, ids_data, ap_tracking)
             }
+            SIMPLE_BOOTLOADER_SIMULATE_EC_OP => {
+                simple_bootloader_simulate_ec_op(vm, ids_data, ap_tracking)
+            }
+            SIMULATE_EC_OP_FILL_MEM_WITH_BITS_OF_M => {
+                simulate_ec_op_fill_mem_with_bits_of_m(vm, ids_data, ap_tracking, constants)
+            }
+            SIMULATE_EC_OP_ASSERT_FALSE => simulate_ec_op_assert_false(),
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
