@@ -380,3 +380,20 @@ pub const MOCK_CAIRO_VERIFIER_HASH_TO_FP: &str =
 pub const MOCK_CAIRO_VERIFIER_GET_N_STEPS: &str = "n_steps = program_input[\"n_steps\"]";
 
 pub const MOCK_CAIRO_VERIFIER_N_STEPS_TO_AP: &str = "memory[ap] = to_felt_or_relocatable(n_steps)";
+
+pub const SIMPLE_BOOTLOADER_SIMULATE_EC_OP: &str =
+    "from starkware.cairo.lang.builtins.ec.ec_op_builtin_runner import (
+    ec_op_auto_deduction_rule_wrapper,
+)
+ids.new_ec_op_ptr = segments.add()
+vm_add_auto_deduction_rule(
+    segment_index=ids.new_ec_op_ptr.segment_index,
+    rule=ec_op_auto_deduction_rule_wrapper(ec_op_cache={}),
+)";
+
+pub const SIMULATE_EC_OP_FILL_MEM_WITH_BITS_OF_M: &str = "curr_m = ids.m
+for i in range(ids.M_MAX_BITS):
+    memory[ids.m_bit_unpacking + i] = curr_m % 2
+    curr_m = curr_m >> 1";
+
+pub const SIMULATE_EC_OP_ASSERT_FALSE: &str = "assert False, \"ec_op failed.\"";
