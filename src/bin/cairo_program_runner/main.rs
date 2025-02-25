@@ -4,13 +4,11 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use bincode::enc::write::Writer;
-use cairo_program_runner::types::RunMode;
-use cairo_vm::types::layout::CairoLayoutParams;
+use cairo_program_runner::utils::{get_cairo_run_config, get_program, get_program_input};
 use cairo_vm::types::layout_name::LayoutName;
 
 use cairo_program_runner::cairo_run_program;
 use cairo_vm::cairo_run;
-use cairo_vm::types::program::Program;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
 use tempfile::NamedTempFile;
@@ -100,35 +98,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         Ok(args) => args,
         Err(err) => err.exit(),
     };
-    let program = Program::from_file(args.program.as_path(), Some("main"))?;
-    let program_input_contents: Option<String>;
-    if let Some(ref input_path) = args.program_input {
-        program_input_contents = Some(std::fs::read_to_string(input_path)?);
-    } else {
-        program_input_contents = Option::None;
-    }
 
-    let dynamic_layout_params = match args.dynamic_params_file {
-        Some(file) => {
-            assert!(
-                args.layout == LayoutName::dynamic,
-                "dynamic_params_file should not be provided for layout {}.",
-                args.layout
-            );
-            Some(CairoLayoutParams::from_file(&file)?)
-        }
-        None => None,
-    };
-
-    let cairo_run_config = if args.proof_mode {
-        RunMode::Proof {
-            layout: args.layout,
-            dynamic_layout_params,
-        }
-        .create_config()
-    } else {
-        RunMode::Validation.create_config()
-    };
+    let program = get_program(args.program.as_path())?;
+    let program_input_contents = get_program_input(&args.program_input)?;
+    let cairo_run_config =
+        get_cairo_run_config(&args.dynamic_params_file, args.layout, args.proof_mode)?;
 
     let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
 

@@ -7,6 +7,7 @@ pub use hints::*;
 
 pub mod hints;
 pub mod tasks;
+pub mod utils;
 
 /// Executes a Cairo program with the given configuration, optionally handling program input and
 /// proof mode.
