@@ -9,10 +9,14 @@ edition = "2021"
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "serde",
 ] }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "8f157a2eb62069edc5e381c8fe001a3a649910a1", features = [
+# TODO(yg): change to newest main / major version. main is 3de653dd
+#cairo-vm = { path = "/home/yuval/workspace/cairo-vm/vm", features = [
+cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "99bf52af", features = [
     "extensive_hints",
     "mod_builtin",
     "clap",
+    # TODO(yg): this should only be in tests.
+    #"test_utils",
 ] }
 clap = { version = "4.3.10", features = ["derive"] }
 num-traits = "0.2.19"
