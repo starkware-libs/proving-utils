@@ -28,6 +28,8 @@ struct Args {
         conflicts_with_all = &["air_public_input", "air_private_input", "proof_mode"]
     )]
     cairo_pie_output: Option<PathBuf>,
+    #[structopt(long = "merge_extra_segments")]
+    merge_extra_segments: bool,
     #[clap(
         long = "air_public_input",
         conflicts_with = "cairo_pie_output",
@@ -137,7 +139,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         runner
             .get_cairo_pie()
             .map_err(CairoRunError::Runner)?
-            .write_zip_file(pie_output_path.as_ref())?;
+            .write_zip_file(pie_output_path.as_ref(), args.merge_extra_segments)?;
     }
 
     if !args.proof_mode {

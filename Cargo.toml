@@ -9,7 +9,8 @@ edition = "2021"
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "serde",
 ] }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "8f157a2eb62069edc5e381c8fe001a3a649910a1", features = [
+# TODO(yg): change to newest main / major version after yuval/fix_warnings is merged to cairo-vm. (main is 3de653dd). This version is (probably) from branch yuval/fix_warnings of cairo-vm. 
+cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "99bf52af", features = [
     "extensive_hints",
     "mod_builtin",
     "clap",
