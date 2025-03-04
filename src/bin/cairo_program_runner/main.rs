@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         runner
             .get_cairo_pie()
             .map_err(CairoRunError::Runner)?
-            .write_zip_file(pie_output_path.as_ref())?;
+            .write_zip_file(pie_output_path.as_ref(), false)?;
     }
 
     if !args.proof_mode {
