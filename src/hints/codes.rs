@@ -397,3 +397,47 @@ for i in range(ids.M_MAX_BITS):
     curr_m = curr_m >> 1";
 
 pub const SIMULATE_EC_OP_ASSERT_FALSE: &str = "assert False, \"ec_op failed.\"";
+
+pub const SIMPLE_BOOTLOADER_SIMULATE_KECCAK: &str =
+    "from starkware.cairo.common.keccak_utils.keccak_utils import keccak_func
+from starkware.cairo.lang.builtins.keccak.keccak_builtin_runner import (
+    keccak_auto_deduction_rule_wrapper
+)
+ids.new_keccak_ptr = segments.add()
+vm_add_auto_deduction_rule(
+    segment_index=ids.new_keccak_ptr.segment_index,
+    rule=keccak_auto_deduction_rule_wrapper(keccak_cache={}),
+)";
+
+pub const SIMULATE_KECCAK_FILL_MEM_WITH_STATE: &str = "full_num = ids.keccak_builtin_state.s0
+full_num += (2**200) * ids.keccak_builtin_state.s1
+full_num += (2**400) * ids.keccak_builtin_state.s2
+full_num += (2**600) * ids.keccak_builtin_state.s3
+full_num += (2**800) * ids.keccak_builtin_state.s4
+full_num += (2**1000) * ids.keccak_builtin_state.s5
+full_num += (2**1200) * ids.keccak_builtin_state.s6
+full_num += (2**1400) * ids.keccak_builtin_state.s7
+for i in range(25):
+    memory[ids.felt_array + i] = full_num % (2**64)
+    full_num = full_num >> 64";
+
+pub const SIMULATE_KECCAK_CALC_HIGH3_LOW3: &str =
+    "ids.high3, ids.low3 = divmod(memory[ids.felt_array + 3], 256)";
+
+pub const SIMULATE_KECCAK_CALC_HIGH6_LOW6: &str =
+    "ids.high6, ids.low6 = divmod(memory[ids.felt_array + 6], 256 ** 2)";
+
+pub const SIMULATE_KECCAK_CALC_HIGH9_LOW9: &str =
+    "ids.high9, ids.low9 = divmod(memory[ids.felt_array + 9], 256 ** 3)";
+
+pub const SIMULATE_KECCAK_CALC_HIGH12_LOW12: &str =
+    "ids.high12, ids.low12 = divmod(memory[ids.felt_array + 12], 256 ** 4)";
+
+pub const SIMULATE_KECCAK_CALC_HIGH15_LOW15: &str =
+    "ids.high15, ids.low15 = divmod(memory[ids.felt_array + 15], 256 ** 5)";
+
+pub const SIMULATE_KECCAK_CALC_HIGH18_LOW18: &str =
+    "ids.high18, ids.low18 = divmod(memory[ids.felt_array + 18], 256 ** 6)";
+
+pub const SIMULATE_KECCAK_CALC_HIGH21_LOW21: &str =
+    "ids.high21, ids.low21 = divmod(memory[ids.felt_array + 21], 256 ** 7)";
