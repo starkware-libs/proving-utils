@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_constant_from_var_name, get_integer_from_var_name, get_ptr_from_var_name,
-    insert_value_from_var_name, insert_value_into_ap,
+    get_relocatable_from_var_name, insert_value_from_var_name, insert_value_into_ap,
 };
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::ApTracking;
@@ -10,9 +10,10 @@ use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
-use cairo_vm::vm::runners::builtin_runner::EcOpBuiltinRunner;
+use cairo_vm::vm::runners::builtin_runner::{EcOpBuiltinRunner, KeccakBuiltinRunner};
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::Felt252;
+use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
@@ -185,6 +186,99 @@ pub fn simulate_ec_op_fill_mem_with_bits_of_m(
 /// assert False, "ec_op failed."
 pub fn simulate_ec_op_assert_false() -> Result<(), HintError> {
     Err(HintError::CustomHint("ec_op failed.".into()))
+}
+
+/// Implements
+/// from starkware.cairo.common.keccak_utils.keccak_utils import keccak_func
+/// from starkware.cairo.lang.builtins.keccak.keccak_builtin_runner import (
+///     keccak_auto_deduction_rule_wrapper,
+/// )
+/// ids.new_keccak_ptr = segments.add()
+/// vm_add_auto_deduction_rule(
+///     segment_index=ids.new_keccak_ptr.segment_index,
+///     rule=keccak_auto_deduction_rule_wrapper(keccak_cache={}),
+/// )
+pub fn simple_bootloader_simulate_keccak(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let mut keccak_runner = KeccakBuiltinRunner::new(Some(1), false);
+    keccak_runner.initialize_segments(&mut vm.segments);
+    let new_keccak_ptr = Relocatable {
+        segment_index: keccak_runner.base as isize,
+        offset: 0,
+    };
+    insert_value_from_var_name("new_keccak_ptr", new_keccak_ptr, vm, ids_data, ap_tracking)?;
+    vm.simulated_builtin_runners.push(keccak_runner.into());
+
+    Ok(())
+}
+
+/// Implements
+/// full_num = ids.keccak_builtin_state.s0
+/// full_num += (2**200) * ids.keccak_builtin_state.s1
+/// full_num += (2**400) * ids.keccak_builtin_state.s2
+/// full_num += (2**600) * ids.keccak_builtin_state.s3
+/// full_num += (2**800) * ids.keccak_builtin_state.s4
+/// full_num += (2**1000) * ids.keccak_builtin_state.s5
+/// full_num += (2**1200) * ids.keccak_builtin_state.s6
+/// full_num += (2**1400) * ids.keccak_builtin_state.s7
+/// for i in range(25):
+///     memory[ids.felt_array + i] = full_num % (2**64)
+///     full_num = full_num >> 64
+pub fn simulate_keccak_fill_mem_with_state(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let keccak_builtin_state_addr =
+        get_relocatable_from_var_name("keccak_builtin_state", vm, ids_data, ap_tracking)?;
+    let felt_array = get_ptr_from_var_name("felt_array", vm, ids_data, ap_tracking)?;
+    let mut full_num = (0..8).try_fold(BigUint::ZERO, |acc, i| {
+        let s = vm.get_integer((keccak_builtin_state_addr + i)?)?;
+        Ok::<_, HintError>(acc + (s.to_biguint() << (i * 200)))
+    })?;
+    let modulo = BigUint::from(1u128 << 64);
+    (0..25).try_for_each(|i| {
+        let felt = MaybeRelocatable::Int((&full_num % &modulo).into());
+        full_num >>= 64;
+        vm.insert_value((felt_array + i)?, felt)
+    })?;
+
+    Ok(())
+}
+
+/// Implements hints of the form
+/// ids.high{index}, ids.low{index} = divmod(memory[ids.felt_array + {index}], 256 ** {x})
+/// Where {index} is a number in [3,6,9,12,15,18,21] and {x} is a number in [1,2,3,4,5,6,7]
+pub fn simulate_keccak_calc_high_low(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+    index: usize,
+) -> Result<(), HintError> {
+    let felt_array = get_ptr_from_var_name("felt_array", vm, ids_data, ap_tracking)?;
+    let felt = vm.get_integer((felt_array + index)?)?;
+    let x = index / 3;
+    let divisor = NonZeroFelt::try_from(Felt252::from(1u64 << (x * 8))).unwrap();
+    let (high_felt, low_felt) = felt.div_rem(&divisor);
+    insert_value_from_var_name(
+        &format!("high{}", index),
+        high_felt,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
+    insert_value_from_var_name(
+        &format!("low{}", index),
+        low_felt,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
+
+    Ok(())
 }
 
 #[cfg(test)]
