@@ -47,8 +47,9 @@ use super::mock_cairo_verifier_hints::{
     mock_cairo_verifier_len_output_to_fp, mock_cairo_verifier_n_steps_to_ap,
 };
 use super::simple_bootloader_hints::{
-    simple_bootloader_simulate_ec_op, simulate_ec_op_assert_false,
-    simulate_ec_op_fill_mem_with_bits_of_m,
+    simple_bootloader_simulate_ec_op, simple_bootloader_simulate_keccak,
+    simulate_ec_op_assert_false, simulate_ec_op_fill_mem_with_bits_of_m,
+    simulate_keccak_calc_high_low, simulate_keccak_fill_mem_with_state,
 };
 use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, write_simple_output};
 use super::vector_commitment::set_bit_from_index;
@@ -192,6 +193,33 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
                 simulate_ec_op_fill_mem_with_bits_of_m(vm, ids_data, ap_tracking, constants)
             }
             SIMULATE_EC_OP_ASSERT_FALSE => simulate_ec_op_assert_false(),
+            SIMPLE_BOOTLOADER_SIMULATE_KECCAK => {
+                simple_bootloader_simulate_keccak(vm, ids_data, ap_tracking)
+            }
+            SIMULATE_KECCAK_FILL_MEM_WITH_STATE => {
+                simulate_keccak_fill_mem_with_state(vm, ids_data, ap_tracking)
+            }
+            SIMULATE_KECCAK_CALC_HIGH3_LOW3 => {
+                simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 3)
+            }
+            SIMULATE_KECCAK_CALC_HIGH6_LOW6 => {
+                simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 6)
+            }
+            SIMULATE_KECCAK_CALC_HIGH9_LOW9 => {
+                simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 9)
+            }
+            SIMULATE_KECCAK_CALC_HIGH12_LOW12 => {
+                simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 12)
+            }
+            SIMULATE_KECCAK_CALC_HIGH15_LOW15 => {
+                simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 15)
+            }
+            SIMULATE_KECCAK_CALC_HIGH18_LOW18 => {
+                simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 18)
+            }
+            SIMULATE_KECCAK_CALC_HIGH21_LOW21 => {
+                simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 21)
+            }
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
