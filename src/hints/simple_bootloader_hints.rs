@@ -10,7 +10,9 @@ use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
-use cairo_vm::vm::runners::builtin_runner::{EcOpBuiltinRunner, KeccakBuiltinRunner};
+use cairo_vm::vm::runners::builtin_runner::{
+    EcOpBuiltinRunner, KeccakBuiltinRunner, SignatureBuiltinRunner,
+};
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::Felt252;
 use num_bigint::BigUint;
@@ -277,6 +279,112 @@ pub fn simulate_keccak_calc_high_low(
         ids_data,
         ap_tracking,
     )?;
+
+    Ok(())
+}
+
+/// Implements
+/// from starkware.cairo.lang.builtins.signature.signature_builtin_runner import (
+///     signature_rule_wrapper,
+/// )
+/// from starkware.cairo.lang.vm.cairo_runner import verify_ecdsa_sig
+/// ids.new_ecdsa_ptr = segments.add()
+/// vm_add_validation_rule(
+///     segment_index=ids.new_ecdsa_ptr.segment_index,
+///     rule=signature_rule_wrapper(
+///         verify_signature_func=verify_ecdsa_sig,
+///         # Store signatures inside the vm's state. vm_ecdsa_additional_data is dropped
+///         # into the execution scope by the vm.
+///         signature_cache=vm_ecdsa_additional_data,
+///         ),
+/// )
+pub fn simple_bootloader_simulate_ecdsa(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let mut ecdsa_runner = SignatureBuiltinRunner::new(Some(1), false);
+    ecdsa_runner.initialize_segments(&mut vm.segments);
+    let new_ecdsa_ptr = Relocatable {
+        segment_index: ecdsa_runner.base as isize,
+        offset: 0,
+    };
+    insert_value_from_var_name("new_ecdsa_ptr", new_ecdsa_ptr, vm, ids_data, ap_tracking)?;
+    ecdsa_runner.add_validation_rule(&mut vm.segments.memory);
+    vm.simulated_builtin_runners.push(ecdsa_runner.into());
+    Ok(())
+}
+
+/// Implements
+/// (ids.r, ids.s) = vm_ecdsa_additional_data[ids.start.address_]
+pub fn simulate_ecdsa_get_r_and_s(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let start = get_ptr_from_var_name("start", vm, ids_data, ap_tracking)?;
+    let ecdsa_builtin = vm.get_signature_builtin()?;
+    let (r, s) = {
+        let signatures = ecdsa_builtin.signatures.borrow();
+        let signature = signatures
+            .get(&start)
+            .ok_or_else(|| HintError::CustomHint("No signature found for start pointer.".into()))?;
+        (signature.r, signature.s)
+    };
+    insert_value_from_var_name("r", r, vm, ids_data, ap_tracking)?;
+    insert_value_from_var_name("s", s, vm, ids_data, ap_tracking)?;
+
+    Ok(())
+}
+
+/// Implements
+/// # ids.StarkCurve.ORDER is parsed as a negative number.
+/// order = ids.StarkCurve.ORDER + PRIME
+/// ids.w = pow(ids.signature_s, -1, order)
+/// ids.wz = ids.w*ids.message % order
+/// ids.wr = ids.w*ids.signature_r % order
+pub fn simulate_ecdsa_compute_w_wr_wz(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+    constants: &HashMap<String, Felt252>,
+) -> Result<(), HintError> {
+    let order_const_id = "starkware.cairo.common.ec.StarkCurve.ORDER";
+    let order = constants
+        .get(order_const_id)
+        .ok_or_else(|| HintError::MissingConstant(Box::new(order_const_id)))?;
+    let order = &NonZeroFelt::from_felt_unchecked(*order);
+    let s = get_integer_from_var_name("signature_s", vm, ids_data, ap_tracking)?;
+    let r = get_integer_from_var_name("signature_r", vm, ids_data, ap_tracking)?;
+    let message = get_integer_from_var_name("message", vm, ids_data, ap_tracking)?;
+    let w = s.mod_inverse(order).unwrap();
+    let wz = w.mul_mod(&message, order);
+    let wr = w.mul_mod(&r, order);
+    insert_value_from_var_name("w", w, vm, ids_data, ap_tracking)?;
+    insert_value_from_var_name("wz", wz, vm, ids_data, ap_tracking)?;
+    insert_value_from_var_name("wr", wr, vm, ids_data, ap_tracking)?;
+    Ok(())
+}
+
+/// Implements
+/// num = ids.num
+/// memory[ids.res_96_felts] = num % (2**96)
+/// memory[ids.res_96_felts+1] = (num>>96) % (2**96)
+/// memory[ids.res_96_felts+2] = (num>>(2*96)) % (2**96)
+pub fn simulate_ecdsa_fill_mem_with_felt_96_bit_limbs(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let num = get_integer_from_var_name("num", vm, ids_data, ap_tracking)?;
+    let res_96_felts = get_ptr_from_var_name("res_96_felts", vm, ids_data, ap_tracking)?;
+    let mut num = num.to_biguint();
+    let modulo = BigUint::from(1u128 << 96);
+    (0..3).try_for_each(|i| {
+        let felt = MaybeRelocatable::Int((&num % &modulo).into());
+        num >>= 96;
+        vm.insert_value((res_96_felts + i)?, felt)
+    })?;
 
     Ok(())
 }
