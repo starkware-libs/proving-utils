@@ -356,7 +356,8 @@ Implements hint:
         load_cairo_pie(
             task=task.cairo_pie, memory=memory, segments=segments,
             program_address=program_address, execution_segment_address= ap - n_builtins,
-            builtin_runners=builtin_runners, ret_fp=fp, ret_pc=ret_pc)
+            builtin_runners=builtin_runners, ret_fp=fp, ret_pc=ret_pc,
+            ecdsa_additional_data=vm_ecdsa_additional_data)
     else:
         raise NotImplementedError(f'Unexpected task type: {type(task).__name__}.')
 
