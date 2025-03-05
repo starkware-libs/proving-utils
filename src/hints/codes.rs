@@ -202,7 +202,8 @@ elif isinstance(task, CairoPieTask):
     load_cairo_pie(
         task=task.cairo_pie, memory=memory, segments=segments,
         program_address=program_address, execution_segment_address= ap - n_builtins,
-        builtin_runners=builtin_runners, ret_fp=fp, ret_pc=ret_pc)
+        builtin_runners=builtin_runners, ret_fp=fp, ret_pc=ret_pc,
+        ecdsa_additional_data=vm_ecdsa_additional_data)
 else:
     raise NotImplementedError(f'Unexpected task type: {type(task).__name__}.')
 
@@ -441,3 +442,32 @@ pub const SIMULATE_KECCAK_CALC_HIGH18_LOW18: &str =
 
 pub const SIMULATE_KECCAK_CALC_HIGH21_LOW21: &str =
     "ids.high21, ids.low21 = divmod(memory[ids.felt_array + 21], 256 ** 7)";
+
+pub const SIMPLE_BOOTLOADER_SIMULATE_ECDSA: &str =
+    "from starkware.cairo.lang.builtins.signature.signature_builtin_runner import (
+    signature_rule_wrapper
+)
+from starkware.cairo.lang.vm.cairo_runner import verify_ecdsa_sig
+ids.new_ecdsa_ptr = segments.add()
+vm_add_validation_rule(
+    segment_index=ids.new_ecdsa_ptr.segment_index,
+    rule=signature_rule_wrapper(
+        verify_signature_func=verify_ecdsa_sig,
+        # Store signatures inside the vm's state. vm_ecdsa_additional_data is dropped
+        # into the execution scope by the vm.
+        signature_cache=vm_ecdsa_additional_data,
+        ),
+)";
+pub const SIMULATE_ECDSA_GET_R_AND_S: &str = "(ids.r, ids.s) = vm_ecdsa_additional_data[ids.start]";
+
+pub const SIMULATE_ECDSA_COMPUTE_W_WR_WZ: &str =
+    "# ids.StarkCurve.ORDER is parsed as a negative number.
+order = ids.StarkCurve.ORDER + PRIME
+ids.w = pow(ids.signature_s, -1, order)
+ids.wz = ids.w*ids.message % order
+ids.wr = ids.w*ids.signature_r % order";
+
+pub const SIMULATE_ECDSA_FILL_MEM_WITH_FELT_96_BIT_LIMBS: &str = "num = ids.num
+memory[ids.res_96_felts] = num % (2**96)
+memory[ids.res_96_felts+1] = (num>>96) % (2**96)
+memory[ids.res_96_felts+2] = (num>>(2*96)) % (2**96)";
