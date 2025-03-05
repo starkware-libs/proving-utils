@@ -47,8 +47,10 @@ use super::mock_cairo_verifier_hints::{
     mock_cairo_verifier_len_output_to_fp, mock_cairo_verifier_n_steps_to_ap,
 };
 use super::simple_bootloader_hints::{
-    simple_bootloader_simulate_ec_op, simple_bootloader_simulate_keccak,
-    simulate_ec_op_assert_false, simulate_ec_op_fill_mem_with_bits_of_m,
+    simple_bootloader_simulate_ec_op, simple_bootloader_simulate_ecdsa,
+    simple_bootloader_simulate_keccak, simulate_ec_op_assert_false,
+    simulate_ec_op_fill_mem_with_bits_of_m, simulate_ecdsa_compute_w_wr_wz,
+    simulate_ecdsa_fill_mem_with_felt_96_bit_limbs, simulate_ecdsa_get_r_and_s,
     simulate_keccak_calc_high_low, simulate_keccak_fill_mem_with_state,
 };
 use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, write_simple_output};
@@ -219,6 +221,16 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             }
             SIMULATE_KECCAK_CALC_HIGH21_LOW21 => {
                 simulate_keccak_calc_high_low(vm, ids_data, ap_tracking, 21)
+            }
+            SIMPLE_BOOTLOADER_SIMULATE_ECDSA => {
+                simple_bootloader_simulate_ecdsa(vm, ids_data, ap_tracking)
+            }
+            SIMULATE_ECDSA_GET_R_AND_S => simulate_ecdsa_get_r_and_s(vm, ids_data, ap_tracking),
+            SIMULATE_ECDSA_COMPUTE_W_WR_WZ => {
+                simulate_ecdsa_compute_w_wr_wz(vm, ids_data, ap_tracking, constants)
+            }
+            SIMULATE_ECDSA_FILL_MEM_WITH_FELT_96_BIT_LIMBS => {
+                simulate_ecdsa_fill_mem_with_felt_96_bit_limbs(vm, ids_data, ap_tracking)
             }
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
