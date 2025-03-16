@@ -228,9 +228,6 @@ impl Task {
         }
     }
 }
-
-// For now will support only CairoPiePath tasks and RunProgramTask task without program_input.
-// Note: Inputs are currently only supported for known programs.
 #[derive(Deserialize)]
 struct TaskSpecHelper {
     #[serde(rename = "type")]

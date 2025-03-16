@@ -383,70 +383,57 @@ pub fn call_task(
 
     let mut new_task_locals = HashMap::new();
 
-    let mut hint_extension: HintExtension;
+    let mut hint_extension = HintExtension::default();
 
     match &task {
         // if isinstance(task, RunProgramTask):
         Task::Program(program_with_input) => {
+            // vm_load_program(task.program, program_address)
             if let Some(program_input) = program_with_input.program_input.as_ref() {
-                // vm_load_program(task.program, program_address)
-                hint_extension = HashMap::new();
-
-                let program_hints_collection = &program_with_input
-                    .program
-                    .shared_program_data
-                    .hints_collection;
-
-                let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS)?;
-                let references = &program_with_input
-                    .program
-                    .shared_program_data
-                    .reference_manager;
-
-                for (pc, hint_range) in &program_hints_collection.hints_ranges {
-                    // Adjust the PC to the program address
+                new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input.clone()]);
+            }
+            new_task_locals.insert(
+                PROGRAM_OBJECT.to_string(),
+                any_box![program_with_input.program.clone()],
+            );
+            let program_hints_collection = &program_with_input
+                .program
+                .shared_program_data
+                .hints_collection;
+            let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS)?;
+            let references = &program_with_input
+                .program
+                .shared_program_data
+                .reference_manager;
+            program_hints_collection
+                .hints_ranges
+                .iter()
+                .try_for_each(|(pc, hint_range)| {
                     let adjusted_pc = (program_address + pc.offset)?;
-
                     let start = hint_range.0;
                     let end = start + hint_range.1.get();
-
-                    let mut compiled_hints = Vec::new();
-
-                    for idx in start..end {
-                        let hint = &program_hints_collection.hints[idx];
-
-                        let compiled_hint = hint_processor
-                            .compile_hint(
-                                &hint.code,
-                                &hint.flow_tracking_data.ap_tracking,
-                                &hint.flow_tracking_data.reference_ids,
-                                references,
-                            )
-                            .map_err(|_| HintError::CustomHint(hint.code.clone().into()))?;
-
-                        compiled_hints.push(compiled_hint);
-                    }
-
+                    let compiled_hints = program_hints_collection.hints[start..end]
+                        .iter()
+                        .map(|hint| {
+                            hint_processor
+                                .compile_hint(
+                                    &hint.code,
+                                    &hint.flow_tracking_data.ap_tracking,
+                                    &hint.flow_tracking_data.reference_ids,
+                                    references,
+                                )
+                                .map_err(|err| {
+                                    HintError::CustomHint(
+                                        format!("{} for hint: {}", err, hint.code).into(),
+                                    )
+                                })
+                        })
+                        .collect::<Result<Vec<_>, HintError>>()?;
                     hint_extension.insert(adjusted_pc, compiled_hints);
-                }
-                new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input.clone()]);
-                new_task_locals.insert(
-                    PROGRAM_OBJECT.to_string(),
-                    any_box![program_with_input.program.clone()],
-                );
-                // Use the program constants as additional constants for the hint processor.
-                // Overwrite the existing additional constants from previous tasks.
-                hint_processor.additional_constants = program_with_input.program.constants.clone();
-                hint_processor.change_needed = true;
-            } else {
-                let program_input = HashMap::<String, Box<dyn Any>>::new();
-                // new_task_locals['program_input'] = task.program_input
-                new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input]);
-                // new_task_locals['WITH_BOOTLOADER'] = True
-                new_task_locals.insert("WITH_BOOTLOADER".to_string(), any_box![true]);
-
-                hint_extension = HintExtension::default();
-            }
+                    Ok::<_, HintError>(())
+                })?;
+            hint_processor.additional_constants = program_with_input.program.constants.clone();
+            hint_processor.change_needed = true;
         }
         // elif isinstance(task, CairoPieTask):
         Task::Pie(cairo_pie) => {
@@ -477,8 +464,6 @@ pub fn call_task(
                 ret_pc,
             )
             .map_err(Into::<HintError>::into)?;
-
-            hint_extension = HintExtension::default();
         }
     }
 
