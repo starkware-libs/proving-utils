@@ -31,6 +31,7 @@ pub fn get_cairo_run_config(
     dynamic_params_file: &Option<PathBuf>,
     layout: LayoutName,
     proof_mode: bool,
+    disable_trace_padding: bool,
 ) -> std::io::Result<CairoRunConfig<'static>> {
     let dynamic_layout_params = match dynamic_params_file {
         Some(file) => {
@@ -48,6 +49,7 @@ pub fn get_cairo_run_config(
         RunMode::Proof {
             layout,
             dynamic_layout_params,
+            disable_trace_padding,
         }
         .create_config()
     } else {

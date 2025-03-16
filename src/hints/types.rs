@@ -417,6 +417,7 @@ pub enum RunMode {
     Proof {
         layout: LayoutName,
         dynamic_layout_params: Option<CairoLayoutParams>,
+        disable_trace_padding: bool,
     },
     Validation,
 }
@@ -427,6 +428,7 @@ impl RunMode {
             RunMode::Proof {
                 layout,
                 dynamic_layout_params,
+                disable_trace_padding,
             } => CairoRunConfig {
                 entrypoint: "main",
                 trace_enabled: true,
@@ -434,7 +436,7 @@ impl RunMode {
                 layout,
                 proof_mode: true,
                 secure_run: None,
-                disable_trace_padding: false,
+                disable_trace_padding,
                 allow_missing_builtins: None,
                 dynamic_layout_params,
             },

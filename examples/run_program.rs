@@ -30,6 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cairo_run_config = RunMode::Proof {
         layout: LayoutName::starknet_with_keccak,
         dynamic_layout_params: None,
+        disable_trace_padding: false,
     }
     .create_config();
 
