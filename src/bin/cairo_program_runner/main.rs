@@ -59,6 +59,17 @@ struct Args {
         requires_all = &["air_public_input", "air_private_input"]
     )]
     proof_mode: bool,
+    #[clap(
+        long = "disable_trace_padding",
+        help = "Disable padding of the execution trace at the end of the run. Requires proof_mode.",
+        requires = "proof_mode"
+    )]
+    disable_trace_padding: bool,
+    #[clap(
+        long = "merge_extra_segments",
+        help = "Merge extra memory segments into one before creating the PIE of the run."
+    )]
+    merge_extra_segments: bool,
 }
 struct FileWriter {
     buf_writer: io::BufWriter<std::fs::File>,
@@ -101,8 +112,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let program = get_program(args.program.as_path())?;
     let program_input_contents = get_program_input(&args.program_input)?;
-    let cairo_run_config =
-        get_cairo_run_config(&args.dynamic_params_file, args.layout, args.proof_mode)?;
+    let cairo_run_config = get_cairo_run_config(
+        &args.dynamic_params_file,
+        args.layout,
+        args.proof_mode,
+        args.disable_trace_padding,
+    )?;
 
     let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
 
@@ -111,7 +126,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         runner
             .get_cairo_pie()
             .map_err(CairoRunError::Runner)?
-            .write_zip_file(pie_output_path.as_ref(), false)?;
+            .write_zip_file(pie_output_path.as_ref(), args.merge_extra_segments)?;
     }
 
     if !args.proof_mode {
