@@ -232,7 +232,7 @@ impl Task {
 struct TaskSpecHelper {
     #[serde(rename = "type")]
     task_type: String,
-    use_poseidon: bool,
+    program_hash_function: usize,
     path: Option<PathBuf>,
     program: Option<Value>,
     program_input: Option<Value>,
@@ -241,7 +241,7 @@ struct TaskSpecHelper {
 #[derive(Debug, Clone)]
 pub struct TaskSpec {
     pub task: Task,
-    pub use_poseidon: bool,
+    pub program_hash_function: usize,
 }
 
 impl<'de> Deserialize<'de> for TaskSpec {
@@ -314,9 +314,18 @@ impl<'de> Deserialize<'de> for TaskSpec {
             }
         };
 
+        // Make sure that program_hash_function is a valid value:
+        // 0: Pedersen, 1: Poseidon, 2: Blake.
+        if helper.program_hash_function > 2 {
+            return Err(D::Error::custom(format!(
+                "Invalid program hash function: {}",
+                helper.program_hash_function
+            )));
+        }
+
         Ok(TaskSpec {
             task,
-            use_poseidon: helper.use_poseidon,
+            program_hash_function: helper.program_hash_function,
         })
     }
 }
