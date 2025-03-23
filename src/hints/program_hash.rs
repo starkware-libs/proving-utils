@@ -100,7 +100,7 @@ fn maybe_relocatable_to_field_element(
 pub fn compute_program_hash_chain(
     program: &StrippedProgram,
     bootloader_version: usize,
-    use_poseidon: bool,
+    program_hash_function: usize,
 ) -> Result<FieldElement, ProgramHashError> {
     let program_main = program.main;
     let program_main = FieldElement::from(program_main);
@@ -137,14 +137,17 @@ pub fn compute_program_hash_chain(
         &program_data,
     ];
 
-    let hash = if use_poseidon {
-        let data: Vec<FieldElement> = data_chain[1..]
-            .iter()
-            .flat_map(|&v| v.iter().copied())
-            .collect();
-        poseidon_hash_many(&data)
-    } else {
-        compute_hash_chain(data_chain.iter().flat_map(|&v| v.iter()), pedersen_hash)?
+    let hash = match program_hash_function {
+        0 => compute_hash_chain(data_chain.iter().flat_map(|&v| v.iter()), pedersen_hash)?,
+        1 => {
+            let data: Vec<FieldElement> = data_chain[1..]
+                .iter()
+                .flat_map(|&v| v.iter().copied())
+                .collect();
+            poseidon_hash_many(&data)
+        }
+        2 => FieldElement::from(0x123456789u64),
+        _ => panic!("Unsupported hash function: {}", program_hash_function),
     };
     Ok(hash)
 }

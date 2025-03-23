@@ -18,6 +18,7 @@ use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinSt
 use cairo_vm::vm::runners::cairo_pie::{CairoPie, StrippedProgram};
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::{any_box, Felt252};
+use num_traits::ToPrimitive;
 use starknet_crypto::FieldElement;
 
 use crate::hints::fact_topologies::{get_task_fact_topology, FactTopology};
@@ -165,7 +166,7 @@ pub fn validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let computed_program_hash = compute_program_hash_chain(&program, 0, false).map_err(|e| {
+    let computed_program_hash = compute_program_hash_chain(&program, 0, 0).map_err(|e| {
         HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
     })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
@@ -486,18 +487,12 @@ pub fn call_task(
 }
 
 // Implements hint: "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)"
-pub fn is_poseidon_to_ap(
+pub fn program_hash_function_to_ap(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
-    insert_value_into_ap(
-        vm,
-        if exec_scopes.get(vars::USE_POSEIDON)? {
-            1
-        } else {
-            0
-        },
-    )
+    let program_hash_function: usize = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
+    insert_value_into_ap(vm, program_hash_function)
 }
 
 /// Implements
@@ -522,10 +517,12 @@ pub fn bootloader_validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let use_poseidon =
-        get_integer_from_var_name("use_poseidon", vm, ids_data, ap_tracking)? != Felt252::ZERO;
-    let computed_program_hash =
-        compute_program_hash_chain(&program, 0, use_poseidon).map_err(|e| {
+    let program_hash_function =
+        get_integer_from_var_name("program_hash_function", vm, ids_data, ap_tracking)?
+            .to_usize()
+            .unwrap();
+    let computed_program_hash = compute_program_hash_chain(&program, 0, program_hash_function)
+        .map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
         })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);

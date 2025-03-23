@@ -19,7 +19,7 @@ pub enum BootloaderTaskError {
 ///
 /// # Arguments
 /// - `program_path`: A reference to a `Path` where the program file is located.
-/// - `use_poseidon`: A boolean indicating if Poseidon hashing should be used.
+/// - `program_hash_function`: A ternary value indicating which hash should be used.
 ///
 /// # Returns
 /// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded program task and the Poseidon
@@ -28,7 +28,7 @@ pub enum BootloaderTaskError {
 ///   issue with loading the program file.
 pub fn create_program_task_spec(
     program_path: &Path,
-    use_poseidon: bool,
+    program_hash_function: usize,
     program_input: Option<String>,
 ) -> Result<TaskSpec, BootloaderTaskError> {
     let program =
@@ -38,7 +38,7 @@ pub fn create_program_task_spec(
             program,
             program_input,
         }),
-        use_poseidon,
+        program_hash_function,
     })
 }
 
@@ -46,7 +46,7 @@ pub fn create_program_task_spec(
 ///
 /// # Arguments
 /// - `pie_path`: A reference to a `Path` where the Cairo PIE file is located.
-/// - `use_poseidon`: A boolean indicating if Poseidon hashing should be used.
+/// - `program_hash_function`: A ternary value indicating which hash should be used.
 ///
 /// # Returns
 /// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded Cairo PIE task and the
@@ -55,11 +55,11 @@ pub fn create_program_task_spec(
 ///   issue with reading the Cairo PIE file.
 pub fn create_pie_task_spec(
     pie_path: &Path,
-    use_poseidon: bool,
+    program_hash_function: usize,
 ) -> Result<TaskSpec, BootloaderTaskError> {
     let pie = CairoPie::read_zip_file(pie_path).map_err(BootloaderTaskError::Pie)?;
     Ok(TaskSpec {
         task: Task::Pie(pie),
-        use_poseidon,
+        program_hash_function,
     })
 }

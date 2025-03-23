@@ -122,10 +122,10 @@ pub fn set_current_task(
 
     let task_id = simple_bootloader_input.tasks.len() - n_tasks;
     let task = simple_bootloader_input.tasks[task_id].load_task();
-    let use_poseidon = simple_bootloader_input.tasks[task_id].use_poseidon;
+    let program_hash_function = simple_bootloader_input.tasks[task_id].program_hash_function;
 
     exec_scopes.insert_value(vars::TASK, task.clone());
-    exec_scopes.insert_value(vars::USE_POSEIDON, use_poseidon);
+    exec_scopes.insert_value(vars::PROGRAM_HASH_FUNCTION, program_hash_function);
 
     Ok(())
 }
@@ -184,11 +184,11 @@ mod tests {
             tasks: vec![
                 TaskSpec {
                     task: Task::Program(fibonacci.clone()),
-                    use_poseidon: true,
+                    program_hash_function: 1,
                 },
                 TaskSpec {
                     task: Task::Program(fibonacci.clone()),
-                    use_poseidon: true,
+                    program_hash_function: 1,
                 },
             ],
         }

@@ -232,7 +232,7 @@ impl Task {
 struct TaskSpecHelper {
     #[serde(rename = "type")]
     task_type: String,
-    use_poseidon: bool,
+    program_hash_function: usize,
     path: Option<PathBuf>,
     program: Option<Value>,
     program_input: Option<Value>,
@@ -241,7 +241,7 @@ struct TaskSpecHelper {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TaskSpec {
     pub task: Task,
-    pub use_poseidon: bool,
+    pub program_hash_function: usize,
 }
 
 impl<'de> Deserialize<'de> for TaskSpec {
@@ -265,9 +265,10 @@ impl<'de> Deserialize<'de> for TaskSpec {
         let task = match helper.task_type.as_str() {
             "CairoPiePath" => {
                 if let Some(path) = &helper.path {
-                    let spec = create_pie_task_spec(path, helper.use_poseidon).map_err(|e| {
-                        D::Error::custom(format!("Error creating TaskSpec: {:?}", e))
-                    })?;
+                    let spec =
+                        create_pie_task_spec(path, helper.program_hash_function).map_err(|e| {
+                            D::Error::custom(format!("Error creating TaskSpec: {:?}", e))
+                        })?;
                     spec.task
                 } else {
                     return Err(D::Error::custom("CairoPiePath requires a path"));
@@ -298,10 +299,11 @@ impl<'de> Deserialize<'de> for TaskSpec {
                         program_input,
                     })
                 } else if let Some(path) = &helper.path {
-                    let spec = create_program_task_spec(path, helper.use_poseidon, program_input)
-                        .map_err(|e| {
-                        D::Error::custom(format!("Error creating TaskSpec: {:?}", e))
-                    })?;
+                    let spec =
+                        create_program_task_spec(path, helper.program_hash_function, program_input)
+                            .map_err(|e| {
+                                D::Error::custom(format!("Error creating TaskSpec: {:?}", e))
+                            })?;
                     spec.task
                 } else {
                     return Err(D::Error::custom(
@@ -319,7 +321,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
 
         Ok(TaskSpec {
             task,
-            use_poseidon: helper.use_poseidon,
+            program_hash_function: helper.program_hash_function,
         })
     }
 }
