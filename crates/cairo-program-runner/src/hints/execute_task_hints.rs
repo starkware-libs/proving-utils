@@ -18,6 +18,7 @@ use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinSt
 use cairo_vm::vm::runners::cairo_pie::{CairoPie, StrippedProgram};
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::{any_box, Felt252};
+use num_traits::ToPrimitive;
 use starknet_crypto::FieldElement;
 
 use crate::hints::fact_topologies::{get_task_fact_topology, FactTopology};
@@ -29,6 +30,7 @@ use crate::hints::vars;
 
 use super::utils::{get_identifier, get_program_identifies};
 
+use super::vars::PROGRAM_HASH_FUNCTION;
 use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
 fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
@@ -165,7 +167,7 @@ pub fn validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let computed_program_hash = compute_program_hash_chain(&program, 0, false).map_err(|e| {
+    let computed_program_hash = compute_program_hash_chain(&program, 0, 0).map_err(|e| {
         HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
     })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
@@ -487,18 +489,14 @@ pub fn call_task(
 }
 
 // Implements hint: "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)"
-pub fn is_poseidon_to_ap(
+// Note: The python code above is obsolete and we just use this hint code to map to the below
+// function which implements the required logic.
+pub fn program_hash_function_to_ap(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
-    insert_value_into_ap(
-        vm,
-        if exec_scopes.get(vars::USE_POSEIDON)? {
-            1
-        } else {
-            0
-        },
-    )
+    let program_hash_function: usize = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
+    insert_value_into_ap(vm, program_hash_function)
 }
 
 /// Implements
@@ -523,10 +521,18 @@ pub fn bootloader_validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let use_poseidon =
-        get_integer_from_var_name("use_poseidon", vm, ids_data, ap_tracking)? != Felt252::ZERO;
-    let computed_program_hash =
-        compute_program_hash_chain(&program, 0, use_poseidon).map_err(|e| {
+    let program_hash_function =
+        get_integer_from_var_name(PROGRAM_HASH_FUNCTION, vm, ids_data, ap_tracking)?
+            .to_usize()
+            .ok_or_else(|| {
+                HintError::CustomHint(
+                    "program_hash_function is not a valid integer"
+                        .to_string()
+                        .into_boxed_str(),
+                )
+            })?;
+    let computed_program_hash = compute_program_hash_chain(&program, 0, program_hash_function)
+        .map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
         })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
