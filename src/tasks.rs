@@ -4,7 +4,7 @@ use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::program::Program;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 
-use crate::{ProgramWithInput, Task, TaskSpec};
+use crate::{ProgramWithInput, Task};
 
 #[derive(thiserror::Error, Debug)]
 pub enum BootloaderTaskError {
@@ -19,47 +19,33 @@ pub enum BootloaderTaskError {
 ///
 /// # Arguments
 /// - `program_path`: A reference to a `Path` where the program file is located.
-/// - `use_poseidon`: A boolean indicating if Poseidon hashing should be used.
 ///
 /// # Returns
-/// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded program task and the Poseidon
-///   option.
+/// - `Ok(Task)`: On success, returns a `Task` with the loaded program.
 /// - `Err(BootloaderTaskError)`: On failure, returns a `BootloaderTaskError::Program` if there's an
 ///   issue with loading the program file.
-pub fn create_program_task_spec(
+pub fn create_program_task(
     program_path: &Path,
-    use_poseidon: bool,
     program_input: Option<String>,
-) -> Result<TaskSpec, BootloaderTaskError> {
+) -> Result<Task, BootloaderTaskError> {
     let program =
         Program::from_file(program_path, Some("main")).map_err(BootloaderTaskError::Program)?;
-    Ok(TaskSpec {
-        task: Task::Program(ProgramWithInput {
-            program,
-            program_input,
-        }),
-        use_poseidon,
-    })
+    Ok(Task::Program(ProgramWithInput {
+        program,
+        program_input,
+    }))
 }
 
 /// Creates a `TaskSpec` for a Cairo PIE task by reading it from a zip file.
 ///
 /// # Arguments
 /// - `pie_path`: A reference to a `Path` where the Cairo PIE file is located.
-/// - `use_poseidon`: A boolean indicating if Poseidon hashing should be used.
 ///
 /// # Returns
-/// - `Ok(TaskSpec)`: On success, returns a `TaskSpec` with the loaded Cairo PIE task and the
-///   Poseidon option.
+/// - `Ok(Task)`: On success, returns a `Task` with the loaded Cairo PIE.
 /// - `Err(BootloaderTaskError)`: On failure, returns a `BootloaderTaskError::Pie` if there's an
 ///   issue with reading the Cairo PIE file.
-pub fn create_pie_task_spec(
-    pie_path: &Path,
-    use_poseidon: bool,
-) -> Result<TaskSpec, BootloaderTaskError> {
+pub fn create_pie_task(pie_path: &Path) -> Result<Task, BootloaderTaskError> {
     let pie = CairoPie::read_zip_file(pie_path).map_err(BootloaderTaskError::Pie)?;
-    Ok(TaskSpec {
-        task: Task::Pie(pie),
-        use_poseidon,
-    })
+    Ok(Task::Pie(pie))
 }

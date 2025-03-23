@@ -16,7 +16,7 @@ use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
 
-use crate::tasks::{create_pie_task_spec, create_program_task_spec};
+use crate::tasks::{create_pie_task, create_program_task};
 
 use super::fact_topologies::FactTopology;
 
@@ -24,7 +24,7 @@ pub type BootloaderVersion = u64;
 
 pub(crate) type ProgramIdentifiers = HashMap<String, Identifier>;
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct BootloaderConfig {
     pub simple_bootloader_program_hash: Felt252,
     pub applicative_bootloader_program_hash: Felt252,
@@ -32,7 +32,7 @@ pub struct BootloaderConfig {
 }
 
 pub const BOOTLOADER_CONFIG_SIZE: usize = 3;
-#[derive(Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Default, Clone)]
 /// Represents a composite packed output, which consists of a set of outputs,
 /// subtasks (which could be plain or composite themselves), and associated fact topologies of the
 /// plain subtasks.
@@ -152,7 +152,7 @@ impl CompositePackedOutput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum PackedOutput {
     Plain,
     Composite(CompositePackedOutput),
@@ -205,14 +205,14 @@ impl<'de> Deserialize<'de> for PackedOutput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum Task {
     Program(ProgramWithInput),
     Pie(CairoPie),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ProgramWithInput {
     pub program: Program,
     pub program_input: Option<String>,
@@ -238,7 +238,7 @@ struct TaskSpecHelper {
     program_input: Option<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct TaskSpec {
     pub task: Task,
     pub use_poseidon: bool,
@@ -265,10 +265,9 @@ impl<'de> Deserialize<'de> for TaskSpec {
         let task = match helper.task_type.as_str() {
             "CairoPiePath" => {
                 if let Some(path) = &helper.path {
-                    let spec = create_pie_task_spec(path, helper.use_poseidon).map_err(|e| {
-                        D::Error::custom(format!("Error creating TaskSpec: {:?}", e))
-                    })?;
-                    spec.task
+                    create_pie_task(path).map_err(|e| {
+                        D::Error::custom(format!("Error creating PIE task: {:?}", e))
+                    })?
                 } else {
                     return Err(D::Error::custom("CairoPiePath requires a path"));
                 }
@@ -298,11 +297,9 @@ impl<'de> Deserialize<'de> for TaskSpec {
                         program_input,
                     })
                 } else if let Some(path) = &helper.path {
-                    let spec = create_program_task_spec(path, helper.use_poseidon, program_input)
-                        .map_err(|e| {
-                        D::Error::custom(format!("Error creating TaskSpec: {:?}", e))
-                    })?;
-                    spec.task
+                    create_program_task(path, program_input).map_err(|e| {
+                        D::Error::custom(format!("Error creating Program task: {:?}", e))
+                    })?
                 } else {
                     return Err(D::Error::custom(
                         "RunProgramTask requires either a program or path",
@@ -334,14 +331,14 @@ impl TaskSpec {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SimpleBootloaderInput {
     pub fact_topologies_path: Option<PathBuf>,
     pub single_page: bool,
     pub tasks: Vec<TaskSpec>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BootloaderInput {
     #[serde(flatten)]
     pub simple_bootloader_input: SimpleBootloaderInput,
@@ -349,7 +346,7 @@ pub struct BootloaderInput {
     pub packed_outputs: Vec<PackedOutput>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ApplicativeBootloaderInput {
     #[serde(flatten)]
     pub bootloader_input: BootloaderInput,
@@ -452,12 +449,12 @@ impl RunMode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SimpleOutputInput {
     pub output: Vec<Number>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct MockCairoVerifierInput {
     pub n_steps: u128,
     pub program_hash: Felt252,
