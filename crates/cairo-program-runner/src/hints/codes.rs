@@ -53,7 +53,7 @@ pub const BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS: &str =
 pub const BOOTLOADER_IS_PLAIN_PACKED_OUTPUT: &str =
     "memory[ap] = to_felt_or_relocatable(isinstance(packed_output, PlainPackedOutput))";
 
-pub const BOOTLOADER_IS_POSEIDON: &str =
+pub const BOOTLOADER_PROGRAM_HASH_FUNCTION: &str =
     "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)";
 
 pub const BOOTLOADER_VALIDATE_HASH: &str = "# Validate hash.
