@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use cairo_lang_casm::hints::Hint;
+use cairo_lang_runner::Arg;
 use cairo_vm::air_public_input::{MemorySegmentAddresses, PublicMemoryEntry};
 use cairo_vm::cairo_run::CairoRunConfig;
 use cairo_vm::serde::deserialize_program::Identifier;
@@ -16,7 +18,7 @@ use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
 
-use crate::tasks::{create_pie_task, create_program_task};
+use crate::tasks::{create_cairo1_program_task, create_pie_task, create_program_task};
 
 use super::fact_topologies::FactTopology;
 
@@ -210,12 +212,19 @@ impl<'de> Deserialize<'de> for PackedOutput {
 pub enum Task {
     Program(ProgramWithInput),
     Pie(CairoPie),
+    Cairo1Program(Cairo1Executable),
 }
 
 #[derive(Debug, Clone)]
 pub struct ProgramWithInput {
     pub program: Program,
     pub program_input: Option<String>,
+}
+#[derive(Debug, Clone)]
+pub struct Cairo1Executable {
+    pub program: Program,
+    pub user_args: Vec<Arg>,
+    pub string_to_hint: HashMap<String, Hint>,
 }
 
 impl Task {
@@ -225,6 +234,9 @@ impl Task {
         match self {
             Task::Program(program_with_input) => program_with_input.program.get_stripped_program(),
             Task::Pie(cairo_pie) => Ok(cairo_pie.metadata.program.clone()),
+            Task::Cairo1Program(cairo1_executable) => {
+                cairo1_executable.program.get_stripped_program()
+            }
         }
     }
 }
@@ -236,6 +248,8 @@ struct TaskSpecHelper {
     path: Option<PathBuf>,
     program: Option<Value>,
     program_input: Option<Value>,
+    user_args_list: Option<Vec<Value>>,
+    user_args_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -327,6 +341,16 @@ impl<'de> Deserialize<'de> for TaskSpec {
                     return Err(D::Error::custom(
                         "RunProgramTask requires either a program or path",
                     ));
+                }
+            }
+            "Cairo1Executable" => {
+                if let Some(path) = &helper.path {
+                    create_cairo1_program_task(path, helper.user_args_list, helper.user_args_file)
+                        .map_err(|e| {
+                        D::Error::custom(format!("Error creating Cairo1 Program Task: {:?}", e))
+                    })?
+                } else {
+                    return Err(D::Error::custom("Cairo1Executable requires a path"));
                 }
             }
             _ => {

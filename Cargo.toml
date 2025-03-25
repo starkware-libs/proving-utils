@@ -10,7 +10,10 @@ resolver = "2"
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "serde",
 ] }
+cairo-lang-executable = { git = "https://github.com/starkware-libs/cairo.git", rev = "e358500cf9f52a6b66d7c648b0a91195a1967552" }
 cairo-lang-runner = { git = "https://github.com/starkware-libs/cairo.git", rev = "e358500cf9f52a6b66d7c648b0a91195a1967552" }
+cairo-lang-casm = { git = "https://github.com/starkware-libs/cairo.git", rev = "e358500cf9f52a6b66d7c648b0a91195a1967552" }
+cairo-lang-execute-utils = { git = "https://github.com/starkware-libs/cairo.git", rev = "e358500cf9f52a6b66d7c648b0a91195a1967552" }
 cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm", rev = "b9330cd6af24f979fdd3f90369e85b2dc8adfe8a", features = [
     "extensive_hints",
     "mod_builtin",
