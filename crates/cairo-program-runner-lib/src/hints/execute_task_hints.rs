@@ -1,6 +1,8 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::vec;
 
+use cairo_lang_runner::{Arg, CairoHintProcessor};
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_ptr_from_var_name, get_relocatable_from_var_name, insert_value_from_var_name,
     insert_value_into_ap,
@@ -11,6 +13,7 @@ use cairo_vm::hint_processor::hint_processor_definition::{
 use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::types::program::Program;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
@@ -332,6 +335,51 @@ pub fn write_return_builtins_hint(
     Ok(())
 }
 
+/// Common function for processing a program: it inserts the program into task locals,
+/// iterates over its hints ranges and compiles each hint using the provided processor,
+/// while adjusting the hint's PC to the subtask's program address.
+fn process_program_common_logic(
+    program: &Program,
+    new_task_locals: &mut HashMap<String, Box<dyn std::any::Any>>,
+    exec_scopes: &ExecutionScopes,
+    hint_compiler: &dyn HintProcessorLogic,
+    hint_extension: &mut HintExtension,
+) -> Result<(), HintError> {
+    new_task_locals.insert(PROGRAM_OBJECT.to_string(), any_box![program.clone()]);
+
+    let program_hints_collection = &program.shared_program_data.hints_collection;
+    let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS)?;
+    let references = &program.shared_program_data.reference_manager;
+
+    program_hints_collection
+        .hints_ranges
+        .iter()
+        .try_for_each(|(pc, hint_range)| {
+            let adjusted_pc = (program_address + pc.offset)?;
+            let start = hint_range.0;
+            let end = start + hint_range.1.get();
+            let compiled_hints = program_hints_collection.hints[start..end]
+                .iter()
+                .map(|hint| {
+                    hint_compiler
+                        .compile_hint(
+                            &hint.code,
+                            &hint.flow_tracking_data.ap_tracking,
+                            &hint.flow_tracking_data.reference_ids,
+                            references,
+                        )
+                        .map_err(|err| {
+                            HintError::CustomHint(format!("{} for hint: {}", err, hint.code).into())
+                        })
+                })
+                .collect::<Result<Vec<_>, HintError>>()?;
+            hint_extension.insert(adjusted_pc, compiled_hints);
+            Ok::<(), HintError>(())
+        })?;
+
+    Ok(())
+}
+
 /*
 Implements hint:
 %{
@@ -390,52 +438,21 @@ pub fn call_task(
 
     match &task {
         // if isinstance(task, RunProgramTask):
-        Task::Program(program_with_input) => {
+        Task::Cairo0Program(cairo0_executable) => {
             // vm_load_program(task.program, program_address)
-            if let Some(program_input) = program_with_input.program_input.as_ref() {
+            if let Some(program_input) = cairo0_executable.program_input.as_ref() {
                 new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input.clone()]);
             }
-            new_task_locals.insert(
-                PROGRAM_OBJECT.to_string(),
-                any_box![program_with_input.program.clone()],
-            );
-            let program_hints_collection = &program_with_input
-                .program
-                .shared_program_data
-                .hints_collection;
-            let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS)?;
-            let references = &program_with_input
-                .program
-                .shared_program_data
-                .reference_manager;
-            program_hints_collection
-                .hints_ranges
-                .iter()
-                .try_for_each(|(pc, hint_range)| {
-                    let adjusted_pc = (program_address + pc.offset)?;
-                    let start = hint_range.0;
-                    let end = start + hint_range.1.get();
-                    let compiled_hints = program_hints_collection.hints[start..end]
-                        .iter()
-                        .map(|hint| {
-                            hint_processor
-                                .compile_hint(
-                                    &hint.code,
-                                    &hint.flow_tracking_data.ap_tracking,
-                                    &hint.flow_tracking_data.reference_ids,
-                                    references,
-                                )
-                                .map_err(|err| {
-                                    HintError::CustomHint(
-                                        format!("{} for hint: {}", err, hint.code).into(),
-                                    )
-                                })
-                        })
-                        .collect::<Result<Vec<_>, HintError>>()?;
-                    hint_extension.insert(adjusted_pc, compiled_hints);
-                    Ok::<_, HintError>(())
-                })?;
-            hint_processor.additional_constants = program_with_input.program.constants.clone();
+
+            process_program_common_logic(
+                &cairo0_executable.program,
+                &mut new_task_locals,
+                exec_scopes,
+                hint_processor,
+                &mut hint_extension,
+            )?;
+
+            hint_processor.additional_constants = cairo0_executable.program.constants.clone();
             hint_processor.change_needed = true;
         }
         // elif isinstance(task, CairoPieTask):
@@ -467,6 +484,30 @@ pub fn call_task(
                 ret_pc,
             )
             .map_err(Into::<HintError>::into)?;
+        }
+        Task::Cairo1Program(cairo1_executable) => {
+            hint_processor.subtask_cairo_hint_processor = Some(CairoHintProcessor {
+                runner: None,
+                user_args: vec![vec![Arg::Array(cairo1_executable.user_args.clone())]],
+                string_to_hint: cairo1_executable.string_to_hint.clone(),
+                starknet_state: Default::default(),
+                run_resources: Default::default(),
+                syscalls_used_resources: Default::default(),
+                no_temporary_segments: false,
+                markers: Default::default(),
+                panic_traceback: Default::default(),
+            });
+
+            process_program_common_logic(
+                &cairo1_executable.program,
+                &mut new_task_locals,
+                exec_scopes,
+                hint_processor
+                    .subtask_cairo_hint_processor
+                    .as_ref()
+                    .unwrap(),
+                &mut hint_extension,
+            )?;
         }
     }
 
@@ -553,7 +594,7 @@ mod util {
         output_ptr: Relocatable,
     ) -> Result<Option<OutputBuiltinState>, HintError> {
         match task {
-            Task::Program(_) => {
+            Task::Cairo0Program(_) | Task::Cairo1Program(_) => {
                 let output_state = output_builtin.get_state();
                 output_builtin.new_state(
                     output_ptr.segment_index as usize,
@@ -654,7 +695,7 @@ mod tests {
 
     #[rstest]
     fn test_load_program(fibonacci: Program) {
-        let task = Task::Program(fibonacci.clone());
+        let task = Task::Cairo0Program(fibonacci.clone());
 
         let mut vm = vm!();
         vm.run_context.fp = 1;
@@ -710,7 +751,7 @@ mod tests {
         vm.builtin_runners
             .push(BuiltinRunner::Output(output_builtin));
 
-        let task = Task::Program(fibonacci);
+        let task = Task::Cairo0Program(fibonacci);
         exec_scopes.insert_box(vars::TASK, Box::new(task));
 
         assert_matches!(
@@ -811,7 +852,7 @@ mod tests {
 
     #[rstest]
     fn test_append_fact_topologies(fibonacci: Program) {
-        let task = Task::Program(fibonacci.clone());
+        let task = Task::Cairo0Program(fibonacci.clone());
 
         let mut vm = vm!();
 
@@ -877,7 +918,7 @@ mod tests {
 
     #[rstest]
     fn test_write_output_builtins(field_arithmetic_program: Program) {
-        let task = Task::Program(field_arithmetic_program.clone());
+        let task = Task::Cairo0Program(field_arithmetic_program.clone());
 
         let mut vm = vm!();
         // Allocate space for all the builtin list structs (3 x 8 felts).

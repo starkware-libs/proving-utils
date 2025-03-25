@@ -406,7 +406,7 @@ pub fn get_task_fact_topology(
     output_runner_data: Option<OutputBuiltinState>,
 ) -> Result<FactTopology, FactTopologyError> {
     match task {
-        Task::Program(_program) => {
+        Task::Cairo0Program(_) | Task::Cairo1Program(_) => {
             let output_runner_data = output_runner_data.ok_or(FactTopologyError::Internal(
                 "Output runner data not set for program task"
                     .to_string()
