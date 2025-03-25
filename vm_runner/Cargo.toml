@@ -1,0 +1,15 @@
+[package]
+name = "stwo_vm_runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.3.10", features = ["derive"] }
+log = "0.4.21"
+num-traits = "0.2.17"
+serde_json = "1.0.1"
+tracing = "0.1.40"
+thiserror = { version = "2.0.10", default-features = true }
+stwo_cairo_prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "d01fb2c"}
+stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "d01fb2c"}
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "d01fb2c"}
