@@ -9,11 +9,12 @@ edition = "2021"
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "serde",
 ] }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "10154c610924fa87b9229714ddc59390d2d8e8b7", features = [
+cairo-vm = { version = "2.0.1", features = [
     "extensive_hints",
     "mod_builtin",
     "clap",
 ] }
+cairo-lang-runner = { git = "https://github.com/starkware-libs/cairo.git", rev = "ddaec76b4364ca6e0af4d185a99904d13b93f81e" }
 clap = { version = "4.3.10", features = ["derive"] }
 num-traits = "0.2.19"
 serde = { version = "1.0.202", features = ["derive"] }
