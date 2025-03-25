@@ -2,6 +2,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use cairo_lang_runner::CairoHintProcessor;
 use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::{
     BuiltinHintProcessor, HintFunc, HintProcessorData,
 };
@@ -291,25 +292,27 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
 ///
 /// When executing a hint, this hint processor will first check the hints defined in this library,
 /// then the ones defined in Cairo VM.
-pub struct BootloaderHintProcessor {
+pub struct BootloaderHintProcessor<'a> {
     bootloader_hint_processor: MinimalBootloaderHintProcessor,
     builtin_hint_processor: BuiltinHintProcessor,
+    pub subtask_cairo_hint_processor: Option<CairoHintProcessor<'a>>,
     test_programs_hint_processor: MinimalTestProgramsHintProcessor,
     pub additional_constants: HashMap<String, Felt252>,
     pub change_needed: bool,
 }
 
-impl Default for BootloaderHintProcessor {
+impl Default for BootloaderHintProcessor<'_> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl BootloaderHintProcessor {
+impl BootloaderHintProcessor<'_> {
     pub fn new() -> Self {
         Self {
             bootloader_hint_processor: MinimalBootloaderHintProcessor::new(),
             builtin_hint_processor: BuiltinHintProcessor::new_empty(),
+            subtask_cairo_hint_processor: None,
             test_programs_hint_processor: MinimalTestProgramsHintProcessor::new(),
             additional_constants: HashMap::new(),
             change_needed: false,
@@ -323,7 +326,7 @@ impl BootloaderHintProcessor {
     }
 }
 
-impl HintProcessorLogic for BootloaderHintProcessor {
+impl HintProcessorLogic for BootloaderHintProcessor<'_> {
     fn execute_hint(
         &mut self,
         _vm: &mut VirtualMachine,
@@ -355,6 +358,21 @@ impl HintProcessorLogic for BootloaderHintProcessor {
                 self.change_needed = false;
             }
             curr_consts = &self.additional_constants;
+        }
+
+        if let Some(subtask_cairo_hint_processor) = &mut self.subtask_cairo_hint_processor {
+            match subtask_cairo_hint_processor.execute_hint_extensive(
+                vm,
+                exec_scopes,
+                hint_data,
+                curr_consts,
+            ) {
+                Err(HintError::UnknownHint(_)) => {}
+                Err(HintError::WrongHintData) => {}
+                result => {
+                    return result;
+                }
+            }
         }
 
         match self.bootloader_hint_processor.execute_hint_extensive(
@@ -403,4 +421,4 @@ impl HintProcessorLogic for BootloaderHintProcessor {
     }
 }
 
-impl ResourceTracker for BootloaderHintProcessor {}
+impl ResourceTracker for BootloaderHintProcessor<'_> {}
