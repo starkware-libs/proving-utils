@@ -9,7 +9,7 @@ edition = "2021"
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "serde",
 ] }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "b9fb58d6b879f92cbd76abd85ea44db8eb81b554", features = [
+cairo-vm = { git = "ssh://git@github.com/starkware-industries/cairo-vm.git", rev = "cd8e412ac717fb41821389c3858430f86555a9d8", features = [
     "extensive_hints",
     "mod_builtin",
     "clap",
@@ -21,7 +21,7 @@ serde_json = "1.0.117"
 starknet-crypto = "0.6.2"
 starknet-types-core = "0.1.2"
 tempfile = "3.10.1"
-thiserror = "1.0.61"
+thiserror = "2.0.12"
 thiserror-no-std = "2.0.2"
 regex = "1.11.1"
 num-bigint = "0.4"

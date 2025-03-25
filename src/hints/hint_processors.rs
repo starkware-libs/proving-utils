@@ -50,6 +50,7 @@ use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, wri
 use super::vector_commitment::set_bit_from_index;
 
 /// A hint processor that can only execute the hints defined in this library.
+///
 /// For large projects, you may want to compose a hint processor from multiple parts
 /// (ex: Starknet OS, bootloader and Cairo VM). This hint processor is as minimal as possible
 /// to enable this modularity.
