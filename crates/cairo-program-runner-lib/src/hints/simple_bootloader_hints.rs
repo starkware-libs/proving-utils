@@ -442,11 +442,11 @@ mod tests {
             single_page: false,
             tasks: vec![
                 TaskSpec {
-                    task: Task::Program(fibonacci.clone()),
+                    task: Task::Cairo0Program(fibonacci.clone()),
                     program_hash_function: 1,
                 },
                 TaskSpec {
-                    task: Task::Program(fibonacci.clone()),
+                    task: Task::Cairo0Program(fibonacci.clone()),
                     program_hash_function: 1,
                 },
             ],

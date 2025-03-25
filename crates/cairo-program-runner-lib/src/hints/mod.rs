@@ -27,8 +27,8 @@ mod verifier_utils;
 
 pub use hint_processors::{BootloaderHintProcessor, MinimalBootloaderHintProcessor};
 pub use types::{
-    ApplicativeBootloaderInput, BootloaderConfig, BootloaderInput, CairoVerifierInput,
-    PackedOutput, ProgramWithInput, SimpleBootloaderInput, Task, TaskSpec,
+    ApplicativeBootloaderInput, BootloaderConfig, BootloaderInput, Cairo0Executable,
+    CairoVerifierInput, PackedOutput, SimpleBootloaderInput, Task, TaskSpec,
 };
 
 pub use vars::{

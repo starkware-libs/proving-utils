@@ -7,7 +7,10 @@ edition = "2021"
 [dependencies]
 bincode.workspace = true
 cairo-vm.workspace = true
+cairo-lang-executable.workspace = true
 cairo-lang-runner.workspace = true
+cairo-lang-casm.workspace = true
+cairo-lang-execute-utils.workspace = true
 clap.workspace = true
 num-traits.workspace = true
 serde.workspace = true
