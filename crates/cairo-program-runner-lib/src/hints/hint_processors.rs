@@ -6,7 +6,6 @@ use cairo_lang_runner::CairoHintProcessor;
 use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::{
     BuiltinHintProcessor, HintFunc, HintProcessorData,
 };
-use cairo_vm::hint_processor::builtin_hint_processor::memcpy_hint_utils::exit_scope;
 use cairo_vm::hint_processor::hint_processor_definition::{HintExtension, HintProcessorLogic};
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::vm::errors::hint_errors::HintError;
@@ -42,6 +41,7 @@ use super::applicative_bootloader_hints::{
     prepare_root_task_unpacker_bootloader_output_segment, restore_applicative_output_state,
 };
 use super::bootloader_hints::load_unpacker_bootloader_input;
+use super::execute_task_hints::execute_task_exit_scope;
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
 use super::mock_cairo_verifier_hints::{
     load_mock_cairo_verifier_input, mock_cairo_verifier_hash_to_fp,
@@ -152,7 +152,6 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             EXECUTE_TASK_WRITE_RETURN_BUILTINS => {
                 write_return_builtins_hint(vm, exec_scopes, ids_data, ap_tracking)
             }
-            EXECUTE_TASK_EXIT_SCOPE => exit_scope(exec_scopes),
             EXECUTE_TASK_APPEND_FACT_TOPOLOGIES => {
                 append_fact_topologies(vm, exec_scopes, ids_data, ap_tracking)
             }
@@ -295,10 +294,9 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
 pub struct BootloaderHintProcessor<'a> {
     bootloader_hint_processor: MinimalBootloaderHintProcessor,
     builtin_hint_processor: BuiltinHintProcessor,
-    pub subtask_cairo_hint_processor: Option<CairoHintProcessor<'a>>,
     test_programs_hint_processor: MinimalTestProgramsHintProcessor,
-    pub additional_constants: HashMap<String, Felt252>,
-    pub change_needed: bool,
+    pub subtask_cairo1_hint_processor_stack: Vec<Option<CairoHintProcessor<'a>>>,
+    pub subtask_constants_stack: Vec<Option<HashMap<String, Felt252>>>,
 }
 
 impl Default for BootloaderHintProcessor<'_> {
@@ -307,15 +305,14 @@ impl Default for BootloaderHintProcessor<'_> {
     }
 }
 
-impl BootloaderHintProcessor<'_> {
+impl<'a> BootloaderHintProcessor<'a> {
     pub fn new() -> Self {
         Self {
             bootloader_hint_processor: MinimalBootloaderHintProcessor::new(),
             builtin_hint_processor: BuiltinHintProcessor::new_empty(),
-            subtask_cairo_hint_processor: None,
+            subtask_cairo1_hint_processor_stack: Vec::new(),
             test_programs_hint_processor: MinimalTestProgramsHintProcessor::new(),
-            additional_constants: HashMap::new(),
-            change_needed: false,
+            subtask_constants_stack: Vec::new(),
         }
     }
 
@@ -323,6 +320,24 @@ impl BootloaderHintProcessor<'_> {
         self.builtin_hint_processor
             .extra_hints
             .insert(hint_code, hint_func);
+    }
+
+    /// Push new subtask state onto the stacks.
+    /// Pass an optional constants map and an optional Cairo hint processor.
+    pub fn spawn_subtask(
+        &mut self,
+        constants: Option<HashMap<String, Felt252>>,
+        cairo_hint_processor: Option<CairoHintProcessor<'a>>,
+    ) {
+        self.subtask_constants_stack.push(constants);
+        self.subtask_cairo1_hint_processor_stack
+            .push(cairo_hint_processor);
+    }
+
+    /// Pop the current subtask state off the stacks.
+    pub fn despawn_subtask(&mut self) {
+        self.subtask_constants_stack.pop();
+        self.subtask_cairo1_hint_processor_stack.pop();
     }
 }
 
@@ -349,20 +364,21 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
         constants: &HashMap<String, Felt>,
     ) -> Result<HintExtension, HintError> {
         // Cascade through the internal hint processors until we find the hint implementation.
-        let mut curr_consts = constants;
-        if !self.additional_constants.is_empty() {
-            if self.change_needed {
-                for (key, value) in constants {
-                    self.additional_constants.insert(key.clone(), *value);
-                }
-                self.change_needed = false;
-            }
-            curr_consts = &self.additional_constants;
-        }
+        let curr_consts = if self.subtask_constants_stack.is_empty() {
+            constants
+        } else {
+            self.subtask_constants_stack
+                .last()
+                .and_then(|opt| opt.as_ref())
+                .unwrap_or(constants)
+        };
+
         // In case the subtask_cairo_hint_processor is a Some variant, we try matching the hint
         // using it first, for efficiency, since it is assumed to only be Some if we're inside
         // an execution of a cairo1 program subtask.
-        if let Some(subtask_cairo_hint_processor) = &mut self.subtask_cairo_hint_processor {
+        if let Some(Some(subtask_cairo_hint_processor)) =
+            self.subtask_cairo1_hint_processor_stack.last_mut()
+        {
             match subtask_cairo_hint_processor.execute_hint_extensive(
                 vm,
                 exec_scopes,
@@ -391,14 +407,18 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
         let hint_data_dc = hint_data
             .downcast_ref::<HintProcessorData>()
             .ok_or(HintError::WrongHintData)?;
-        if hint_data_dc.code.as_str() == EXECUTE_TASK_CALL_TASK {
-            return call_task(
-                self,
-                vm,
-                exec_scopes,
-                &hint_data_dc.ids_data,
-                &hint_data_dc.ap_tracking,
-            );
+        match hint_data_dc.code.as_str() {
+            EXECUTE_TASK_CALL_TASK => {
+                return call_task(
+                    self,
+                    vm,
+                    exec_scopes,
+                    &hint_data_dc.ids_data,
+                    &hint_data_dc.ap_tracking,
+                )
+            }
+            EXECUTE_TASK_EXIT_SCOPE => return execute_task_exit_scope(self, exec_scopes),
+            _ => {}
         }
 
         match self.builtin_hint_processor.execute_hint_extensive(
