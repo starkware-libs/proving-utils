@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "crates/cairo-program-runner",
-    "crates/cairo-program-runner-lib"
+    "crates/cairo-program-runner-lib",
+    "crates/vm_runner",
 ]
 resolver = "2"
 
@@ -16,13 +17,17 @@ cairo-vm = { version = "2.0.1", features = [
 ] }
 cairo-lang-runner = { git = "https://github.com/starkware-libs/cairo.git", rev = "ddaec76b4364ca6e0af4d185a99904d13b93f81e" }
 clap = { version = "4.3.10", features = ["derive"] }
+log = "0.4.21"
 num-traits = "0.2.19"
 serde = { version = "1.0.202", features = ["derive"] }
 serde_json = "1.0.117"
 starknet-crypto = "0.6.2"
 starknet-types-core = "0.1.2"
+stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ef6b24df"}
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ef6b24df"}
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
+tracing = "0.1.40"
 regex = "1.11.1"
 num-bigint = "0.4"
