@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "crates/cairo-program-runner"
+    "crates/cairo-program-runner",
+    "crates/vm_runner"
 ]
 resolver = "2"
