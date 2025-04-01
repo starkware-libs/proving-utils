@@ -32,6 +32,7 @@ pub fn get_cairo_run_config(
     layout: LayoutName,
     proof_mode: bool,
     disable_trace_padding: bool,
+    allow_missing_builtins: Option<bool>,
 ) -> std::io::Result<CairoRunConfig<'static>> {
     let dynamic_layout_params = match dynamic_params_file {
         Some(file) => {
@@ -53,6 +54,10 @@ pub fn get_cairo_run_config(
         }
         .create_config()
     } else {
-        RunMode::Validation.create_config()
+        RunMode::Validation {
+            layout,
+            allow_missing_builtins,
+        }
+        .create_config()
     })
 }
