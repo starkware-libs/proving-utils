@@ -413,7 +413,10 @@ pub enum RunMode {
         dynamic_layout_params: Option<CairoLayoutParams>,
         disable_trace_padding: bool,
     },
-    Validation,
+    Validation {
+        layout: LayoutName,
+        allow_missing_builtins: bool,
+    },
 }
 
 impl RunMode {
@@ -434,15 +437,18 @@ impl RunMode {
                 allow_missing_builtins: None,
                 dynamic_layout_params,
             },
-            RunMode::Validation => CairoRunConfig {
+            RunMode::Validation {
+                layout,
+                allow_missing_builtins,
+            } => CairoRunConfig {
                 entrypoint: "main",
                 trace_enabled: false,
                 relocate_mem: false,
-                layout: LayoutName::all_cairo,
+                layout,
                 proof_mode: false,
                 secure_run: None,
                 disable_trace_padding: false,
-                allow_missing_builtins: None,
+                allow_missing_builtins: Some(allow_missing_builtins),
                 dynamic_layout_params: None,
             },
         }

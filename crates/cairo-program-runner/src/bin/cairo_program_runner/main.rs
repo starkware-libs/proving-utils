@@ -13,6 +13,14 @@ use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
 use tempfile::NamedTempFile;
 
+fn parse_bool(s: &str) -> Result<bool, String> {
+    match s.to_lowercase().as_str() {
+        "true" | "1" => Ok(true),
+        "false" | "0" => Ok(false),
+        _ => Err(format!("invalid boolean value: {}", s)),
+    }
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -70,6 +78,15 @@ struct Args {
         help = "Merge extra memory segments into one before creating the PIE of the run."
     )]
     merge_extra_segments: bool,
+    #[clap(
+        long = "allow_missing_builtins",
+        value_parser = parse_bool,
+        num_args = 0..=1,
+        default_missing_value = "true",
+        help = "Allow initializing the runner with builtins in the program that are not present in
+        the layout."
+    )]
+    allow_missing_builtins: bool,
 }
 struct FileWriter {
     buf_writer: io::BufWriter<std::fs::File>,
@@ -117,6 +134,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.layout,
         args.proof_mode,
         args.disable_trace_padding,
+        args.allow_missing_builtins,
     )?;
 
     let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
