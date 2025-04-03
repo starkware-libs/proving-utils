@@ -40,6 +40,7 @@ pub const TASKS: &str = "tasks";
 /// Current simple bootloader task.
 pub const TASK: &str = "task";
 
+pub const USE_PREV_HASH: &str = "use_prev_hash";
 /// Current simple bootloader program_hash_function.
 pub const PROGRAM_HASH_FUNCTION: &str = "program_hash_function";
 
