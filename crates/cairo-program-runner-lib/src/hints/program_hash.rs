@@ -78,7 +78,7 @@ fn felt_to_field_element(felt: &Felt252) -> Result<FieldElement, ProgramHashErro
 /// Converts a `MaybeRelocatable` into a `FieldElement` value.
 ///
 /// Returns `InvalidProgramData` if `maybe_relocatable` is not an integer
-fn maybe_relocatable_to_field_element(
+pub fn maybe_relocatable_to_field_element(
     maybe_relocatable: &MaybeRelocatable,
 ) -> Result<FieldElement, ProgramHashError> {
     let felt = maybe_relocatable
