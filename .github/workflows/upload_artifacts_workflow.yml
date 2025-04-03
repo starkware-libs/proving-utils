@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - efrat/temp_rust_vm_for_identical_hash_opt
 
 jobs:
   artifacts-push:
