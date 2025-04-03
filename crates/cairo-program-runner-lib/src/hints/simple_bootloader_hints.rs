@@ -23,6 +23,7 @@ use crate::hints::fact_topologies::FactTopology;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
 
+
 /// Implements a hint that:
 /// 1. Writes the number of tasks into `output_ptr[0]`.
 /// 2. Sets `initial_subtasks_range_check_ptr` to a new temporary segment.
@@ -91,12 +92,7 @@ pub fn set_ap_to_zero(vm: &mut VirtualMachine) -> Result<(), HintError> {
     Ok(())
 }
 
-/// Implements
-/// from starkware.cairo.bootloaders.simple_bootloader.objects import Task
-///
-/// # Pass current task to execute_task.
-/// task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-/// task = simple_bootloader_input.tasks[task_id].load_task()
+/// Sets the current task.
 pub fn set_current_task(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -105,20 +101,20 @@ pub fn set_current_task(
 ) -> Result<(), HintError> {
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
+
     let n_tasks_felt = get_integer_from_var_name("n_tasks", vm, ids_data, ap_tracking)?;
+
     let n_tasks = n_tasks_felt
         .to_usize()
         .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
 
     let task_id = simple_bootloader_input.tasks.len() - n_tasks;
     let task = simple_bootloader_input.tasks[task_id].load_task();
-    let program_hash_function = simple_bootloader_input.tasks[task_id].program_hash_function;
 
     exec_scopes.insert_value(vars::TASK, task.clone());
-    exec_scopes.insert_value(vars::PROGRAM_HASH_FUNCTION, program_hash_function);
-
     Ok(())
 }
+
 
 /// Implements
 /// from starkware.cairo.lang.builtins.ec.ec_op_builtin_runner import (
@@ -550,7 +546,9 @@ mod tests {
     }
 
     #[rstest]
-    fn test_set_current_task(simple_bootloader_input: SimpleBootloaderInput) {
+    fn test_set_current_task(
+        simple_bootloader_input: SimpleBootloaderInput,
+    ) {
         // Set n_tasks to 1
         let mut vm = vm!();
         vm.run_context.fp = 2;
@@ -562,8 +560,13 @@ mod tests {
         let ids_data = ids_data!["n_tasks", "task"];
         let ap_tracking = ApTracking::new();
 
-        set_current_task(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-            .expect("Hint failed unexpectedly");
+        set_current_task(
+            &mut vm,
+            &mut exec_scopes,
+            &ids_data,
+            &ap_tracking,
+        )
+        .expect("Hint failed unexpectedly");
 
         // Check that `task` is set
         let _task: Task = exec_scopes
