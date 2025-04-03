@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 
+use super::types::Task;
 use crate::hints::types::ProgramIdentifiers;
 use cairo_vm::serde::deserialize_program::Identifier;
 use cairo_vm::types::exec_scope::ExecutionScopes;
@@ -8,6 +9,7 @@ use cairo_vm::types::program::Program;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
+use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use cairo_vm::vm::vm_core::VirtualMachine;
 
 #[macro_export]
@@ -109,4 +111,9 @@ pub fn gen_arg(
     }
 
     Ok(base)
+}
+
+pub fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
+    task.get_program()
+        .map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
 }
