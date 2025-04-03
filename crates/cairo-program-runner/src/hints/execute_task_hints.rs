@@ -30,7 +30,7 @@ use crate::hints::vars;
 use super::utils::{get_identifier, get_program_identifies};
 
 use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
-fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
+pub fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
         .map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
 }
@@ -57,7 +57,7 @@ pub fn allocate_program_data_segment(
     Ok(())
 }
 
-fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
+pub fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
     let bytes = field_element.to_bytes_be();
     Felt252::from_bytes_be(&bytes)
 }

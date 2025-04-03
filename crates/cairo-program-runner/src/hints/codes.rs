@@ -61,7 +61,7 @@ from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
 
 assert memory[ids.output_ptr + 1] == compute_program_hash_chain(
     program=task.get_program(),
-    use_poseidon=bool(ids.use_poseidon)), 'Computed hash does not match input.'";
+    use_poseidon=bool(task.use_poseidon)), 'Computed hash does not match input.'";
 
 pub const BOOTLOADER_SAVE_OUTPUT_POINTER: &str = "output_start = ids.output_ptr";
 
@@ -148,11 +148,19 @@ pub const SIMPLE_BOOTLOADER_DIVIDE_NUM_BY_2: &str =
     "memory[ap] = to_felt_or_relocatable(ids.num // 2)";
 
 pub const SIMPLE_BOOTLOADER_SET_CURRENT_TASK: &str =
-    "from starkware.cairo.bootloaders.simple_bootloader.objects import Task
-
-# Pass current task to execute_task.
-task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-task = simple_bootloader_input.tasks[task_id].load_task()";
+    "from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
+    from starkware.cairo.bootloaders.simple_bootloader.objects import Task
+    
+    # Pass current task to execute_task.
+    task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
+    task = simple_bootloader_input.tasks[task_id].load_task()
+    
+    # Check if the program hash of the current task is the same as the previous one.
+    ids.is_same_hash = (ids.prev_hash == compute_program_hash_chain(program=task.get_program(),
+    use_poseidon=bool(task.use_poseidon))) 
+    if ids.is_same_hash and task_id > 0:
+        prev_task = simple_bootloader_input.tasks[task_id - 1].load_task()
+        ids.is_same_hash = (task.use_poseidon == prev_task.use_poseidon)";
 
 // Appears as nondet %{ 0 %} in the code.
 pub const SIMPLE_BOOTLOADER_ZERO: &str = "memory[ap] = to_felt_or_relocatable(0)";
