@@ -27,7 +27,7 @@ use crate::hints::bootloader_hints::{
 use crate::hints::codes::*;
 use crate::hints::execute_task_hints::{
     allocate_program_data_segment, append_fact_topologies, bootloader_validate_hash, call_task,
-    is_poseidon_to_ap, load_program_hint, validate_hash, write_return_builtins_hint,
+    load_program_hint, validate_hash, write_return_builtins_hint,
 };
 use crate::hints::inner_select_builtins::select_builtin;
 use crate::hints::select_builtins::select_builtins_enter_scope;
@@ -122,7 +122,6 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS => set_packed_output_to_subtasks(exec_scopes),
             BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS => import_packed_output_schemas(),
             BOOTLOADER_IS_PLAIN_PACKED_OUTPUT => is_plain_packed_output(vm, exec_scopes),
-            BOOTLOADER_IS_POSEIDON => is_poseidon_to_ap(vm, exec_scopes),
             BOOTLOADER_VALIDATE_HASH => bootloader_validate_hash(
                 vm,
                 exec_scopes,

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_integer_from_var_name, get_ptr_from_var_name, get_relocatable_from_var_name,
-    insert_value_from_var_name, insert_value_into_ap,
+    insert_value_from_var_name,
 };
 use cairo_vm::hint_processor::hint_processor_definition::{
     HintExtension, HintProcessorLogic, HintReference,
@@ -30,7 +30,7 @@ use crate::hints::vars;
 use super::utils::{get_identifier, get_program_identifies};
 
 use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
-fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
+pub fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
         .map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
 }
@@ -57,7 +57,7 @@ pub fn allocate_program_data_segment(
     Ok(())
 }
 
-fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
+pub fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
     let bytes = field_element.to_bytes_be();
     Felt252::from_bytes_be(&bytes)
 }
@@ -484,21 +484,6 @@ pub fn call_task(
     exec_scopes.enter_scope(new_task_locals);
 
     Ok(hint_extension)
-}
-
-// Implements hint: "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)"
-pub fn is_poseidon_to_ap(
-    vm: &mut VirtualMachine,
-    exec_scopes: &mut ExecutionScopes,
-) -> Result<(), HintError> {
-    insert_value_into_ap(
-        vm,
-        if exec_scopes.get(vars::USE_POSEIDON)? {
-            1
-        } else {
-            0
-        },
-    )
 }
 
 /// Implements
