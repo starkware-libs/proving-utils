@@ -26,45 +26,87 @@ use starknet_crypto::FieldElement;
 
 use crate::hints::fact_topologies::{get_task_fact_topology, FactTopology};
 use crate::hints::load_cairo_pie::load_cairo_pie;
-use crate::hints::program_hash::compute_program_hash_chain;
+use crate::hints::program_hash::{compute_program_hash_chain, maybe_relocatable_to_field_element};
 use crate::hints::program_loader::ProgramLoader;
 use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
-
+use cairo_vm::hint_processor::hint_processor_utils::felt_to_usize;
 use super::types::HashFunc;
 use super::utils::{get_identifier, get_program_identifies};
-
 use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
-fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
+
+pub fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
         .map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
 }
 
-/// Implements %{ ids.program_data_ptr = program_data_base = segments.add() %}.
-///
-/// Creates a new segment to store the program data.
-pub fn allocate_program_data_segment(
+pub fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
+    let bytes = field_element.to_bytes_be();
+    Felt252::from_bytes_be(&bytes)
+}
+
+/// Determines if the program of the new task is the same as the previous one.
+/// Stores use_prev_hash to fp.
+pub fn determine_use_prev_hash(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_data_segment = vm.add_memory_segment();
-    exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_data_segment);
+    // load previous program
+    let prev_program_segment_ptr =
+        get_relocatable_from_var_name("prev_program_segment_ptr", vm, ids_data, ap_tracking)?;
+    let prev_program_data_length_ptr = prev_program_segment_ptr;
+    let prev_program_data_length = vm.get_integer(prev_program_data_length_ptr).map(|cow| cow.into_owned())?;
+
+    let prev_program_main_ptr = (prev_program_segment_ptr + 2)?;
+    let prev_program: Vec<Felt252> = vm
+        .segments
+        .memory
+        .get_integer_range(
+            prev_program_main_ptr,
+                felt_to_usize(&prev_program_data_length).unwrap()).unwrap().iter()
+        .map(|cow| cow.clone().into_owned())
+        .collect();
+
+    let task: Task = exec_scopes.get(vars::TASK)?;
+    let program_from_task = get_program_from_task(&task)?;
+    
+    // compare the programs' sizes
+    if prev_program.len() != program_from_task.data.len() {
+        insert_value_from_var_name(
+            "use_prev_hash",
+            0,
+            vm,
+            ids_data,
+            ap_tracking,
+        )?;
+        return Ok(());
+    }
+
+    //compare the opcodes
+    for (index, opcode) in program_from_task.data.iter().enumerate() {
+        if prev_program[index] != field_element_to_felt(maybe_relocatable_to_field_element(opcode).unwrap()) {
+            insert_value_from_var_name(
+                "use_prev_hash",
+                0,
+                vm,
+                ids_data,
+                ap_tracking,
+            )?;
+            return Ok(());
+        }
+    }
+
     insert_value_from_var_name(
-        "program_data_ptr",
-        program_data_segment,
+        "use_prev_hash",
+        1,
         vm,
         ids_data,
         ap_tracking,
     )?;
 
     Ok(())
-}
-
-pub fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
-    let bytes = field_element.to_bytes_be();
-    Felt252::from_bytes_be(&bytes)
 }
 
 /// Implements
@@ -82,7 +124,15 @@ pub fn load_program_hint(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_data_base: Relocatable = exec_scopes.get(vars::PROGRAM_DATA_BASE)?;
+    let program_data_base = vm.add_memory_segment();
+    insert_value_from_var_name(
+        "program_data_ptr",
+        program_data_base,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
+    
     let task: Task = exec_scopes.get(vars::TASK)?;
     let program = get_program_from_task(&task)?;
 
@@ -102,6 +152,7 @@ pub fn load_program_hint(
         None,
     );
 
+    exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_data_base);
     exec_scopes.insert_value(vars::PROGRAM_ADDRESS, loaded_program.code_address);
 
     Ok(())
@@ -607,12 +658,12 @@ mod tests {
     use num_traits::ToPrimitive;
     use rstest::{fixture, rstest};
 
-    use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
+    use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput, Task};
 
     use super::*;
 
     #[rstest]
-    fn test_allocate_program_data_segment() {
+    fn test_allocation_in_load_program_hint() {
         let mut vm = vm!();
         // Allocate space for program_data_ptr
         vm.run_context.fp = 1;
@@ -623,7 +674,7 @@ mod tests {
         let mut exec_scopes = ExecutionScopes::new();
         let ap_tracking = ApTracking::new();
 
-        allocate_program_data_segment(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
             .expect("Hint failed unexpectedly");
 
         let program_data_ptr =

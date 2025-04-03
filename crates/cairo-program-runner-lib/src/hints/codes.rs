@@ -53,8 +53,8 @@ pub const BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS: &str =
 pub const BOOTLOADER_IS_PLAIN_PACKED_OUTPUT: &str =
     "memory[ap] = to_felt_or_relocatable(isinstance(packed_output, PlainPackedOutput))";
 
-pub const BOOTLOADER_PROGRAM_HASH_FUNCTION: &str =
-    "memory[ap] = to_felt_or_relocatable(1 if task.use_poseidon else 0)";
+pub const BOOTLOADER_PROGRAM_HASH: &str =
+    "memory[ap] = to_felt_or_relocatable(task.program_hash_function)";
 
 pub const BOOTLOADER_VALIDATE_HASH: &str = "# Validate hash.
 from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
@@ -139,26 +139,16 @@ pub const SIMPLE_BOOTLOADER_DIVIDE_NUM_BY_2: &str =
     "memory[ap] = to_felt_or_relocatable(ids.num // 2)";
 
 pub const SIMPLE_BOOTLOADER_SET_CURRENT_TASK: &str =
-    "from starkware.cairo.bootloaders.simple_bootloader.objects import Task
+    "SET_CURRENT_TASK";
 
-# Pass current task to execute_task.
-task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-task = simple_bootloader_input.tasks[task_id].load_task()";
+pub const SIMPLE_BOOTLOADER_DETERMINE_USE_PREV_HASH: &str =
+    "DETERMINE_USE_PREV_HASH";
 
 // Appears as nondet %{ 0 %} in the code.
 pub const SIMPLE_BOOTLOADER_ZERO: &str = "memory[ap] = to_felt_or_relocatable(0)";
 
-pub const EXECUTE_TASK_ALLOCATE_PROGRAM_DATA_SEGMENT: &str =
-    "ids.program_data_ptr = program_data_base = segments.add()";
-
 pub const EXECUTE_TASK_LOAD_PROGRAM: &str =
-    "from starkware.cairo.bootloaders.simple_bootloader.utils import load_program
-
-# Call load_program to load the program header and code to memory.
-program_address, program_data_size = load_program(
-    task=task, memory=memory, program_header=ids.program_header,
-    builtins_offset=ids.ProgramHeader.builtin_list)
-segments.finalize(program_data_base.segment_index, program_data_size)";
+    "LOAD_PROGRAM_SEGMENT";
 
 pub const EXECUTE_TASK_VALIDATE_HASH: &str = "# Validate hash.
 from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
