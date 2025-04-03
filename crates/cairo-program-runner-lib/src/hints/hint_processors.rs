@@ -25,15 +25,15 @@ use crate::hints::bootloader_hints::{
 };
 use crate::hints::codes::*;
 use crate::hints::execute_task_hints::{
-    allocate_program_data_segment, append_fact_topologies, bootloader_validate_hash,
+    append_fact_topologies, bootloader_validate_hash,
     execute_task_exit_scope, load_program_hint, program_hash_function_to_ap,
-    setup_subtask_for_execution, validate_hash, write_return_builtins_hint,
+    setup_subtask_for_execution, validate_hash, write_return_builtins_hint, determine_use_prev_hash
 };
 use crate::hints::inner_select_builtins::select_builtin;
 use crate::hints::select_builtins::select_builtins_enter_scope;
 use crate::hints::simple_bootloader_hints::{
-    divide_num_by_2, set_ap_to_zero, set_current_task, set_tasks_variable,
-    setup_run_simple_bootloader_before_task_execution,
+    divide_num_by_2, set_ap_to_zero, set_current_task,
+    set_tasks_variable, setup_run_simple_bootloader_before_task_execution,
 };
 use crate::hints::verifier_hints::load_and_parse_proof;
 
@@ -135,7 +135,7 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS => set_packed_output_to_subtasks(exec_scopes),
             BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS => import_packed_output_schemas(),
             BOOTLOADER_IS_PLAIN_PACKED_OUTPUT => is_plain_packed_output(vm, exec_scopes),
-            BOOTLOADER_PROGRAM_HASH_FUNCTION => program_hash_function_to_ap(vm, exec_scopes),
+            BOOTLOADER_PROGRAM_HASH=> program_hash_function_to_ap(vm, exec_scopes),
             BOOTLOADER_VALIDATE_HASH => bootloader_validate_hash(
                 vm,
                 exec_scopes,
@@ -155,14 +155,14 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             }
             SIMPLE_BOOTLOADER_SET_TASKS_VARIABLE => set_tasks_variable(exec_scopes),
             SIMPLE_BOOTLOADER_DIVIDE_NUM_BY_2 => divide_num_by_2(vm, ids_data, ap_tracking),
-            SIMPLE_BOOTLOADER_SET_CURRENT_TASK => {
+            SET_CURRENT_TASK => {
                 set_current_task(vm, exec_scopes, ids_data, ap_tracking)
             }
-            SIMPLE_BOOTLOADER_ZERO => set_ap_to_zero(vm),
-            EXECUTE_TASK_ALLOCATE_PROGRAM_DATA_SEGMENT => {
-                allocate_program_data_segment(vm, exec_scopes, ids_data, ap_tracking)
+            DETERMINE_USE_PREV_HASH => {
+                determine_use_prev_hash(vm, exec_scopes, ids_data, ap_tracking)
             }
-            EXECUTE_TASK_LOAD_PROGRAM => load_program_hint(vm, exec_scopes, ids_data, ap_tracking),
+            SIMPLE_BOOTLOADER_ZERO => set_ap_to_zero(vm),
+            LOAD_PROGRAM_SEGMENT => load_program_hint(vm, exec_scopes, ids_data, ap_tracking),
             EXECUTE_TASK_VALIDATE_HASH => validate_hash(vm, exec_scopes, ids_data, ap_tracking),
             EXECUTE_TASK_ASSERT_PROGRAM_ADDRESS => {
                 assert_program_address(vm, exec_scopes, ids_data, ap_tracking)
