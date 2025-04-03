@@ -23,6 +23,8 @@ use crate::hints::fact_topologies::FactTopology;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
 
+use super::utils::get_program_from_task;
+
 /// Implements a hint that:
 /// 1. Writes the number of tasks into `output_ptr[0]`.
 /// 2. Sets `initial_subtasks_range_check_ptr` to a new temporary segment.
@@ -91,12 +93,7 @@ pub fn set_ap_to_zero(vm: &mut VirtualMachine) -> Result<(), HintError> {
     Ok(())
 }
 
-/// Implements
-/// from starkware.cairo.bootloaders.simple_bootloader.objects import Task
-///
-/// # Pass current task to execute_task.
-/// task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-/// task = simple_bootloader_input.tasks[task_id].load_task()
+/// Sets the current task.
 pub fn set_current_task(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -105,18 +102,28 @@ pub fn set_current_task(
 ) -> Result<(), HintError> {
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
+
     let n_tasks_felt = get_integer_from_var_name("n_tasks", vm, ids_data, ap_tracking)?;
+
     let n_tasks = n_tasks_felt
         .to_usize()
         .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
 
     let task_id = simple_bootloader_input.tasks.len() - n_tasks;
     let task = simple_bootloader_input.tasks[task_id].load_task();
-    let program_hash_function = simple_bootloader_input.tasks[task_id].program_hash_function;
 
+    let mut use_prev_hash = 0;
+    if task_id > 0 {
+        let prev_task = simple_bootloader_input.tasks[task_id - 1].load_task();
+        use_prev_hash =
+            if get_program_from_task(task).unwrap() == get_program_from_task(prev_task).unwrap() {
+                1
+            } else {
+                0
+            };
+    }
     exec_scopes.insert_value(vars::TASK, task.clone());
-    exec_scopes.insert_value(vars::PROGRAM_HASH_FUNCTION, program_hash_function);
-
+    exec_scopes.insert_value(vars::USE_PREV_HASH, use_prev_hash.clone());
     Ok(())
 }
 
