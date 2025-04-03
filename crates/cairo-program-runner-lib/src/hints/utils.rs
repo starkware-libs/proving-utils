@@ -3,12 +3,14 @@ use std::collections::HashMap;
 
 use crate::hints::types::ProgramIdentifiers;
 use cairo_vm::serde::deserialize_program::Identifier;
+use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::program::Program;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::vm_core::VirtualMachine;
+use cairo_vm::Felt252;
 
 #[macro_export]
 macro_rules! maybe_relocatable_box {
