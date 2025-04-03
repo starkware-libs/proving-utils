@@ -19,10 +19,14 @@ use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
+use crate::hints::execute_task_hints::field_element_to_felt;
+use crate::hints::execute_task_hints::get_program_from_task;
 use crate::hints::execute_task_hints::ALL_BUILTINS;
 use crate::hints::fact_topologies::FactTopology;
+use crate::hints::program_hash::compute_program_hash_chain;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
+use crate::types::HashFunc;
 
 /// Implements
 /// n_tasks = len(simple_bootloader_input.tasks)
@@ -106,13 +110,9 @@ pub fn set_ap_to_zero(vm: &mut VirtualMachine) -> Result<(), HintError> {
     Ok(())
 }
 
-/// Implements
-/// from starkware.cairo.bootloaders.simple_bootloader.objects import Task
-///
-/// # Pass current task to execute_task.
-/// task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-/// task = simple_bootloader_input.tasks[task_id].load_task()
-pub fn set_current_task(
+/// Sets the current task and determines if the hash of the new task is the same as the previous one.
+/// Stores is_same_hash to fp.
+pub fn set_current_task_and_determine_is_same_hash(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
@@ -120,7 +120,10 @@ pub fn set_current_task(
 ) -> Result<(), HintError> {
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
+
     let n_tasks_felt = get_integer_from_var_name("n_tasks", vm, ids_data, ap_tracking)?;
+    let prev_hash = get_integer_from_var_name("prev_hash", vm, ids_data, ap_tracking)?;
+
     let n_tasks = n_tasks_felt
         .to_usize()
         .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
@@ -129,9 +132,34 @@ pub fn set_current_task(
     let task = simple_bootloader_input.tasks[task_id].load_task();
     let program_hash_function = simple_bootloader_input.tasks[task_id].program_hash_function;
 
+    let program = get_program_from_task(task)?;
+    let computed_program_hash = compute_program_hash_chain(&program, 0, program_hash_function)
+        .map_err(|e| {
+            HintError::CustomHint(
+                format!(
+                    "Could not compute program hash:
+            {e}"
+                )
+                .into_boxed_str(),
+            )
+        })?;
+    let computed_program_hash = field_element_to_felt(computed_program_hash);
+    let mut is_same_hash = prev_hash == computed_program_hash;
+
+    if is_same_hash {
+        let prev_program_hash_function: HashFunc = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
+        is_same_hash = program_hash_function == prev_program_hash_function;
+    }
+
     exec_scopes.insert_value(vars::TASK, task.clone());
     exec_scopes.insert_value(vars::PROGRAM_HASH_FUNCTION, program_hash_function);
-
+    insert_value_from_var_name(
+        "is_same_hash",
+        is_same_hash as usize,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
     Ok(())
 }
 
@@ -565,7 +593,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_set_current_task(simple_bootloader_input: SimpleBootloaderInput) {
+    fn test_set_current_task_and_determine_is_same_hash(simple_bootloader_input: SimpleBootloaderInput) {
         // Set n_tasks to 1
         let mut vm = vm!();
         vm.run_context.fp = 2;
@@ -577,7 +605,7 @@ mod tests {
         let ids_data = ids_data!["n_tasks", "task"];
         let ap_tracking = ApTracking::new();
 
-        set_current_task(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+        set_current_task_and_determine_is_same_hash(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
             .expect("Hint failed unexpectedly");
 
         // Check that `task` is set

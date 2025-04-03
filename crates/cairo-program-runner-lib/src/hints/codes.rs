@@ -147,12 +147,7 @@ pub const SIMPLE_BOOTLOADER_SET_TASKS_VARIABLE: &str = "tasks = simple_bootloade
 pub const SIMPLE_BOOTLOADER_DIVIDE_NUM_BY_2: &str =
     "memory[ap] = to_felt_or_relocatable(ids.num // 2)";
 
-pub const SIMPLE_BOOTLOADER_SET_CURRENT_TASK: &str =
-    "from starkware.cairo.bootloaders.simple_bootloader.objects import Task
-
-# Pass current task to execute_task.
-task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-task = simple_bootloader_input.tasks[task_id].load_task()";
+pub const SIMPLE_BOOTLOADER_SET_CURRENT_TASK_AND_DETERMINE_IS_SAME_HASH: &str = "SIMPLE_BOOTLOADER_SET_CURRENT_TASK_AND_DETERMINE_IS_SAME_HASH";
 
 // Appears as nondet %{ 0 %} in the code.
 pub const SIMPLE_BOOTLOADER_ZERO: &str = "memory[ap] = to_felt_or_relocatable(0)";
