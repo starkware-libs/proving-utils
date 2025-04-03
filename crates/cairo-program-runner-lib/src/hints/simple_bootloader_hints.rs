@@ -14,14 +14,19 @@ use cairo_vm::vm::runners::builtin_runner::{
     EcOpBuiltinRunner, KeccakBuiltinRunner, SignatureBuiltinRunner,
 };
 use cairo_vm::vm::vm_core::VirtualMachine;
+use cairo_vm::vm::vm_memory::memory_segments::MemorySegmentManager;
 use cairo_vm::Felt252;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
+use crate::hints::execute_task_hints::get_program_from_task;
 use crate::hints::fact_topologies::FactTopology;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
+
+use super::program_loader::ProgramLoader;
+use super::types::BootloaderVersion;
 
 /// Implements a hint that:
 /// 1. Writes the number of tasks into `output_ptr[0]`.
@@ -91,13 +96,14 @@ pub fn set_ap_to_zero(vm: &mut VirtualMachine) -> Result<(), HintError> {
     Ok(())
 }
 
-/// Implements
-/// from starkware.cairo.bootloaders.simple_bootloader.objects import Task
-///
-/// # Pass current task to execute_task.
-/// task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-/// task = simple_bootloader_input.tasks[task_id].load_task()
-pub fn set_current_task(
+//Tries to convert a Felt252 value to usize
+pub fn felt_to_usize(felt: &Felt252) -> Result<usize, MathError> {
+    felt.to_usize()
+        .ok_or_else(|| MathError::Felt252ToUsizeConversion(Box::new(*felt)))
+}
+
+/// Sets the current task.
+pub fn set_current_task_and_determine_is_same_hash(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
@@ -105,18 +111,93 @@ pub fn set_current_task(
 ) -> Result<(), HintError> {
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
+
     let n_tasks_felt = get_integer_from_var_name("n_tasks", vm, ids_data, ap_tracking)?;
+
     let n_tasks = n_tasks_felt
         .to_usize()
         .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
 
     let task_id = simple_bootloader_input.tasks.len() - n_tasks;
     let task = simple_bootloader_input.tasks[task_id].load_task();
-    let program_hash_function = simple_bootloader_input.tasks[task_id].program_hash_function;
 
     exec_scopes.insert_value(vars::TASK, task.clone());
-    exec_scopes.insert_value(vars::PROGRAM_HASH_FUNCTION, program_hash_function);
+    determine_use_prev_program(vm, exec_scopes, ids_data, ap_tracking)?;
+    Ok(())
+}
 
+/// Determines if the hash of the new task is the same as the previous one.
+/// Stores is_same_hash to fp.
+pub fn determine_use_prev_program(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    // load previous program
+    let prev_program_segment_ptr =
+        get_relocatable_from_var_name("prev_program_segment_ptr", vm, ids_data, ap_tracking)?;
+    let prev_program_data_length_ptr = prev_program_segment_ptr;
+    let prev_program_main_ptr = (prev_program_segment_ptr + 2)?;
+
+    let prev_program: Vec<Felt252> = vm
+        .segments
+        .memory
+        .get_integer_range(
+            prev_program_main_ptr,
+            felt_to_usize(
+                &vm.get_integer(prev_program_data_length_ptr)
+                    .map(|cow| cow.into_owned())
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .iter()
+        .map(|cow| cow.clone().into_owned())
+        .collect();
+
+    // load current program
+    let simple_bootloader_input: &SimpleBootloaderInput =
+        exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
+
+    let n_tasks_felt = get_integer_from_var_name("n_tasks", vm, ids_data, ap_tracking)?;
+
+    let n_tasks = n_tasks_felt
+        .to_usize()
+        .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
+
+    let task_id = simple_bootloader_input.tasks.len() - n_tasks;
+    let task = simple_bootloader_input.tasks[task_id].load_task();
+    let program_from_task = get_program_from_task(task)?;
+    // Offset of the builtin_list field in `ProgramHeader`, cf. execute_task.cairo
+    let builtins_offset = 4;
+    let mut program_loader = ProgramLoader::new(vm, builtins_offset);
+    let bootloader_version: BootloaderVersion = 0;
+    let mut segments = MemorySegmentManager::new();
+    let base_address = segments.add();
+    let loaded_program = program_loader
+        .load_program(base_address, &program_from_task, Some(bootloader_version))
+        .map_err(Into::<HintError>::into)?;
+
+    let current_program: Vec<Felt252> = vm
+        .segments
+        .memory
+        .get_integer_range(loaded_program.code_address, loaded_program.size)
+        .unwrap()
+        .iter()
+        .map(|cow| cow.clone().into_owned())
+        .collect();
+
+    let is_same_program = prev_program == current_program;
+
+    insert_value_from_var_name(
+        "is_same_program",
+        is_same_program as usize,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
     Ok(())
 }
 
@@ -550,7 +631,9 @@ mod tests {
     }
 
     #[rstest]
-    fn test_set_current_task(simple_bootloader_input: SimpleBootloaderInput) {
+    fn test_set_current_task_and_determine_is_same_hash(
+        simple_bootloader_input: SimpleBootloaderInput,
+    ) {
         // Set n_tasks to 1
         let mut vm = vm!();
         vm.run_context.fp = 2;
@@ -562,8 +645,13 @@ mod tests {
         let ids_data = ids_data!["n_tasks", "task"];
         let ap_tracking = ApTracking::new();
 
-        set_current_task(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-            .expect("Hint failed unexpectedly");
+        set_current_task_and_determine_is_same_hash(
+            &mut vm,
+            &mut exec_scopes,
+            &ids_data,
+            &ap_tracking,
+        )
+        .expect("Hint failed unexpectedly");
 
         // Check that `task` is set
         let _task: Task = exec_scopes
