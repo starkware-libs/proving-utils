@@ -30,7 +30,7 @@ use crate::hints::vars;
 use super::utils::{get_identifier, get_program_identifies};
 
 use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
-fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
+pub fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
         .map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
 }
@@ -57,7 +57,7 @@ pub fn allocate_program_data_segment(
     Ok(())
 }
 
-fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
+pub fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
     let bytes = field_element.to_bytes_be();
     Felt252::from_bytes_be(&bytes)
 }
@@ -507,7 +507,7 @@ pub fn is_poseidon_to_ap(
 ///
 /// assert memory[ids.output_ptr + 1] == compute_program_hash_chain(
 ///     program=task.get_program(),
-///     use_poseidon=bool(ids.use_poseidon)), 'Computed hash does not match input.'
+///     use_poseidon=bool(task.use_poseidon)), 'Computed hash does not match input.'
 pub fn bootloader_validate_hash(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -523,8 +523,7 @@ pub fn bootloader_validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let use_poseidon =
-        get_integer_from_var_name("use_poseidon", vm, ids_data, ap_tracking)? != Felt252::ZERO;
+    let use_poseidon = task.use_poseidon;
     let computed_program_hash =
         compute_program_hash_chain(&program, 0, use_poseidon).map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
