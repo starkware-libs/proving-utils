@@ -112,6 +112,11 @@ pub fn set_ap_to_zero(vm: &mut VirtualMachine) -> Result<(), HintError> {
 /// # Pass current task to execute_task.
 /// task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
 /// task = simple_bootloader_input.tasks[task_id].load_task()
+/// # Check if the program hash of the current task is the same as the previous one.
+/// ids.is_same_hash = (ids.prev_hash == compute_program_hash_chain(program=task.get_program(),
+/// use_poseidon=bool(task.use_poseidon))) 
+/// if ids.is_same_hash and task_id > 0:
+///     task = simple_bootloader_input.tasks[task_id - 1].load_task(
 pub fn set_current_task(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -121,16 +126,31 @@ pub fn set_current_task(
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
     let n_tasks_felt = get_integer_from_var_name("n_tasks", vm, ids_data, ap_tracking)?;
+    let prev_hash_felt = get_integer_from_var_name("prev_hash", vm, ids_data, ap_tracking)?;
+
     let n_tasks = n_tasks_felt
         .to_usize()
         .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
+
+    let prev_hash = prev_hash_felt
+        .to_usize()
+        .ok_or(MathError::Felt252ToUsizeConversion(Box::new(prev_hash_felt)))?;
 
     let task_id = simple_bootloader_input.tasks.len() - n_tasks;
     let task = simple_bootloader_input.tasks[task_id].load_task();
     let use_poseidon = simple_bootloader_input.tasks[task_id].use_poseidon;
 
+    let program = get_program_from_task(&task)?;
+    let computed_program_hash = compute_program_hash_chain(&program, 0, use_poseidon);
+    let is_same_hash = prev_hash == computed_program_hash;
+
+    if is_same_hash && task_id>0 {
+        task = simple_bootloader_input.tasks[task_id - 1].load_task();
+    }
+
     exec_scopes.insert_value(vars::TASK, task.clone());
     exec_scopes.insert_value(vars::USE_POSEIDON, use_poseidon);
+    exec_scopes.insert_value(vars::IS_SAME_HASH, is_same_hash);
 
     Ok(())
 }

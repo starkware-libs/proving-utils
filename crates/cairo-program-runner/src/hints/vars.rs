@@ -43,6 +43,9 @@ pub const TASK: &str = "task";
 /// Current simple bootloader use_poseidon.
 pub const USE_POSEIDON: &str = "use_poseidon";
 
+/// Current simple bootloader is_same_hash.
+pub const IS_SAME_HASH: &str = "is_same_hash";
+
 /// Program data segment. Used in `execute_task()`.
 pub const PROGRAM_DATA_BASE: &str = "program_data_base";
 
