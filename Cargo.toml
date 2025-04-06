@@ -9,12 +9,12 @@ resolver = "2"
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "serde",
 ] }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm", rev = "1d70783f", features = [
+cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm", rev = "1d70783f2a06443283a885dfb03f2087a5957579", features = [
     "extensive_hints",
     "mod_builtin",
     "clap",
 ] }
-cairo-lang-runner = { git = "https://github.com/starkware-industries/cairo-development.git", rev = "6226eb71527d91e7fe51a50e43ced633117335b6" }
+cairo-lang-runner = { git = "https://github.com/starkware-industries/cairo-development.git", rev = "b54357eece2f72d93db578d9cd373adb4227e2f0" }
 clap = { version = "4.3.10", features = ["derive"] }
 num-traits = "0.2.19"
 serde = { version = "1.0.202", features = ["derive"] }
