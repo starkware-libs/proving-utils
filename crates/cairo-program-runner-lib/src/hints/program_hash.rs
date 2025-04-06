@@ -4,6 +4,8 @@ use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use cairo_vm::Felt252;
 use starknet_crypto::{pedersen_hash, poseidon_hash_many, FieldElement};
 
+use super::types::HashFunc;
+
 type HashFunction = fn(&FieldElement, &FieldElement) -> FieldElement;
 
 #[derive(thiserror_no_std::Error, Debug)]
@@ -100,7 +102,7 @@ fn maybe_relocatable_to_field_element(
 pub fn compute_program_hash_chain(
     program: &StrippedProgram,
     bootloader_version: usize,
-    program_hash_function: usize,
+    program_hash_function: HashFunc,
 ) -> Result<FieldElement, ProgramHashError> {
     let program_main = program.main;
     let program_main = FieldElement::from(program_main);
@@ -138,8 +140,10 @@ pub fn compute_program_hash_chain(
     ];
 
     let hash = match program_hash_function {
-        0 => compute_hash_chain(data_chain.iter().flat_map(|&v| v.iter()), pedersen_hash)?,
-        1 => {
+        HashFunc::Pedersen => {
+            compute_hash_chain(data_chain.iter().flat_map(|&v| v.iter()), pedersen_hash)?
+        }
+        HashFunc::Poseidon => {
             let data: Vec<FieldElement> = data_chain[1..]
                 .iter()
                 .flat_map(|&v| v.iter().copied())
@@ -147,8 +151,7 @@ pub fn compute_program_hash_chain(
             poseidon_hash_many(&data)
         }
         // TODO(yairv): replace dummy with actual impl.
-        2 => FieldElement::from(0x123456789u64),
-        _ => panic!("Unsupported hash function: {}", program_hash_function),
+        HashFunc::Blake => FieldElement::from(0x123456789u64),
     };
     Ok(hash)
 }
