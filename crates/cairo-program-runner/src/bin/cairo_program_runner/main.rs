@@ -4,10 +4,10 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use bincode::enc::write::Writer;
-use cairo_program_runner::utils::{get_cairo_run_config, get_program, get_program_input};
+use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
 use cairo_vm::types::layout_name::LayoutName;
 
-use cairo_program_runner::cairo_run_program;
+use cairo_program_runner_lib::cairo_run_program;
 use cairo_vm::cairo_run;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;

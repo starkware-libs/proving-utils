@@ -1,3 +1,28 @@
 [workspace]
-members = ["crates/cairo-program-runner"]
+members = [
+    "crates/cairo-program-runner",
+    "crates/cairo-program-runner-lib"
+]
 resolver = "2"
+
+[workspace.dependencies]
+bincode = { version = "2.0.0-rc.3", default-features = false, features = [
+    "serde",
+] }
+cairo-vm = { version = "2.0.1", features = [
+    "extensive_hints",
+    "mod_builtin",
+    "clap",
+] }
+cairo-lang-runner = { git = "https://github.com/starkware-libs/cairo.git", rev = "ddaec76b4364ca6e0af4d185a99904d13b93f81e" }
+clap = { version = "4.3.10", features = ["derive"] }
+num-traits = "0.2.19"
+serde = { version = "1.0.202", features = ["derive"] }
+serde_json = "1.0.117"
+starknet-crypto = "0.6.2"
+starknet-types-core = "0.1.2"
+tempfile = "3.10.1"
+thiserror = "1.0.61"
+thiserror-no-std = "2.0.2"
+regex = "1.11.1"
+num-bigint = "0.4"
