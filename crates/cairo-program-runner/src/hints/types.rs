@@ -241,7 +241,29 @@ struct TaskSpecHelper {
 #[derive(Debug, Clone)]
 pub struct TaskSpec {
     pub task: Task,
-    pub program_hash_function: usize,
+    pub program_hash_function: SubtaskHashFunc,
+}
+
+#[derive(Debug, Clone)]
+pub enum SubtaskHashFunc {
+    Pedersen,
+    Poseidon,
+    Blake,
+}
+
+impl TryFrom<usize> for SubtaskHashFunc {
+    type Error = String;
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(SubtaskHashFunc::Pedersen),
+            1 => Ok(SubtaskHashFunc::Poseidon),
+            2 => Ok(SubtaskHashFunc::Blake),
+            _ => Err(format!(
+                "Invalid program hash function: {}. Expected 0, 1, or 2.",
+                value
+            )),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for TaskSpec {
@@ -314,18 +336,10 @@ impl<'de> Deserialize<'de> for TaskSpec {
             }
         };
 
-        // Make sure that program_hash_function is a valid value:
-        // 0: Pedersen, 1: Poseidon, 2: Blake.
-        if helper.program_hash_function > 2 {
-            return Err(D::Error::custom(format!(
-                "Invalid program hash function: {}",
-                helper.program_hash_function
-            )));
-        }
-
         Ok(TaskSpec {
             task,
-            program_hash_function: helper.program_hash_function,
+            program_hash_function: SubtaskHashFunc::try_from(helper.program_hash_function)
+                .map_err(|e| D::Error::custom(format!("Invalid program hash function: {:?}", e)))?,
         })
     }
 }

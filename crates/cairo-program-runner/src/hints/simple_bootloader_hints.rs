@@ -127,7 +127,9 @@ pub fn set_current_task(
 
     let task_id = simple_bootloader_input.tasks.len() - n_tasks;
     let task = simple_bootloader_input.tasks[task_id].load_task();
-    let program_hash_function = simple_bootloader_input.tasks[task_id].program_hash_function;
+    let program_hash_function = simple_bootloader_input.tasks[task_id]
+        .program_hash_function
+        .clone();
 
     exec_scopes.insert_value(vars::TASK, task.clone());
     exec_scopes.insert_value(vars::PROGRAM_HASH_FUNCTION, program_hash_function);
