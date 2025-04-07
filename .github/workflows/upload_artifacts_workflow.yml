@@ -24,9 +24,16 @@ jobs:
         with:
           credentials_json: ${{ secrets.SA_GPS_ARTIFACTS_BUCKET_WRITER_ACCESS_KEY }}
 
-      - name: Upload binary to GCP
-        id: upload_file
+      - name: Upload cairo_program_runner binary to GCP
+        id: upload_cairo_program_runner
         uses: "google-github-actions/upload-cloud-storage@v2"
         with:
           path: "target/release/cairo_program_runner"
           destination: "cairo_program_runner_artifacts/${{ env.SHORT_HASH }}/release"
+
+      - name: Upload stwo_vm_runner binary to GCP
+        id: upload_stwo_vm_runner
+        uses: "google-github-actions/upload-cloud-storage@v2"
+        with:
+          path: "target/release/stwo_vm_runner"
+          destination: "stwo_vm_runner_artifacts/${{ env.SHORT_HASH }}/release"
