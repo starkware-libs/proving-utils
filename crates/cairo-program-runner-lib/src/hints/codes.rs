@@ -533,3 +533,17 @@ else:
         0,
         2,
     ])";
+pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT_FINALIZE: &str = "# Add a segment to test pie relocation in the bootloader.\nids.other_segment = segments.add()\nsegments.finalize(ids.other_segment.segment_index, size=1)";
+
+pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT: &str =
+    "# Add a segment to test pie relocation in the bootloader.\nids.other_segment = segments.add()";
+
+pub const BUILTIN_USAGE_ADD_SIGNATURE: &str = "ecdsa_builtin.add_signature(ids.ecdsa_ptr, (\n    3086480810278599376317923499561306189851900463386393948998357832163236918254,\n    598673427589502599949712887611119751108407514580626464031881322743364689811))";
+
+pub const BUILTIN_USAGE_5_TO_AP: &str = "memory[ap] = 5";
+
+pub const BUILTIN_USAGE_SET_PAGES_AND_FACT_TOPOLOGY: &str = "from starkware.crypto.signature.signature import pedersen_hash\nassert memory[ids.output_ptr] == pedersen_hash(123, 456)\n\n# Place the output in 3 pages.\noutput_builtin.add_page(page_id=1, page_start=ids.output_ptr + 1, page_size=2)\noutput_builtin.add_page(page_id=2, page_start=ids.output_ptr + 3, page_size=2)\n# Don't use the GPS_FACT_TOPOLOGY constant to avoid unnecessary dependencies in the\n# CMake target cairo_run_venv.\noutput_builtin.add_attribute('gps_fact_topology', [3, 2, 0, 1, 0, 2])";
+
+pub const FLEXIBLE_BUILTIN_USAGE_FROM_INPUT: &str = "ids.n_output = program_input.get(\"n_output\", 0)\nids.n_pedersen = program_input.get(\"n_pedersen\", 0)\nids.n_range_check = program_input.get(\"n_range_check\", 0)\nids.n_ecdsa = program_input.get(\"n_ecdsa\", 0)\nids.n_bitwise = program_input.get(\"n_bitwise\", 0)\nids.n_ec_op = program_input.get(\"n_ec_op\", 0)\nids.n_keccak = program_input.get(\"n_keccak\", 0)\nids.n_poseidon = program_input.get(\"n_poseidon\", 0)\nids.n_range_check96 = program_input.get(\"n_range_check96\", 0)\nids.n_add_mod = program_input.get(\"n_add_mod\", 0)\nids.n_mul_mod = program_input.get(\"n_mul_mod\", 0)\nids.n_memory_holes = program_input.get(\"n_memory_holes\", 0)";
+
+pub const BUILTIN_USAGE_ADD_SIGNATURE_FROM_SIGNATURE_BUILTIN_STRUCT: &str = "ecdsa_builtin.add_signature(ids.ecdsa_ptr.address_, (\n    3086480810278599376317923499561306189851900463386393948998357832163236918254,\n    598673427589502599949712887611119751108407514580626464031881322743364689811))";

@@ -1,5 +1,6 @@
 mod applicative_bootloader_hints;
 mod bootloader_hints;
+mod builtin_usage_hints;
 mod cairo_structs;
 mod codes;
 mod concat_aggregator_hints;
