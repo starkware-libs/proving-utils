@@ -486,6 +486,11 @@ pub struct SimpleOutputInput {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ConcatAggregatorInput {
+    pub bootloader_output: Vec<Number>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct MockCairoVerifierInput {
     pub n_steps: u128,
     pub program_hash: Felt252,

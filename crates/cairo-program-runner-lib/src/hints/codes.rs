@@ -472,3 +472,65 @@ pub const SIMULATE_ECDSA_FILL_MEM_WITH_FELT_96_BIT_LIMBS: &str = "num = ids.num
 memory[ids.res_96_felts] = num % (2**96)
 memory[ids.res_96_felts+1] = (num>>96) % (2**96)
 memory[ids.res_96_felts+2] = (num>>(2*96)) % (2**96)";
+
+pub const CONCAT_AGGREGATOR_PARSE_TASKS_OUTPUTS: &str =
+    "def parse_bootloader_tasks_outputs(output):
+    \"\"\"
+    Parses the output of the bootloader, returning the raw outputs of the tasks.
+    \"\"\"
+    output_iter = iter(output)
+    # Skip the bootloader_config.
+    [next(output_iter) for _ in range(3)]
+
+    n_tasks = next(output_iter)
+    tasks_outputs = []
+    for _ in range(n_tasks):
+        task_output_size = next(output_iter)
+        tasks_outputs.append([next(output_iter) for _ in range(task_output_size - 1)])
+
+    assert next(output_iter, None) is None, \"Bootloader output wasn't fully consumed.\"
+
+    return tasks_outputs
+
+tasks_outputs = parse_bootloader_tasks_outputs(program_input[\"bootloader_output\"])
+assert len(tasks_outputs) > 0, \"No tasks found in the bootloader output.\"
+ids.n_tasks = len(tasks_outputs)";
+
+pub const CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITH_SIZE: &str =
+    "task_index = len(tasks_outputs) - ids.n_tasks
+segments.load_data(ptr=ids.output_ptr, data=tasks_outputs[task_index])
+ids.output_size = len(tasks_outputs[task_index]) + 1";
+
+pub const CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITHOUT_SIZE: &str =
+    "task_index = len(tasks_outputs) - ids.n_tasks
+segments.load_data(ptr=ids.output_ptr, data=tasks_outputs[task_index])
+ids.output_size = len(tasks_outputs[task_index])";
+
+pub const CONCAT_AGGREGATOR_SET_PAGES_AND_FACT_TOPOLOGY: &str =
+    "from starkware.python.math_utils import div_ceil
+
+output_length = ids.output_ptr - ids.output_start
+page_size = 10
+next_page_start = min(ids.output_start + page_size, ids.output_ptr)
+next_page_id = 1
+while next_page_start < ids.output_ptr:
+    output_builtin.add_page(
+        page_id=next_page_id,
+        page_start=next_page_start,
+        page_size=min(ids.output_ptr - next_page_start, page_size),
+    )
+    next_page_start += page_size
+    next_page_id += 1
+if next_page_id == 1:
+    # Single page. Use trivial fact topology.
+    output_builtin.add_attribute('gps_fact_topology', [
+        1,
+        0,
+    ])
+else:
+    output_builtin.add_attribute('gps_fact_topology', [
+        next_page_id,
+        next_page_id - 1,
+        0,
+        2,
+    ])";

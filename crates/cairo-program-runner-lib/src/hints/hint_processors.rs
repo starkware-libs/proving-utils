@@ -42,6 +42,10 @@ use super::applicative_bootloader_hints::{
     prepare_root_task_unpacker_bootloader_output_segment, restore_applicative_output_state,
 };
 use super::bootloader_hints::load_unpacker_bootloader_input;
+use super::concat_aggregator_hints::{
+    concat_aggregator_get_handle_task_output, concat_aggregator_parse_task,
+    concat_aggregator_set_pages_and_fact_topology,
+};
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
 use super::mock_cairo_verifier_hints::{
     load_mock_cairo_verifier_input, mock_cairo_verifier_hash_to_fp,
@@ -281,6 +285,18 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
             MOCK_CAIRO_VERIFIER_HASH_TO_FP => mock_cairo_verifier_hash_to_fp(vm, exec_scopes),
             MOCK_CAIRO_VERIFIER_GET_N_STEPS => Ok(()),
             MOCK_CAIRO_VERIFIER_N_STEPS_TO_AP => mock_cairo_verifier_n_steps_to_ap(vm, exec_scopes),
+            CONCAT_AGGREGATOR_PARSE_TASKS_OUTPUTS => {
+                concat_aggregator_parse_task(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITH_SIZE => {
+                concat_aggregator_get_handle_task_output(vm, exec_scopes, ids_data, ap_tracking, 1)
+            }
+            CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITHOUT_SIZE => {
+                concat_aggregator_get_handle_task_output(vm, exec_scopes, ids_data, ap_tracking, 0)
+            }
+            CONCAT_AGGREGATOR_SET_PAGES_AND_FACT_TOPOLOGY => {
+                concat_aggregator_set_pages_and_fact_topology(vm, ids_data, ap_tracking)
+            }
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
