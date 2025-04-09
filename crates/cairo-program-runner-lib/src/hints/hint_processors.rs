@@ -50,10 +50,15 @@ use super::concat_aggregator_hints::{
     concat_aggregator_get_handle_task_output, concat_aggregator_parse_task,
     concat_aggregator_set_pages_and_fact_topology,
 };
+use super::fibonacci_hints::{fibonacci_load_claim_idx, fibonacci_load_second_element};
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
 use super::mock_cairo_verifier_hints::{
     load_mock_cairo_verifier_input, mock_cairo_verifier_hash_to_fp,
     mock_cairo_verifier_len_output_to_fp, mock_cairo_verifier_n_steps_to_ap,
+};
+use super::pedersen_merkle_hints::{
+    pedersen_merkle_idx_parity_to_ap, pedersen_merkle_load_input, pedersen_merkle_update,
+    pedersen_merkle_verify_auth_path_len,
 };
 use super::simple_bootloader_hints::{
     simple_bootloader_simulate_ec_op, simple_bootloader_simulate_ecdsa,
@@ -317,6 +322,23 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
             }
             FLEXIBLE_BUILTIN_USAGE_FROM_INPUT => {
                 flexible_builtin_usage_from_input(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            FIBONACCI_LOAD_SECOND_ELEMENT => fibonacci_load_second_element(vm, exec_scopes),
+            FIBONACCI_LOAD_CLAIM_IDX => fibonacci_load_claim_idx(vm, exec_scopes),
+            PEDERSEN_MERKLE_VERIFY_AUTH_PATH_LEN => {
+                pedersen_merkle_verify_auth_path_len(exec_scopes)
+            }
+            PEDERSEN_MERKLE_LOAD_INPUT => {
+                pedersen_merkle_load_input(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            PEDERSEN_MERKLE_IDX_PARITY_TO_AP => {
+                pedersen_merkle_idx_parity_to_ap(vm, ids_data, ap_tracking)
+            }
+            PEDERSEN_MERKLE_UPDATE_LEFT => {
+                pedersen_merkle_update(vm, exec_scopes, ids_data, ap_tracking, true)
+            }
+            PEDERSEN_MERKLE_UPDATE_RIGHT => {
+                pedersen_merkle_update(vm, exec_scopes, ids_data, ap_tracking, false)
             }
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
