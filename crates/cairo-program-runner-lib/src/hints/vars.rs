@@ -40,8 +40,8 @@ pub const TASKS: &str = "tasks";
 /// Current simple bootloader task.
 pub const TASK: &str = "task";
 
-/// Current simple bootloader program_hash_function.
-pub const PROGRAM_HASH_FUNCTION: &str = "program_hash_function";
+/// Current simple bootloader use_poseidon.
+pub const USE_POSEIDON: &str = "use_poseidon";
 
 /// Program data segment. Used in `execute_task()`.
 pub const PROGRAM_DATA_BASE: &str = "program_data_base";
