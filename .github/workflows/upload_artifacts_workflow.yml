@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - yairv/impl_fib_and_ped_merkle_hints
 
 jobs:
   artifacts-push:
