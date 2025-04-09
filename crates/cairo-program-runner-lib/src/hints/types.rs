@@ -246,7 +246,7 @@ pub struct TaskSpec {
 
 /// A hash function. These can be used e.g. for hashing a program within the bootloader.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashFunc {
     Pedersen = 0,
     Poseidon = 1,

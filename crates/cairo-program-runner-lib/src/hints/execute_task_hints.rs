@@ -512,30 +512,36 @@ pub fn bootloader_validate_hash(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let task: Task = exec_scopes.get(vars::TASK)?;
-    let program = get_program_from_task(&task)?;
-
-    let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
-    let program_hash_ptr = (output_ptr + 1)?;
-
-    let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
-
     let program_hash_function: HashFunc = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
-    let computed_program_hash = compute_program_hash_chain(&program, 0, program_hash_function)
-        .map_err(|e| {
-            HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
-        })?;
-    let computed_program_hash = field_element_to_felt(computed_program_hash);
 
-    if program_hash != computed_program_hash {
-        return Err(HintError::AssertionFailed(
-            "Computed hash does not match input"
-                .to_string()
-                .into_boxed_str(),
-        ));
+    match program_hash_function {
+        HashFunc::Blake => Ok(()),
+        _ => {
+            let task: Task = exec_scopes.get(vars::TASK)?;
+            let program = get_program_from_task(&task)?;
+
+            let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
+            let program_hash_ptr = (output_ptr + 1)?;
+
+            let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
+            let computed_program_hash =
+                compute_program_hash_chain(&program, 0, program_hash_function).map_err(|e| {
+                    HintError::CustomHint(
+                        format!("Could not compute program hash: {e}").into_boxed_str(),
+                    )
+                })?;
+            let computed_program_hash = field_element_to_felt(computed_program_hash);
+
+            if program_hash != computed_program_hash {
+                return Err(HintError::AssertionFailed(
+                    "Computed hash does not match input"
+                        .to_string()
+                        .into_boxed_str(),
+                ));
+            }
+            Ok(())
+        }
     }
-
-    Ok(())
 }
 
 mod util {
