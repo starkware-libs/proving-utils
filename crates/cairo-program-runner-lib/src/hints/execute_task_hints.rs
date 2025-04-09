@@ -2,8 +2,8 @@ use std::any::Any;
 use std::collections::HashMap;
 
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
-    get_ptr_from_var_name, get_relocatable_from_var_name, insert_value_from_var_name,
-    insert_value_into_ap,
+    get_integer_from_var_name, get_ptr_from_var_name, get_relocatable_from_var_name,
+    insert_value_from_var_name, insert_value_into_ap,
 };
 use cairo_vm::hint_processor::hint_processor_definition::{
     HintExtension, HintProcessorLogic, HintReference,
@@ -18,6 +18,7 @@ use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinSt
 use cairo_vm::vm::runners::cairo_pie::{CairoPie, StrippedProgram};
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::{any_box, Felt252};
+use num_traits::ToPrimitive;
 use starknet_crypto::FieldElement;
 
 use crate::hints::fact_topologies::{get_task_fact_topology, FactTopology};
@@ -27,9 +28,9 @@ use crate::hints::program_loader::ProgramLoader;
 use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
 
-use super::types::HashFunc;
 use super::utils::{get_identifier, get_program_identifies};
 
+use super::vars::PROGRAM_HASH_FUNCTION;
 use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
 fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
     task.get_program()
@@ -166,10 +167,9 @@ pub fn validate_hash(
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
     // Compute the hash of the program
-    let computed_program_hash = compute_program_hash_chain(&program, 0, HashFunc::Pedersen)
-        .map_err(|e| {
-            HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
-        })?;
+    let computed_program_hash = compute_program_hash_chain(&program, 0, 0).map_err(|e| {
+        HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
+    })?;
     let computed_program_hash = field_element_to_felt(computed_program_hash);
 
     if program_hash != computed_program_hash {
@@ -495,8 +495,8 @@ pub fn program_hash_function_to_ap(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
-    let program_hash_function: HashFunc = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
-    insert_value_into_ap(vm, program_hash_function as usize)
+    let program_hash_function: usize = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
+    insert_value_into_ap(vm, program_hash_function)
 }
 
 /// Implements
@@ -520,7 +520,17 @@ pub fn bootloader_validate_hash(
 
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
 
-    let program_hash_function: HashFunc = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
+    // Compute the hash of the program
+    let program_hash_function =
+        get_integer_from_var_name(PROGRAM_HASH_FUNCTION, vm, ids_data, ap_tracking)?
+            .to_usize()
+            .ok_or_else(|| {
+                HintError::CustomHint(
+                    "program_hash_function is not a valid integer"
+                        .to_string()
+                        .into_boxed_str(),
+                )
+            })?;
     let computed_program_hash = compute_program_hash_chain(&program, 0, program_hash_function)
         .map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())

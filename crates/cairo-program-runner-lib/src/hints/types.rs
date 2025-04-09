@@ -241,30 +241,7 @@ struct TaskSpecHelper {
 #[derive(Debug, Clone)]
 pub struct TaskSpec {
     pub task: Task,
-    pub program_hash_function: HashFunc,
-}
-
-// A hash function. These can be used e.g. for hashing a program within the bootloader.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy)]
-pub enum HashFunc {
-    Pedersen = 0,
-    Poseidon = 1,
-    Blake = 2,
-}
-
-impl TryFrom<usize> for HashFunc {
-    type Error = String;
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(HashFunc::Pedersen),
-            1 => Ok(HashFunc::Poseidon),
-            2 => Ok(HashFunc::Blake),
-            _ => Err(format!(
-                "Invalid program hash function: {value}. Expected 0, 1, or 2."
-            )),
-        }
-    }
+    pub program_hash_function: usize,
 }
 
 impl<'de> Deserialize<'de> for TaskSpec {
@@ -337,10 +314,18 @@ impl<'de> Deserialize<'de> for TaskSpec {
             }
         };
 
+        // Make sure that program_hash_function is a valid value:
+        // 0: Pedersen, 1: Poseidon, 2: Blake.
+        if helper.program_hash_function > 2 {
+            return Err(D::Error::custom(format!(
+                "Invalid program hash function: {}",
+                helper.program_hash_function
+            )));
+        }
+
         Ok(TaskSpec {
             task,
-            program_hash_function: HashFunc::try_from(helper.program_hash_function)
-                .map_err(|e| D::Error::custom(format!("Invalid program hash function: {e:?}")))?,
+            program_hash_function: helper.program_hash_function,
         })
     }
 }
