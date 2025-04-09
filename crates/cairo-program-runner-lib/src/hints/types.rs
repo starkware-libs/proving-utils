@@ -495,3 +495,31 @@ pub struct MockCairoVerifierInput {
     pub program_hash: Felt252,
     pub program_output: Vec<Felt252>,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FlexibleBuiltinUsageInput {
+    #[serde(default)]
+    pub n_output: usize,
+    #[serde(default)]
+    pub n_pedersen: usize,
+    #[serde(default)]
+    pub n_range_check: usize,
+    #[serde(default)]
+    pub n_ecdsa: usize,
+    #[serde(default)]
+    pub n_bitwise: usize,
+    #[serde(default)]
+    pub n_ec_op: usize,
+    #[serde(default)]
+    pub n_keccak: usize,
+    #[serde(default)]
+    pub n_poseidon: usize,
+    #[serde(default)]
+    pub n_range_check96: usize,
+    #[serde(default)]
+    pub n_add_mod: usize,
+    #[serde(default)]
+    pub n_mul_mod: usize,
+    #[serde(default)]
+    pub n_memory_holes: usize,
+}
