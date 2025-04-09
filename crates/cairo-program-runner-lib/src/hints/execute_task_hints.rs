@@ -58,7 +58,7 @@ pub fn allocate_program_data_segment(
     Ok(())
 }
 
-fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
+pub fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
     let bytes = field_element.to_bytes_be();
     Felt252::from_bytes_be(&bytes)
 }
