@@ -25,8 +25,8 @@ serde = { version = "1.0.202", features = ["derive"] }
 serde_json = "1.0.117"
 starknet-crypto = "0.6.2"
 starknet-types-core = "0.1.2"
-stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ef6b24df"}
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ef6b24df"}
+stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0131027d66d4a45c5d3f9dd7dba90feb34b42845"}
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0131027d66d4a45c5d3f9dd7dba90feb34b42845"}
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"

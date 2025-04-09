@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - meidar/remove_related_taskspec_hash_func_commits
 
 jobs:
   artifacts-push:
