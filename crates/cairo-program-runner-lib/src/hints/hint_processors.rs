@@ -42,6 +42,10 @@ use super::applicative_bootloader_hints::{
     prepare_root_task_unpacker_bootloader_output_segment, restore_applicative_output_state,
 };
 use super::bootloader_hints::load_unpacker_bootloader_input;
+use super::builtin_usage_hints::{
+    builtin_usage_5_to_ap, builtin_usage_add_other_segment, builtin_usage_add_signature,
+    builtin_usage_set_pages_and_fact_topology, flexible_builtin_usage_from_input,
+};
 use super::concat_aggregator_hints::{
     concat_aggregator_get_handle_task_output, concat_aggregator_parse_task,
     concat_aggregator_set_pages_and_fact_topology,
@@ -296,6 +300,23 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
             }
             CONCAT_AGGREGATOR_SET_PAGES_AND_FACT_TOPOLOGY => {
                 concat_aggregator_set_pages_and_fact_topology(vm, ids_data, ap_tracking)
+            }
+            BUILTIN_USAGE_ADD_OTHER_SEGMENT => {
+                builtin_usage_add_other_segment(vm, ids_data, ap_tracking, true)
+            }
+            BUILTIN_USAGE_ADD_OTHER_SEGMENT_FINALIZE => {
+                builtin_usage_add_other_segment(vm, ids_data, ap_tracking, true)
+            }
+            BUILTIN_USAGE_ADD_SIGNATURE
+            | BUILTIN_USAGE_ADD_SIGNATURE_FROM_SIGNATURE_BUILTIN_STRUCT => {
+                builtin_usage_add_signature(vm, ids_data, ap_tracking)
+            }
+            BUILTIN_USAGE_5_TO_AP => builtin_usage_5_to_ap(vm),
+            BUILTIN_USAGE_SET_PAGES_AND_FACT_TOPOLOGY => {
+                builtin_usage_set_pages_and_fact_topology(vm, ids_data, ap_tracking)
+            }
+            FLEXIBLE_BUILTIN_USAGE_FROM_INPUT => {
+                flexible_builtin_usage_from_input(vm, exec_scopes, ids_data, ap_tracking)
             }
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
