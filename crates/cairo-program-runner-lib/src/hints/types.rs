@@ -524,3 +524,18 @@ pub struct FlexibleBuiltinUsageInput {
     #[serde(default)]
     pub n_memory_holes: usize,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FibonacciInput {
+    pub fibonacci_claim_index: usize,
+    pub second_element: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PedersenMerkleInput {
+    pub height: usize,
+    pub node_index: u128,
+    pub path: Vec<Felt252>,
+    pub prev_leaf: Felt252,
+    pub new_leaf: Felt252,
+}

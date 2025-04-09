@@ -577,3 +577,30 @@ pub const BUILTIN_USAGE_ADD_SIGNATURE_FROM_SIGNATURE_BUILTIN_STRUCT: &str =
     "ecdsa_builtin.add_signature(ids.ecdsa_ptr.address_, (
     3086480810278599376317923499561306189851900463386393948998357832163236918254,
     598673427589502599949712887611119751108407514580626464031881322743364689811))";
+
+pub const FIBONACCI_LOAD_SECOND_ELEMENT: &str = "memory[ap] = program_input['second_element']";
+
+pub const FIBONACCI_LOAD_CLAIM_IDX: &str = "memory[ap] = program_input['fibonacci_claim_index']";
+
+pub const PEDERSEN_MERKLE_LOAD_INPUT: &str = "ids.output.height = program_input['height']
+ids.output.prev_leaf = int(program_input['prev_leaf'], 16)
+ids.output.new_leaf = int(program_input['new_leaf'], 16)
+ids.output.node_index = program_input['node_index']
+
+auth_path = [int(x, 16) for x in program_input['path']][::-1]";
+
+pub const PEDERSEN_MERKLE_VERIFY_AUTH_PATH_LEN: &str =
+    "# Check that auth_path had the right number of elements.
+assert len(auth_path) == 0, 'Got too many values in auth_path.'";
+
+pub const PEDERSEN_MERKLE_IDX_PARITY_TO_AP: &str = "memory[ap] = ids.index % 2";
+
+pub const PEDERSEN_MERKLE_UPDATE_LEFT: &str = "# Hash hints.
+sibling = auth_path.pop()
+ids.prev_node_hash.y = sibling
+ids.new_node_hash.y = sibling";
+
+pub const PEDERSEN_MERKLE_UPDATE_RIGHT: &str = "# Hash hints.
+sibling = auth_path.pop()
+ids.prev_node_hash.x = sibling
+ids.new_node_hash.x = sibling";
