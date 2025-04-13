@@ -12,3 +12,8 @@ stwo_cairo_utils.workspace = true
 stwo-cairo-adapter.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
+env_logger.workspace = true
+cairo-program-runner = { path = "../cairo-program-runner"}
+cairo-program-runner-lib = { path = "../cairo-program-runner-lib"}
+cairo-vm.workspace = true
