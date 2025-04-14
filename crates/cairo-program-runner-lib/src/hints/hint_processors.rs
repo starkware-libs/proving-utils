@@ -27,7 +27,8 @@ use crate::hints::bootloader_hints::{
 use crate::hints::codes::*;
 use crate::hints::execute_task_hints::{
     allocate_program_data_segment, append_fact_topologies, bootloader_validate_hash, call_task,
-    load_program_hint, program_hash_function_to_ap, validate_hash, write_return_builtins_hint,
+    load_program_hint, program_hash_function_to_ap, set_up_simulated_builtins_encodings_and_count,
+    validate_hash, write_return_builtins_hint,
 };
 use crate::hints::inner_select_builtins::select_builtin;
 use crate::hints::select_builtins::select_builtins_enter_scope;
@@ -174,6 +175,14 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             }
             INNER_SELECT_BUILTINS_SELECT_BUILTIN => {
                 select_builtin(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            EXECUTE_TASK_SET_UP_SIMULATED_BUILTINS_ENCODINGS_AND_COUNT => {
+                set_up_simulated_builtins_encodings_and_count(
+                    vm,
+                    exec_scopes,
+                    ids_data,
+                    ap_tracking,
+                )
             }
             VERIFIER_LOAD_AND_PARSE_PROOF => {
                 load_and_parse_proof(vm, exec_scopes, ids_data, ap_tracking)
