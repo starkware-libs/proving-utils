@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             "tasks": [
               {{
                 "path": "{}",
-                "program_hash_function": 0,
+                "program_hash_function": "pedersen",
                 "type": "RunProgramTask"
               }}
             ],

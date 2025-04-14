@@ -232,7 +232,7 @@ impl Task {
 struct TaskSpecHelper {
     #[serde(rename = "type")]
     task_type: String,
-    program_hash_function: usize,
+    program_hash_function: String,
     path: Option<PathBuf>,
     program: Option<Value>,
     program_input: Option<Value>,
@@ -253,15 +253,16 @@ pub enum HashFunc {
     Blake = 2,
 }
 
-impl TryFrom<usize> for HashFunc {
+impl TryFrom<String> for HashFunc {
     type Error = String;
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(HashFunc::Pedersen),
-            1 => Ok(HashFunc::Poseidon),
-            2 => Ok(HashFunc::Blake),
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.to_lowercase().as_str() {
+            "pedersen" => Ok(HashFunc::Pedersen),
+            "poseidon" => Ok(HashFunc::Poseidon),
+            "blake" => Ok(HashFunc::Blake),
             _ => Err(format!(
-                "Invalid program hash function: {value}. Expected 0, 1, or 2."
+                "Invalid program hash function: {value}.
+                Expected `pedersen`, `poseidon`, or `blake`."
             )),
         }
     }
