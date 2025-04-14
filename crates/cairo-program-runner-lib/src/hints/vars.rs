@@ -58,6 +58,13 @@ pub const N_BUILTINS: &str = "n_builtins";
 /// Number of selected builtins for the current program.
 pub const N_SELECTED_BUILTINS: &str = "n_selected_builtins";
 
+/// Number of simulated builtins for the current program (could be non-zero only for PIEs) left to
+/// match when setting up builtin ptrs to stackfor subtask execution.
+pub const N_SIMULATED_BUILTINS_LEFT: &str = "n_task_simulated_builtins_left";
+
+/// Number of simulated builtins for the current program (could be non-zero only for PIEs).
+pub const N_SIMULATED_BUILTINS: &str = "n_task_simulated_builtins";
+
 /// "pre_execution_builtin_ptrs"
 pub const PRE_EXECUTION_BUILTIN_PTRS: &str = "pre_execution_builtin_ptrs";
 

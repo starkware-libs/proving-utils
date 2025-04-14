@@ -23,8 +23,9 @@ use crate::hints::types::{
 };
 use crate::hints::vars;
 
+use super::program_loader::builtin_to_felt;
 use super::utils::gen_arg;
-use super::{BOOTLOADER_INPUT, PROGRAM_INPUT, SIMPLE_BOOTLOADER_INPUT};
+use super::{Task, BOOTLOADER_INPUT, PROGRAM_INPUT, SIMPLE_BOOTLOADER_INPUT};
 
 /// Implements
 /// %{
@@ -481,6 +482,27 @@ pub fn assert_program_address(
             "program address is incorrect".to_string().into_boxed_str(),
         ));
     }
+    let task: Task = exec_scopes.get(vars::TASK)?;
+    let mut n_task_simulated_builtins = 0;
+    if let Task::Pie(cairo_pie) = task {
+        let simulated_builtins = cairo_pie.metadata.simulated_builtins;
+        n_task_simulated_builtins = simulated_builtins.len();
+        let task_simulated_builtins_ptr =
+            get_ptr_from_var_name("task_simulated_builtins", vm, ids_data, ap_tracking)?;
+        for (index, builtin) in simulated_builtins.iter().enumerate() {
+            let builtin_felt = builtin_to_felt(builtin)?;
+            vm.insert_value((task_simulated_builtins_ptr + index)?, builtin_felt)?;
+        }
+    }
+    exec_scopes.insert_value(vars::N_SIMULATED_BUILTINS, n_task_simulated_builtins);
+
+    insert_value_from_var_name(
+        "n_task_simulated_builtins",
+        n_task_simulated_builtins,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
     Ok(())
 }
 

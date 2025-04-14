@@ -29,9 +29,10 @@ pub fn select_builtin(
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
     let n_selected_builtins: usize = exec_scopes.get(vars::N_SELECTED_BUILTINS)?;
+    let n_simulated_builtins_left: usize = exec_scopes.get(vars::N_SIMULATED_BUILTINS_LEFT)?;
 
-    let select_builtin = if n_selected_builtins == 0 {
-        false
+    let (select_builtin, is_simulated_builtin) = if n_selected_builtins == 0 {
+        (false, false)
     } else {
         let selected_encodings =
             get_ptr_from_var_name("selected_encodings", vm, ids_data, ap_tracking)?;
@@ -39,8 +40,17 @@ pub fn select_builtin(
 
         let selected_encoding = vm.get_integer(selected_encodings)?.into_owned();
         let builtin_encoding = vm.get_integer(all_encodings)?.into_owned();
+        let select_builtin = selected_encoding == builtin_encoding;
+        let is_simulated_builtin = if n_simulated_builtins_left == 0 {
+            false
+        } else {
+            let task_simulated_builtins =
+                get_ptr_from_var_name("task_simulated_builtins", vm, ids_data, ap_tracking)?;
+            let simulated_builtin_encoding = vm.get_integer(task_simulated_builtins)?.into_owned();
+            selected_encoding == simulated_builtin_encoding
+        };
 
-        selected_encoding == builtin_encoding
+        (select_builtin, is_simulated_builtin)
     };
 
     let select_builtin_felt = Felt252::from(select_builtin);
@@ -51,9 +61,23 @@ pub fn select_builtin(
         ids_data,
         ap_tracking,
     )?;
+    let is_simulated_builtin_felt = Felt252::from(is_simulated_builtin);
+    insert_value_from_var_name(
+        "is_simulated_builtin",
+        is_simulated_builtin_felt,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
 
     if select_builtin {
         exec_scopes.insert_value(vars::N_SELECTED_BUILTINS, n_selected_builtins - 1);
+    }
+    if is_simulated_builtin {
+        exec_scopes.insert_value(
+            vars::N_SIMULATED_BUILTINS_LEFT,
+            n_simulated_builtins_left - 1,
+        );
     }
 
     Ok(())
