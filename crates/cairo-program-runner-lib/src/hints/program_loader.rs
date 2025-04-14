@@ -34,7 +34,7 @@ impl From<ProgramLoaderError> for HintError {
 ///
 /// This is used by the loader to make the builtins used by the program to the Cairo
 /// code.
-fn builtin_to_felt(builtin: &BuiltinName) -> Result<Felt252, ProgramLoaderError> {
+pub fn builtin_to_felt(builtin: &BuiltinName) -> Result<Felt252, ProgramLoaderError> {
     // The Python implementation uses the builtin name without suffix
     let builtin_name = builtin.to_str();
 

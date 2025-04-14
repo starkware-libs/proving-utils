@@ -13,7 +13,12 @@ use num_traits::ToPrimitive;
 use crate::hints::vars;
 
 /// Implements
-/// %{ vm_enter_scope({'n_selected_builtins': ids.n_selected_builtins}) %}
+/// %{
+///     vm_enter_scope({
+///         'n_selected_builtins': ids.n_selected_builtins,
+///         'n_task_simulated_builtins_left': ids.n_task_simulated_builtins
+///     })
+/// %}
 pub fn select_builtins_enter_scope(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -28,11 +33,25 @@ pub fn select_builtins_enter_scope(
             .ok_or(MathError::Felt252ToUsizeConversion(Box::new(
                 n_selected_builtins,
             )))?;
+    let n_simulated_builtins =
+        get_integer_from_var_name(vars::N_SIMULATED_BUILTINS, vm, ids_data, ap_tracking)?;
+    let n_simulated_builtins =
+        n_simulated_builtins
+            .to_usize()
+            .ok_or(MathError::Felt252ToUsizeConversion(Box::new(
+                n_simulated_builtins,
+            )))?;
 
-    exec_scopes.enter_scope(HashMap::from([(
-        vars::N_SELECTED_BUILTINS.to_string(),
-        Box::new(n_selected_builtins) as Box<dyn Any>,
-    )]));
+    exec_scopes.enter_scope(HashMap::from([
+        (
+            vars::N_SELECTED_BUILTINS.to_string(),
+            Box::new(n_selected_builtins) as Box<dyn Any>,
+        ),
+        (
+            vars::N_SIMULATED_BUILTINS_LEFT.to_string(),
+            Box::new(n_simulated_builtins) as Box<dyn Any>,
+        ),
+    ]));
 
     Ok(())
 }
