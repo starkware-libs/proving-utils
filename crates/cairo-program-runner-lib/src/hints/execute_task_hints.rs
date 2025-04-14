@@ -224,6 +224,20 @@ fn check_cairo_pie_builtin_usage(
     Ok(())
 }
 
+fn copy_pre_execution_builtin_value(
+    vm: &mut VirtualMachine,
+    pre_execution_builtins_addr: Relocatable,
+    return_builtins_addr: Relocatable,
+    index: usize,
+) -> Result<(), HintError> {
+    let pre_execution_builtin_addr = (pre_execution_builtins_addr + index)?;
+    let pre_execution_value = vm
+        .get_maybe(&pre_execution_builtin_addr)
+        .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(pre_execution_builtin_addr)))?;
+    vm.insert_value((return_builtins_addr + index)?, pre_execution_value)?;
+    Ok(())
+}
+
 /// Writes the updated builtin pointers after the program execution to the given return builtins
 /// address.
 ///
@@ -237,14 +251,37 @@ fn write_return_builtins(
     task: &Task,
 ) -> Result<(), HintError> {
     let mut used_builtin_offset: usize = 0;
+    let simulated_builtins = if let Task::Pie(cairo_pie) = task {
+        cairo_pie.metadata.simulated_builtins.clone()
+    } else {
+        vec![]
+    };
     for (index, builtin) in ALL_BUILTINS.iter().enumerate() {
         if used_builtins.contains(builtin) {
             let builtin_addr = (used_builtins_addr + used_builtin_offset)?;
+            used_builtin_offset += 1;
             let builtin_value = vm
                 .get_maybe(&builtin_addr)
                 .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(builtin_addr)))?;
+
+            if simulated_builtins.contains(builtin) {
+                if builtin_value != MaybeRelocatable::from(0) {
+                    return Err(HintError::AssertionFailed(
+                        format!(
+                            "Simulated builtin {builtin:?} should be 0, but got {builtin_value:?}"
+                        )
+                        .into_boxed_str(),
+                    ));
+                }
+                copy_pre_execution_builtin_value(
+                    vm,
+                    pre_execution_builtins_addr,
+                    return_builtins_addr,
+                    index,
+                )?;
+                continue;
+            }
             vm.insert_value((return_builtins_addr + index)?, builtin_value.clone())?;
-            used_builtin_offset += 1;
 
             if let MaybeRelocatable::Int(_) = builtin_value {
                 continue;
@@ -263,12 +300,12 @@ fn write_return_builtins(
         }
         // The builtin is unused, hence its value is the same as before calling the program.
         else {
-            let pre_execution_builtin_addr = (pre_execution_builtins_addr + index)?;
-            let pre_execution_value =
-                vm.get_maybe(&pre_execution_builtin_addr).ok_or_else(|| {
-                    MemoryError::UnknownMemoryCell(Box::new(pre_execution_builtin_addr))
-                })?;
-            vm.insert_value((return_builtins_addr + index)?, pre_execution_value)?;
+            copy_pre_execution_builtin_value(
+                vm,
+                pre_execution_builtins_addr,
+                return_builtins_addr,
+                index,
+            )?;
         }
     }
     Ok(())
@@ -297,6 +334,7 @@ pub fn write_return_builtins_hint(
 ) -> Result<(), HintError> {
     let task: Task = exec_scopes.get(vars::TASK)?;
     let n_builtins: usize = exec_scopes.get(vars::N_BUILTINS)?;
+    let n_simulated_builtins: usize = exec_scopes.get(vars::N_SIMULATED_BUILTINS)?;
 
     // builtins = task.get_program().builtins
     let program = get_program_from_task(&task)?;
@@ -324,10 +362,13 @@ pub fn write_return_builtins_hint(
 
     // vm_enter_scope({'n_selected_builtins': n_builtins})
     let n_builtins: Box<dyn Any> = Box::new(n_builtins);
-    exec_scopes.enter_scope(HashMap::from([(
-        vars::N_SELECTED_BUILTINS.to_string(),
-        n_builtins,
-    )]));
+    exec_scopes.enter_scope(HashMap::from([
+        (vars::N_SELECTED_BUILTINS.to_string(), n_builtins),
+        (
+            vars::N_SIMULATED_BUILTINS_LEFT.to_string(),
+            Box::new(n_simulated_builtins),
+        ),
+    ]));
 
     Ok(())
 }

@@ -242,16 +242,10 @@ fact_topologies.append(get_task_fact_topology(
 ))";
 
 pub const SELECT_BUILTINS_ENTER_SCOPE: &str =
-    "vm_enter_scope({'n_selected_builtins': ids.n_selected_builtins})";
+    "vm_enter_scope({'n_selected_builtins': ids.n_selected_builtins, 'n_task_simulated_builtins_left': ids.n_task_simulated_builtins})";
 
 pub const INNER_SELECT_BUILTINS_SELECT_BUILTIN: &str =
-    "# A builtin should be selected iff its encoding appears in the selected encodings list
-# and the list wasn't exhausted.
-# Note that testing inclusion by a single comparison is possible since the lists are sorted.
-ids.select_builtin = int(
-  n_selected_builtins > 0 and memory[ids.selected_encodings] == memory[ids.all_encodings])
-if ids.select_builtin:
-  n_selected_builtins = n_selected_builtins - 1";
+    "# A builtin should be selected iff its encoding appears in the selected encodings list\n# and the list wasn't exhausted.\n# Note that testing inclusion by a single comparison is possible since the lists are sorted.\nids.select_builtin = int(\n  n_selected_builtins > 0 and memory[ids.selected_encodings] == memory[ids.all_encodings])\nif ids.select_builtin:\n  n_selected_builtins = n_selected_builtins - 1\nids.is_simulated_builtin = int(\n  n_task_simulated_builtins > 0 and memory[ids.selected_encodings] == memory[ids.task_simulated_builtins])\nif ids.is_simulated_builtin:\n    n_task_simulated_builtins_left -= 1";
 
 pub const VERIFIER_LOAD_AND_PARSE_PROOF: &str =
     "from starkware.cairo.stark_verifier.air.parser import parse_proof

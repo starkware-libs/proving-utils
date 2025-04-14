@@ -209,7 +209,11 @@ pub fn build_cairo_pie_relocation_table(
     let memory_map = build_cairo_pie_memory_map(&cairo_pie.memory);
 
     // Set initial stack relocations.
-    for (idx, _builtin_name) in cairo_pie.metadata.program.builtins.iter().enumerate() {
+    for (idx, builtin_name) in cairo_pie.metadata.program.builtins.iter().enumerate() {
+        if cairo_pie.metadata.simulated_builtins.contains(builtin_name) {
+            // Simulated builtins are not relocated.
+            continue;
+        }
         let memory_address = (origin_execution_segment + idx)?;
         let segment_index = extract_segment(memory_map[&memory_address].clone())?;
         let builtin_seg_addr = (execution_segment_address + idx)?;
