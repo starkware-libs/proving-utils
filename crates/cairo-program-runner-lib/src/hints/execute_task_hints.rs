@@ -27,6 +27,7 @@ use crate::hints::program_loader::ProgramLoader;
 use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
 
+use super::program_loader::builtin_to_felt;
 use super::types::HashFunc;
 use super::utils::{get_identifier, get_program_identifies};
 
@@ -224,6 +225,22 @@ fn check_cairo_pie_builtin_usage(
     Ok(())
 }
 
+/// Copies the pre-execution builtin value to the return builtins address (after the subtask's
+/// execution concludes).
+fn copy_pre_execution_builtin_value(
+    vm: &mut VirtualMachine,
+    pre_execution_builtins_addr: Relocatable,
+    return_builtins_addr: Relocatable,
+    index: usize,
+) -> Result<(), HintError> {
+    let pre_execution_builtin_addr = (pre_execution_builtins_addr + index)?;
+    let pre_execution_value = vm
+        .get_maybe(&pre_execution_builtin_addr)
+        .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(pre_execution_builtin_addr)))?;
+    vm.insert_value((return_builtins_addr + index)?, pre_execution_value)?;
+    Ok(())
+}
+
 /// Writes the updated builtin pointers after the program execution to the given return builtins
 /// address.
 ///
@@ -237,14 +254,40 @@ fn write_return_builtins(
     task: &Task,
 ) -> Result<(), HintError> {
     let mut used_builtin_offset: usize = 0;
+    let simulated_builtins = if let Task::Pie(cairo_pie) = task {
+        cairo_pie.metadata.simulated_builtins.clone()
+    } else {
+        vec![]
+    };
     for (index, builtin) in ALL_BUILTINS.iter().enumerate() {
         if used_builtins.contains(builtin) {
             let builtin_addr = (used_builtins_addr + used_builtin_offset)?;
+            used_builtin_offset += 1;
             let builtin_value = vm
                 .get_maybe(&builtin_addr)
                 .ok_or_else(|| MemoryError::UnknownMemoryCell(Box::new(builtin_addr)))?;
+
+            if simulated_builtins.contains(builtin) {
+                if builtin_value != MaybeRelocatable::from(0) {
+                    return Err(HintError::AssertionFailed(
+                        format!(
+                            "Simulated builtin {builtin:?} should be 0, but got {builtin_value:?}"
+                        )
+                        .into_boxed_str(),
+                    ));
+                }
+                // The builtin was simulated, hence the pointer wasn't updated (as we passed a null
+                // pointer to the subtask), and so we restore the value from the pre-execution
+                // builtin pointers.
+                copy_pre_execution_builtin_value(
+                    vm,
+                    pre_execution_builtins_addr,
+                    return_builtins_addr,
+                    index,
+                )?;
+                continue;
+            }
             vm.insert_value((return_builtins_addr + index)?, builtin_value.clone())?;
-            used_builtin_offset += 1;
 
             if let MaybeRelocatable::Int(_) = builtin_value {
                 continue;
@@ -263,14 +306,63 @@ fn write_return_builtins(
         }
         // The builtin is unused, hence its value is the same as before calling the program.
         else {
-            let pre_execution_builtin_addr = (pre_execution_builtins_addr + index)?;
-            let pre_execution_value =
-                vm.get_maybe(&pre_execution_builtin_addr).ok_or_else(|| {
-                    MemoryError::UnknownMemoryCell(Box::new(pre_execution_builtin_addr))
-                })?;
-            vm.insert_value((return_builtins_addr + index)?, pre_execution_value)?;
+            copy_pre_execution_builtin_value(
+                vm,
+                pre_execution_builtins_addr,
+                return_builtins_addr,
+                index,
+            )?;
         }
     }
+    Ok(())
+}
+
+/*
+Implements hint: %{ EXECUTE_TASK_SET_UP_SIMULATED_BUILTINS_ENCODINGS_AND_COUNT %}
+# Set up the simulated builtins encodings and count for the task.
+*/
+pub fn set_up_simulated_builtins_encodings_and_count(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let task: Task = exec_scopes.get(vars::TASK)?;
+    // Only count the simulated builtins for CairoPie tasks, due to the fact that the memory
+    // is already mapped, so we have to replicate the setup logic the layout provided (by setting
+    // the builtin ptrs to 0 if being simulated).
+    // For programs, the program subtask will just get the execution wrappers builtin ptrs
+    // (i.e. the simple_bootloader's) and run as if no simulation occurs.
+    let n_task_simulated_builtins = if let Task::Pie(cairo_pie) = task {
+        let simulated_builtins = cairo_pie.metadata.simulated_builtins;
+        let task_simulated_builtins_encodings_ptr = get_ptr_from_var_name(
+            "task_simulated_builtins_encodings",
+            vm,
+            ids_data,
+            ap_tracking,
+        )?;
+        for (index, builtin) in simulated_builtins.iter().enumerate() {
+            let builtin_felt = builtin_to_felt(builtin)?;
+            // Insert the current simulated builtin encoding into the memory.
+            vm.insert_value(
+                (task_simulated_builtins_encodings_ptr + index)?,
+                builtin_felt,
+            )?;
+        }
+        simulated_builtins.len()
+    } else {
+        0
+    };
+
+    exec_scopes.insert_value(vars::N_SIMULATED_BUILTINS, n_task_simulated_builtins);
+    insert_value_from_var_name(
+        vars::N_SIMULATED_BUILTINS,
+        n_task_simulated_builtins,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
+
     Ok(())
 }
 
@@ -297,6 +389,7 @@ pub fn write_return_builtins_hint(
 ) -> Result<(), HintError> {
     let task: Task = exec_scopes.get(vars::TASK)?;
     let n_builtins: usize = exec_scopes.get(vars::N_BUILTINS)?;
+    let n_simulated_builtins: usize = exec_scopes.get(vars::N_SIMULATED_BUILTINS)?;
 
     // builtins = task.get_program().builtins
     let program = get_program_from_task(&task)?;
@@ -322,12 +415,16 @@ pub fn write_return_builtins_hint(
         &task,
     )?;
 
-    // vm_enter_scope({'n_selected_builtins': n_builtins})
+    // Insert the number of selected builtins and the number of simulated builtins into the current
+    // scope.
     let n_builtins: Box<dyn Any> = Box::new(n_builtins);
-    exec_scopes.enter_scope(HashMap::from([(
-        vars::N_SELECTED_BUILTINS.to_string(),
-        n_builtins,
-    )]));
+    exec_scopes.enter_scope(HashMap::from([
+        (vars::N_SELECTED_BUILTINS.to_string(), n_builtins),
+        (
+            vars::N_SIMULATED_BUILTINS_LEFT.to_string(),
+            Box::new(n_simulated_builtins),
+        ),
+    ]));
 
     Ok(())
 }

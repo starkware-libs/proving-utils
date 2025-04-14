@@ -42,6 +42,7 @@ use super::applicative_bootloader_hints::{
     prepare_root_task_unpacker_bootloader_output_segment, restore_applicative_output_state,
 };
 use super::bootloader_hints::load_unpacker_bootloader_input;
+use super::execute_task_hints::set_up_simulated_builtins_encodings_and_count;
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
 use super::mock_cairo_verifier_hints::{
     load_mock_cairo_verifier_input, mock_cairo_verifier_hash_to_fp,
@@ -161,6 +162,14 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             }
             INNER_SELECT_BUILTINS_SELECT_BUILTIN => {
                 select_builtin(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            EXECUTE_TASK_SET_UP_SIMULATED_BUILTINS_ENCODINGS_AND_COUNT => {
+                set_up_simulated_builtins_encodings_and_count(
+                    vm,
+                    exec_scopes,
+                    ids_data,
+                    ap_tracking,
+                )
             }
             VERIFIER_LOAD_AND_PARSE_PROOF => {
                 load_and_parse_proof(vm, exec_scopes, ids_data, ap_tracking)
