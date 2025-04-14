@@ -555,7 +555,11 @@ mod util {
         match task {
             Task::Program(_) => {
                 let output_state = output_builtin.get_state();
-                output_builtin.new_state(output_ptr.segment_index as usize, true);
+                output_builtin.new_state(
+                    output_ptr.segment_index as usize,
+                    true,
+                    output_ptr.offset,
+                );
                 Ok(Some(output_state))
             }
             Task::Pie(_) => Ok(None),
