@@ -13,15 +13,31 @@ use cairo_vm::vm::vm_core::VirtualMachine;
 use crate::hints::vars;
 
 /// Sets ids.select_builtin to 1 if the first builtin should be selected and 0 otherwise.
+/// Also sets ids.is_simulated_builtin to 1 if the builtin is a simulated builtin and 0 otherwise.
 ///
-/// Implements
-/// # A builtin should be selected iff its encoding appears in the selected encodings list
-/// # and the list wasn't exhausted.
-/// # Note that testing inclusion by a single comparison is possible since the lists are sorted.
-/// ids.select_builtin = int(
-///   n_selected_builtins > 0 and memory[ids.selected_encodings] == memory[ids.all_encodings])
-/// if ids.select_builtin:
-///   n_selected_builtins = n_selected_builtins - 1
+/// Implements hint:
+/// %{
+///     # A builtin should be selected iff its encoding appears in the selected encodings list
+///     # and the list wasn't exhausted.
+///     # Note that testing inclusion by a single comparison is possible since the lists are sorted.
+///     ids.select_builtin = int(
+///         n_selected_builtins > 0
+///         and memory[ids.selected_encodings] == memory[ids.all_encodings]
+///     )
+///     if ids.select_builtin:
+///         n_selected_builtins = n_selected_builtins - 1
+///
+///     # A builtin is considered a simulated builtin iff its encoding appears in the
+///     # task_simulated_builtins_encodings list and the list wasn't exhausted.
+///     # Note that testing inclusion by a single comparison is possible since the
+///     simulated builtins list is sorted according to the program's builtin order.
+///     ids.is_simulated_builtin = int(
+///         n_task_simulated_builtins_left > 0
+///         and memory[ids.task_simulated_builtins_encodings] == memory[ids.all_encodings]
+///     )
+///     if ids.is_simulated_builtin:
+///         n_task_simulated_builtins_left -= 1
+/// %}
 pub fn select_builtin(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -29,19 +45,43 @@ pub fn select_builtin(
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
     let n_selected_builtins: usize = exec_scopes.get(vars::N_SELECTED_BUILTINS)?;
+    let n_simulated_builtins_left: usize = exec_scopes.get(vars::N_SIMULATED_BUILTINS_LEFT)?;
 
-    let select_builtin = if n_selected_builtins == 0 {
-        false
-    } else {
-        let selected_encodings =
-            get_ptr_from_var_name("selected_encodings", vm, ids_data, ap_tracking)?;
-        let all_encodings = get_ptr_from_var_name("all_encodings", vm, ids_data, ap_tracking)?;
+    let compute_flags =
+        |n_selected: usize, n_simulated_left: usize| -> Result<(bool, bool), HintError> {
+            if n_selected == 0 {
+                return Ok((false, false));
+            }
 
-        let selected_encoding = vm.get_integer(selected_encodings)?.into_owned();
-        let builtin_encoding = vm.get_integer(all_encodings)?.into_owned();
+            let selected_encodings =
+                get_ptr_from_var_name("selected_encodings", vm, ids_data, ap_tracking)?;
+            let all_encodings = get_ptr_from_var_name("all_encodings", vm, ids_data, ap_tracking)?;
+            let selected_encoding = vm.get_integer(selected_encodings)?.into_owned();
+            let builtin_encoding = vm.get_integer(all_encodings)?.into_owned();
+            let select_builtin = selected_encoding == builtin_encoding;
+            // By assumption, `is_simulated_builtin ⇒ select_builtin`.
+            if !select_builtin {
+                return Ok((false, false));
+            }
 
-        selected_encoding == builtin_encoding
-    };
+            let is_simulated_builtin = if n_simulated_left == 0 {
+                false
+            } else {
+                let task_simulated_encodings = get_ptr_from_var_name(
+                    "task_simulated_builtins_encodings",
+                    vm,
+                    ids_data,
+                    ap_tracking,
+                )?;
+                let simulated_encoding = vm.get_integer(task_simulated_encodings)?.into_owned();
+                builtin_encoding == simulated_encoding
+            };
+
+            Ok((select_builtin, is_simulated_builtin))
+        };
+
+    let (select_builtin, is_simulated_builtin) =
+        compute_flags(n_selected_builtins, n_simulated_builtins_left)?;
 
     let select_builtin_felt = Felt252::from(select_builtin);
     insert_value_from_var_name(
@@ -51,9 +91,23 @@ pub fn select_builtin(
         ids_data,
         ap_tracking,
     )?;
+    let is_simulated_builtin_felt = Felt252::from(is_simulated_builtin);
+    insert_value_from_var_name(
+        "is_simulated_builtin",
+        is_simulated_builtin_felt,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
 
     if select_builtin {
         exec_scopes.insert_value(vars::N_SELECTED_BUILTINS, n_selected_builtins - 1);
+    }
+    if is_simulated_builtin {
+        exec_scopes.insert_value(
+            vars::N_SIMULATED_BUILTINS_LEFT,
+            n_simulated_builtins_left - 1,
+        );
     }
 
     Ok(())
