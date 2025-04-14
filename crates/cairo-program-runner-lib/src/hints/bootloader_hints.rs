@@ -56,7 +56,7 @@ pub fn prepare_simple_bootloader_output_segment(
     // output_builtin.new_state(base=ids.simple_bootloader_output_start)
     let output_builtin = vm.get_output_builtin_mut()?;
     let output_builtin_state = output_builtin.get_state();
-    output_builtin.new_state(new_segment_base.segment_index as usize, true);
+    output_builtin.new_state(new_segment_base.segment_index as usize, 0, true);
     exec_scopes.insert_value(vars::OUTPUT_BUILTIN_STATE, output_builtin_state);
 
     insert_value_from_var_name(

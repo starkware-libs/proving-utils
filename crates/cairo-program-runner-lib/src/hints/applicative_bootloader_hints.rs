@@ -89,7 +89,7 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
     // output_builtin.new_state(base=ids.aggregator_output_ptr)
     let output_builtin = vm.get_output_builtin_mut()?;
     let applicative_output_builtin_state = output_builtin.get_state();
-    output_builtin.new_state(new_segment_base.segment_index as usize, true);
+    output_builtin.new_state(new_segment_base.segment_index as usize, 0, true);
     exec_scopes.insert_value(
         vars::APPLICATIVE_OUTPUT_BUILTIN_STATE,
         applicative_output_builtin_state,
@@ -189,7 +189,7 @@ pub fn prepare_root_task_unpacker_bootloader_output_segment(
 
     // Python: output_builtin.new_state(base=ids.bootloader_output_ptr)
     let output_builtin = vm.get_output_builtin_mut()?;
-    output_builtin.new_state(new_segment_base.segment_index as usize, true);
+    output_builtin.new_state(new_segment_base.segment_index as usize, 0, true);
 
     Ok(())
 }
