@@ -12,3 +12,5 @@ stwo_cairo_utils.workspace = true
 stwo-cairo-adapter.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+cairo-program-runner-lib.workspace = true
+cairo-vm.workspace = true
