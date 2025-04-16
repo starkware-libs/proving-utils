@@ -10,6 +10,7 @@ use cairo_vm::types::layout::CairoLayoutParams;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 use cairo_vm::vm::runners::cairo_pie::{CairoPie, StrippedProgram};
+use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 use cairo_vm::Felt252;
 use num_traits::ToPrimitive;
 use serde::de::Error as SerdeError;
@@ -538,4 +539,10 @@ pub struct PedersenMerkleInput {
     pub path: Vec<Felt252>,
     pub prev_leaf: Felt252,
     pub new_leaf: Felt252,
+}
+
+#[derive(Serialize)]
+pub struct OutputER {
+    pub output: Vec<Felt252>,
+    pub execution_resources: ExecutionResources,
 }
