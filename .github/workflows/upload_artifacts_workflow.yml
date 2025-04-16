@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - yairv/add_option_to_save_run_outputs_and_execution_resources_to_file
 
 jobs:
   artifacts-push:

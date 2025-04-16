@@ -8,8 +8,8 @@ use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_pro
 use cairo_vm::types::layout_name::LayoutName;
 
 use cairo_program_runner_lib::cairo_run_program;
-use cairo_vm::cairo_run;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
+use cairo_vm::{cairo_run, Felt252};
 use clap::Parser;
 use tempfile::NamedTempFile;
 
@@ -87,6 +87,16 @@ struct Args {
         the layout."
     )]
     allow_missing_builtins: bool,
+    #[clap(
+        long = "outputs_file",
+        help = "Write the program's output after the run to this file."
+    )]
+    outputs_file: Option<PathBuf>,
+    #[clap(
+        long = "execution_resources_file",
+        help = "Write the program's execution resources after the run to this file."
+    )]
+    execution_resources_file: Option<PathBuf>,
 }
 struct FileWriter {
     buf_writer: io::BufWriter<std::fs::File>,
@@ -137,7 +147,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.allow_missing_builtins,
     )?;
 
-    let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
+    let mut runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
+
+    // Handle program output file if specified
+    if let Some(outputs_file) = args.outputs_file {
+        let mut output_buffer = String::new();
+        runner.vm.write_output(&mut output_buffer)?;
+        let output_lines = output_buffer
+            .lines()
+            .map(|line| {
+                Felt252::from_dec_str(line)
+                    .map_err(|_| format!("Failed to parse output line as Felt decimal: {}", line))
+            })
+            .collect::<Result<Vec<Felt252>, _>>()?;
+        std::fs::write(outputs_file, serde_json::to_string_pretty(&output_lines)?)?;
+    }
+
+    // Handle execution resources file if specified
+    if let Some(er_file) = args.execution_resources_file {
+        let er = runner.get_execution_resources()?;
+        std::fs::write(er_file, serde_json::to_string_pretty(&er)?)?;
+    }
 
     // Handle Cairo PIE output if specified
     if let Some(pie_output_path) = args.cairo_pie_output {
