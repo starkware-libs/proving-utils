@@ -52,4 +52,4 @@ jobs:
           cache-on-failure: true
       - run: cargo install cargo-udeps --locked
       #      - run: cargo +nightly udeps --all-targets
-      - run: cargo +nightly-2025-01-02 udeps
+      - run: cargo +nightly-2025-04-06 udeps

@@ -54,6 +54,7 @@ fn main() -> ExitCode {
     run_binary(run, "stwo_vm_runner")
 }
 
+#[allow(clippy::result_large_err)]
 fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
     let _span = span!(Level::INFO, "run").entered();
     let args = Args::try_parse_from(args)?;
