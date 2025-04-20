@@ -30,6 +30,7 @@ pub mod utils;
 ///   containing the execution state.
 /// - `Err(CairoRunError)`: If an error occurs during execution, returns a `CairoRunError`
 ///   describing the problem.
+#[allow(clippy::result_large_err)]
 pub fn cairo_run_program(
     program: &Program,
     program_input_contents: Option<String>,

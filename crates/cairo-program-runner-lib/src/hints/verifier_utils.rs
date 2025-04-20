@@ -1090,11 +1090,7 @@ pub fn sort_segments(
     ];
     segment_names.extend(builtin_ordered_list.iter().filter_map(|builtin| {
         let name = format!("{:?}", builtin);
-        if memory_segments.contains_key(&name) {
-            Some(name)
-        } else {
-            None
-        }
+        memory_segments.contains_key(&name).then_some(name)
     }));
 
     let mut sorted_segments = HashMap::new();
