@@ -75,6 +75,30 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
     let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
     let cairo_input = adapt_finished_runner(cairo_runner)?;
 
+    // Soundness checks that will be verified by the verifier.
+    assert_eq!(cairo_input.state_transitions.initial_state.pc.0, 1);
+    assert!(
+        cairo_input.state_transitions.initial_state.pc.0 < cairo_input.state_transitions.initial_state.ap.0 - 2,
+        "Initial pc must be less than initial ap - 2, but got initial_pc: {}, initial_ap: {}",
+        cairo_input.state_transitions.initial_state.pc.0,
+        cairo_input.state_transitions.initial_state.ap.0 - 2
+    );
+    assert_eq!(
+        cairo_input.state_transitions.initial_state.fp.0,
+        cairo_input.state_transitions.final_state.fp.0
+    );
+    assert_eq!(
+        cairo_input.state_transitions.initial_state.fp.0,
+        cairo_input.state_transitions.initial_state.ap.0
+    );
+    assert_eq!(cairo_input.state_transitions.final_state.pc.0, 5);
+    assert!(cairo_input.state_transitions.initial_state.ap.0 <= cairo_input.state_transitions.final_state.ap.0);
+    assert!(
+        cairo_input.state_transitions.final_state.ap.0 < 1 << 31,
+        "final_ap must be less than 2^31, but got {}",
+        cairo_input.state_transitions.final_state.ap.0
+    );
+
     let execution_resources = ExecutionResources::from_prover_input(&cairo_input);
     log::info!("Execution resources: {:#?}", execution_resources);
     std::fs::write(
