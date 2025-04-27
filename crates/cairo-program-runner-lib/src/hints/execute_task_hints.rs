@@ -7,6 +7,7 @@ use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_ptr_from_var_name, get_relocatable_from_var_name, insert_value_from_var_name,
     insert_value_into_ap,
 };
+use cairo_vm::hint_processor::builtin_hint_processor::memcpy_hint_utils::exit_scope;
 use cairo_vm::hint_processor::hint_processor_definition::{
     HintExtension, HintProcessorLogic, HintReference,
 };
@@ -380,55 +381,19 @@ fn process_program_common_logic(
     Ok(())
 }
 
-/*
-Implements hint:
-%{
-    "from starkware.cairo.bootloaders.simple_bootloader.objects import (
-        CairoPieTask,
-        RunProgramTask,
-        Task,
-    )
-    from starkware.cairo.bootloaders.simple_bootloader.utils import (
-        load_cairo_pie,
-        prepare_output_runner,
-    )
-
-    assert isinstance(task, Task)
-    n_builtins = len(task.get_program().builtins)
-    new_task_locals = {}
-    if isinstance(task, RunProgramTask):
-        new_task_locals['program_input'] = task.program_input
-        new_task_locals['WITH_BOOTLOADER'] = True
-
-        vm_load_program(task.program, program_address)
-    elif isinstance(task, CairoPieTask):
-        ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ + pc
-        load_cairo_pie(
-            task=task.cairo_pie, memory=memory, segments=segments,
-            program_address=program_address, execution_segment_address= ap - n_builtins,
-            builtin_runners=builtin_runners, ret_fp=fp, ret_pc=ret_pc,
-            ecdsa_additional_data=vm_ecdsa_additional_data)
-    else:
-        raise NotImplementedError(f'Unexpected task type: {type(task).__name__}.')
-
-    output_runner_data = prepare_output_runner(
-        task=task,
-        output_builtin=output_builtin,
-        output_ptr=ids.pre_execution_builtin_ptrs.output)
-    vm_enter_scope(new_task_locals)"
-%}
-*/
-pub fn call_task(
+/// Implements a hint that sets up the subtask for execution. It loads the program into memory,
+/// sets the program address, and prepares the output runner data. It also handles the
+/// builtins and the program input.
+/// Supports Cairo0 and Cairo1 programs, as well as CairoPIEs.
+pub fn setup_subtask_for_execution(
     hint_processor: &mut BootloaderHintProcessor,
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<HintExtension, HintError> {
-    // assert isinstance(task, Task)
     let task: Task = exec_scopes.get(vars::TASK)?;
 
-    // n_builtins = len(task.get_program().builtins)
     let n_builtins = get_program_from_task(&task)?.builtins.len();
     exec_scopes.insert_value(vars::N_BUILTINS, n_builtins);
 
@@ -436,10 +401,10 @@ pub fn call_task(
 
     let mut hint_extension = HintExtension::default();
 
+    let subtask_cairo0_constants: Option<HashMap<String, Felt252>>;
+    let subtask_cairo1_hint_processor: Option<CairoHintProcessor>;
     match &task {
-        // if isinstance(task, RunProgramTask):
         Task::Cairo0Program(cairo0_executable) => {
-            // vm_load_program(task.program, program_address)
             if let Some(program_input) = cairo0_executable.program_input.as_ref() {
                 new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input.clone()]);
             }
@@ -452,10 +417,10 @@ pub fn call_task(
                 &mut hint_extension,
             )?;
 
-            hint_processor.additional_constants = cairo0_executable.program.constants.clone();
-            hint_processor.change_needed = true;
+            subtask_cairo0_constants = Some(cairo0_executable.program.constants.clone());
+            // This task doesn’t require a cairo1 hint processor.
+            subtask_cairo1_hint_processor = None;
         }
-        // elif isinstance(task, CairoPieTask):
         Task::Pie(cairo_pie) => {
             let program_address: Relocatable = exec_scopes.get("program_address")?;
 
@@ -471,10 +436,6 @@ pub fn call_task(
             let ret_pc_offset = ret_pc_label - call_task;
             let ret_pc = (vm.get_pc() + ret_pc_offset)?;
 
-            // load_cairo_pie(
-            //     task=task.cairo_pie, memory=memory, segments=segments,
-            //     program_address=program_address, execution_segment_address= ap - n_builtins,
-            //     builtin_runners=builtin_runners, ret_fp=fp, ret_pc=ret_pc)
             load_cairo_pie(
                 cairo_pie,
                 vm,
@@ -484,9 +445,12 @@ pub fn call_task(
                 ret_pc,
             )
             .map_err(Into::<HintError>::into)?;
+            // No subtask constants and cairo1 hint processor are used.
+            subtask_cairo0_constants = None;
+            subtask_cairo1_hint_processor = None;
         }
         Task::Cairo1Program(cairo1_executable) => {
-            hint_processor.subtask_cairo_hint_processor = Some(CairoHintProcessor {
+            subtask_cairo1_hint_processor = Some(CairoHintProcessor {
                 runner: None,
                 user_args: vec![vec![Arg::Array(cairo1_executable.user_args.clone())]],
                 string_to_hint: cairo1_executable.string_to_hint.clone(),
@@ -497,19 +461,18 @@ pub fn call_task(
                 markers: Default::default(),
                 panic_traceback: Default::default(),
             });
-
             process_program_common_logic(
                 &cairo1_executable.program,
                 &mut new_task_locals,
                 exec_scopes,
-                hint_processor
-                    .subtask_cairo_hint_processor
-                    .as_ref()
-                    .unwrap(),
+                subtask_cairo1_hint_processor.as_ref().unwrap(),
                 &mut hint_extension,
             )?;
+            // Push None since no subtask constants are used.
+            subtask_cairo0_constants = None;
         }
     }
+    hint_processor.spawn_subtask(subtask_cairo0_constants, subtask_cairo1_hint_processor);
 
     // output_runner_data = prepare_output_runner(
     //     task=task,
@@ -538,6 +501,21 @@ pub fn program_hash_function_to_ap(
 ) -> Result<(), HintError> {
     let program_hash_function: HashFunc = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
     insert_value_into_ap(vm, program_hash_function as usize)
+}
+
+// Implements hint:
+// %{
+//     vm_exit_scope()
+//     # Note that bootloader_input will only be available in the next hint.
+// %}
+// also despawns the subtask from the hint processor.
+pub fn execute_task_exit_scope(
+    hint_processor: &mut BootloaderHintProcessor,
+    exec_scopes: &mut ExecutionScopes,
+) -> Result<HintExtension, HintError> {
+    exit_scope(exec_scopes)?;
+    hint_processor.despawn_subtask();
+    Ok(HintExtension::default())
 }
 
 /// Implements
@@ -846,7 +824,7 @@ mod tests {
             .expect("Failed to load Cairo PIE task in the VM memory");
 
         // Execute it
-        call_task(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+        setup_subtask_for_execution(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
             .expect("Hint failed unexpectedly");
     }
 
