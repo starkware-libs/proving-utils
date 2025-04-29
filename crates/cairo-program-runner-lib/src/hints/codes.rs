@@ -129,17 +129,8 @@ pub const BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS: &str =
 pub const BOOTLOADER_ASSERT_IS_COMPOSITE_PACKED_OUTPUT: &str =
     "assert isinstance(packed_output, CompositePackedOutput)";
 
-pub const SIMPLE_BOOTLOADER_PREPARE_TASK_RANGE_CHECKS: &str =
-    "n_tasks = len(simple_bootloader_input.tasks)
-memory[ids.output_ptr] = n_tasks
-
-# Task range checks are located right after simple bootloader validation range checks, and
-# this is validated later in this function.
-ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks
-
-# A list of fact_toplogies that instruct how to generate the fact from the program output
-# for each task.
-fact_topologies = []";
+pub const SETUP_RUN_SIMPLE_BOOTLOADER_BEFORE_TASK_EXECUTION: &str =
+    "SETUP_RUN_SIMPLE_BOOTLOADER_BEFORE_TASK_EXECUTION";
 
 pub const SIMPLE_BOOTLOADER_SET_TASKS_VARIABLE: &str = "tasks = simple_bootloader_input.tasks";
 

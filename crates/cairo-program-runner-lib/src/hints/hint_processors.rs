@@ -32,8 +32,8 @@ use crate::hints::execute_task_hints::{
 use crate::hints::inner_select_builtins::select_builtin;
 use crate::hints::select_builtins::select_builtins_enter_scope;
 use crate::hints::simple_bootloader_hints::{
-    divide_num_by_2, prepare_task_range_checks, set_ap_to_zero, set_current_task,
-    set_tasks_variable,
+    divide_num_by_2, set_ap_to_zero, set_current_task, set_tasks_variable,
+    setup_run_simple_bootloader_before_task_execution,
 };
 use crate::hints::verifier_hints::load_and_parse_proof;
 
@@ -145,8 +145,13 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             BOOTLOADER_ASSERT_IS_COMPOSITE_PACKED_OUTPUT => {
                 assert_is_composite_packed_output(exec_scopes)
             }
-            SIMPLE_BOOTLOADER_PREPARE_TASK_RANGE_CHECKS => {
-                prepare_task_range_checks(vm, exec_scopes, ids_data, ap_tracking)
+            SETUP_RUN_SIMPLE_BOOTLOADER_BEFORE_TASK_EXECUTION => {
+                setup_run_simple_bootloader_before_task_execution(
+                    vm,
+                    exec_scopes,
+                    ids_data,
+                    ap_tracking,
+                )
             }
             SIMPLE_BOOTLOADER_SET_TASKS_VARIABLE => set_tasks_variable(exec_scopes),
             SIMPLE_BOOTLOADER_DIVIDE_NUM_BY_2 => divide_num_by_2(vm, ids_data, ap_tracking),
