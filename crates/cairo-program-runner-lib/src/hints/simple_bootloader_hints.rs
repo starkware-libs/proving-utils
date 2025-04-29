@@ -19,51 +19,36 @@ use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
-use crate::hints::execute_task_hints::ALL_BUILTINS;
 use crate::hints::fact_topologies::FactTopology;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
 
-/// Implements
-/// n_tasks = len(simple_bootloader_input.tasks)
-/// memory[ids.output_ptr] = n_tasks
-///
-/// # Task range checks are located right after simple bootloader validation range checks, and
-/// # this is validated later in this function.
-/// ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks
-///
-/// # A list of fact_toplogies that instruct how to generate the fact from the program output
-/// # for each task.
-/// fact_topologies = []
-pub fn prepare_task_range_checks(
+/// Implements a hint that:
+/// 1. Writes the number of tasks into `output_ptr[0]`.
+/// 2. Sets `initial_subtasks_range_check_ptr` to a new temporary segment.
+/// 3. Initializes `fact_topologies` hint variable to an empty array.
+pub fn setup_run_simple_bootloader_before_task_execution(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    // n_tasks = len(simple_bootloader_input.tasks)
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
-    let n_tasks = simple_bootloader_input.tasks.len();
 
-    // memory[ids.output_ptr] = n_tasks
+    let n_tasks = simple_bootloader_input.tasks.len();
     let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
     vm.insert_value(output_ptr, Felt252::from(n_tasks))?;
 
-    // ids.task_range_check_ptr = ids.range_check_ptr + ids.BuiltinData.SIZE * n_tasks
-    // BuiltinData is a struct with n_builtins members defined in execute_task.cairo.
-    const BUILTIN_DATA_SIZE: usize = ALL_BUILTINS.len();
-    let range_check_ptr = get_ptr_from_var_name("range_check_ptr", vm, ids_data, ap_tracking)?;
-    let task_range_check_ptr = (range_check_ptr + BUILTIN_DATA_SIZE * n_tasks)?;
+    let temp_segment = vm.add_temporary_segment();
     insert_value_from_var_name(
-        "task_range_check_ptr",
-        task_range_check_ptr,
+        "initial_subtasks_range_check_ptr",
+        temp_segment,
         vm,
         ids_data,
         ap_tracking,
     )?;
 
-    // fact_topologies = []
     let fact_topologies = Vec::<FactTopology>::new();
     exec_scopes.insert_value(vars::FACT_TOPOLOGIES, fact_topologies);
 
