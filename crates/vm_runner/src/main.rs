@@ -8,7 +8,7 @@ use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
-use stwo_cairo_adapter::plain::adapt_finished_runner;
+use stwo_cairo_adapter::adapter::adapt_finished_runner;
 use stwo_cairo_adapter::vm_import::VmImportError;
 use stwo_cairo_adapter::{ExecutionResources, ProverInput};
 use stwo_cairo_utils::binary_utils::run_binary;
