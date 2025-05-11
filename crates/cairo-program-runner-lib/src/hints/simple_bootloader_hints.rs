@@ -19,9 +19,12 @@ use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
+use super::types::HashFunc;
 use crate::hints::fact_topologies::FactTopology;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
+
+use super::utils::get_program_from_task;
 
 /// Implements a hint that:
 /// 1. Writes the number of tasks into `output_ptr[0]`.
@@ -91,12 +94,18 @@ pub fn set_ap_to_zero(vm: &mut VirtualMachine) -> Result<(), HintError> {
     Ok(())
 }
 
-/// Implements
-/// from starkware.cairo.bootloaders.simple_bootloader.objects import Task
-///
-/// # Pass current task to execute_task.
-/// task_id = len(simple_bootloader_input.tasks) - ids.n_tasks
-/// task = simple_bootloader_input.tasks[task_id].load_task()
+// Implements hint: "memory[ap] = to_felt_or_relocatable(1 if task.program_hash_function else 0)"
+// Note: The python code above is obsolete and we just use this hint code to map to the below
+// function which implements the required logic.
+pub fn program_hash_function_to_ap(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+) -> Result<(), HintError> {
+    let program_hash_function: HashFunc = exec_scopes.get(vars::PROGRAM_HASH_FUNCTION)?;
+    insert_value_into_ap(vm, program_hash_function as usize)
+}
+
+/// Sets the current task.
 pub fn set_current_task(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -105,7 +114,9 @@ pub fn set_current_task(
 ) -> Result<(), HintError> {
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
+
     let n_tasks_felt = get_integer_from_var_name("n_tasks", vm, ids_data, ap_tracking)?;
+
     let n_tasks = n_tasks_felt
         .to_usize()
         .ok_or(MathError::Felt252ToUsizeConversion(Box::new(n_tasks_felt)))?;
@@ -114,7 +125,18 @@ pub fn set_current_task(
     let task = simple_bootloader_input.tasks[task_id].load_task();
     let program_hash_function = simple_bootloader_input.tasks[task_id].program_hash_function;
 
+    let mut use_prev_hash = 0;
+    if task_id > 0 {
+        let prev_task = simple_bootloader_input.tasks[task_id - 1].load_task();
+        use_prev_hash =
+            if get_program_from_task(task).unwrap() == get_program_from_task(prev_task).unwrap() {
+                1
+            } else {
+                0
+            };
+    }
     exec_scopes.insert_value(vars::TASK, task.clone());
+    exec_scopes.insert_value(vars::USE_PREV_HASH, use_prev_hash);
     exec_scopes.insert_value(vars::PROGRAM_HASH_FUNCTION, program_hash_function);
 
     Ok(())
