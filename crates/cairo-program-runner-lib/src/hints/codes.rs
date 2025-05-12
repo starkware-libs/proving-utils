@@ -28,7 +28,8 @@ bootloader_config: BootloaderConfig = bootloader_input.bootloader_config
 
 ids.bootloader_config = segments.gen_arg(
     [
-        bootloader_config.simple_bootloader_program_hash,
+        len(bootloader_config.supported_simple_bootloader_hash_list),
+        bootloader_config.supported_simple_bootloader_hash_list,
         len(bootloader_config.supported_cairo_verifier_program_hashes),
         bootloader_config.supported_cairo_verifier_program_hashes,
         bootloader_config.applicative_bootloader_program_hash,
