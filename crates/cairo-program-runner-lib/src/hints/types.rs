@@ -28,7 +28,7 @@ pub(crate) type ProgramIdentifiers = HashMap<String, Identifier>;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct BootloaderConfig {
-    pub simple_bootloader_program_hash: Felt252,
+    pub supported_simple_bootloader_hash_list: Vec<Felt252>,
     pub applicative_bootloader_program_hash: Felt252,
     pub supported_cairo_verifier_program_hashes: Vec<Felt252>,
 }

@@ -130,7 +130,8 @@ pub fn restore_bootloader_output(
 ///
 /// ids.bootloader_config = segments.gen_arg(
 ///     [
-///         bootloader_config.simple_bootloader_program_hash,
+///         len(bootloader_config.supported_simple_bootloader_hash_list),
+///         bootloader_config.supported_simple_bootloader_hash_list,
 ///         len(bootloader_config.supported_cairo_verifier_program_hashes),
 ///         bootloader_config.supported_cairo_verifier_program_hashes,
 ///         bootloader_config.applicative_bootloader_program_hash,
@@ -145,22 +146,23 @@ pub fn load_bootloader_config(
     let bootloader_input: BootloaderInput = exec_scopes.get(vars::BOOTLOADER_INPUT)?;
     let config = bootloader_input.bootloader_config;
 
-    // Organize args as
-    // [
-    //     bootloader_config.simple_bootloader_program_hash,
-    //     len(bootloader_config.supported_cairo_verifier_program_hashes),
-    //     bootloader_config.supported_cairo_verifier_program_hashes,
-    //     bootloader_config.applicative_bootloader_program_hash,
-    // ]
-    let mut program_hashes = Vec::<Box<dyn Any>>::new();
-    for program_hash in &config.supported_cairo_verifier_program_hashes {
-        program_hashes.push(Box::new(MaybeRelocatable::from(program_hash)));
-    }
+    let supported_simple_bootloader_hashes: Vec<Box<dyn Any>> = config
+        .supported_simple_bootloader_hash_list
+        .iter()
+        .map(|h| Box::new(MaybeRelocatable::from(h)) as Box<dyn Any>)
+        .collect();
+
+    let supported_verifier_hashes: Vec<Box<dyn Any>> = config
+        .supported_cairo_verifier_program_hashes
+        .iter()
+        .map(|h| Box::new(MaybeRelocatable::from(h)) as Box<dyn Any>)
+        .collect();
 
     let args: Vec<Box<dyn Any>> = vec![
-        maybe_relocatable_box!(config.simple_bootloader_program_hash),
+        maybe_relocatable_box!(config.supported_simple_bootloader_hash_list.len()),
+        any_box!(supported_simple_bootloader_hashes),
         maybe_relocatable_box!(config.supported_cairo_verifier_program_hashes.len()),
-        any_box!(program_hashes),
+        any_box!(supported_verifier_hashes),
         maybe_relocatable_box!(config.applicative_bootloader_program_hash),
     ];
 
