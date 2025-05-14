@@ -127,13 +127,16 @@ pub fn set_current_task(
 
     let mut use_prev_hash = 0;
     if task_id > 0 {
-        let prev_task = simple_bootloader_input.tasks[task_id - 1].load_task();
-        use_prev_hash =
-            if get_program_from_task(task).unwrap() == get_program_from_task(prev_task).unwrap() {
-                1
-            } else {
-                0
-            };
+        let prev_task_spec = &simple_bootloader_input.tasks[task_id - 1];
+        let prev_task = prev_task_spec.load_task();
+        use_prev_hash = if get_program_from_task(task).unwrap()
+            == get_program_from_task(prev_task).unwrap()
+            && prev_task_spec.program_hash_function == program_hash_function
+        {
+            1
+        } else {
+            0
+        };
     }
     exec_scopes.insert_value(vars::TASK, task.clone());
     exec_scopes.insert_value(vars::USE_PREV_HASH, use_prev_hash);
