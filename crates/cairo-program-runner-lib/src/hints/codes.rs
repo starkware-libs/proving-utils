@@ -551,7 +551,8 @@ ids.n_poseidon = program_input.get(\"n_poseidon\", 0)
 ids.n_range_check96 = program_input.get(\"n_range_check96\", 0)
 ids.n_add_mod = program_input.get(\"n_add_mod\", 0)
 ids.n_mul_mod = program_input.get(\"n_mul_mod\", 0)
-ids.n_memory_holes = program_input.get(\"n_memory_holes\", 0)";
+ids.n_memory_holes = program_input.get(\"n_memory_holes\", 0)
+ids.n_blake2s = program_input.get(\"n_blake2s\", 0)";
 
 pub const BUILTIN_USAGE_ADD_SIGNATURE_FROM_SIGNATURE_BUILTIN_STRUCT: &str =
     "ecdsa_builtin.add_signature(ids.ecdsa_ptr.address_, (

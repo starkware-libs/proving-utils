@@ -550,6 +550,8 @@ pub struct FlexibleBuiltinUsageInput {
     pub n_mul_mod: usize,
     #[serde(default)]
     pub n_memory_holes: usize,
+    #[serde(default)]
+    pub n_blake2s: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
