@@ -3,7 +3,7 @@ name: check
 on:
   push:
     branches:
-      - main
+      - meidar/update_cairo_vm_80f9e7e
   pull_request:
 
 jobs:
@@ -52,4 +52,4 @@ jobs:
           cache-on-failure: true
       - run: cargo install cargo-udeps --locked
       #      - run: cargo +nightly udeps --all-targets
-      - run: cargo +nightly-2025-04-06 udeps
+      - run: cargo +nightly-2025-05-17 udeps
