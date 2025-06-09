@@ -370,7 +370,7 @@ fn process_program_common_logic(
                             references,
                         )
                         .map_err(|err| {
-                            HintError::CustomHint(format!("{} for hint: {}", err, hint.code).into())
+                            HintError::CustomHint(format!("{err} for hint: {}", hint.code).into())
                         })
                 })
                 .collect::<Result<Vec<_>, HintError>>()?;

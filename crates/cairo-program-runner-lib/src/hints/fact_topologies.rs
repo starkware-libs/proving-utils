@@ -175,7 +175,7 @@ pub fn compute_fact_topologies(
                     .get_plain_fact_topologies(applicative_bootloader_program_hash)
                     .map_err(|e| {
                         FactTopologyError::CompositePackedParsingFailed(
-                            format!("{:?}", e).into_boxed_str(),
+                            format!("{e:?}").into_boxed_str(),
                         )
                     })?;
                 plain_fact_topologies.extend(subtask_plain_fact_topologies);
@@ -385,11 +385,8 @@ fn get_program_task_fact_topology(
         BuiltinAdditionalData::Output(data) => data,
         other => {
             return Err(FactTopologyError::Internal(
-                format!(
-                    "Additional data of output builtin is not of the expected type: {:?}",
-                    other
-                )
-                .into_boxed_str(),
+                format!("Additional data of output builtin is not of the expected type: {other:?}")
+                    .into_boxed_str(),
             ))
         }
     };

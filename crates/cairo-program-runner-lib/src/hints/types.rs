@@ -305,9 +305,8 @@ impl<'de> Deserialize<'de> for TaskSpec {
         let task = match helper.task_type.as_str() {
             "CairoPiePath" => {
                 if let Some(path) = &helper.path {
-                    create_pie_task(path).map_err(|e| {
-                        D::Error::custom(format!("Error creating PIE task: {:?}", e))
-                    })?
+                    create_pie_task(path)
+                        .map_err(|e| D::Error::custom(format!("Error creating PIE task: {e:?}")))?
                 } else {
                     return Err(D::Error::custom("CairoPiePath requires a path"));
                 }
@@ -317,7 +316,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
                 let program_input = if let Some(program_input_data) = &helper.program_input {
                     let program_input_json =
                         serde_json::to_string(program_input_data).map_err(|e| {
-                            D::Error::custom(format!("Failed to serialize program input: {:?}", e))
+                            D::Error::custom(format!("Failed to serialize program input: {e:?}"))
                         })?;
                     Some(program_input_json)
                 } else {
@@ -326,11 +325,11 @@ impl<'de> Deserialize<'de> for TaskSpec {
                 // Deserialize program if present
                 if let Some(program_data) = &helper.program {
                     let program_bytes = serde_json::to_vec(program_data).map_err(|e| {
-                        D::Error::custom(format!("Failed to serialize program: {:?}", e))
+                        D::Error::custom(format!("Failed to serialize program: {e:?}"))
                     })?;
                     let program =
                         Program::from_bytes(&program_bytes, Some("main")).map_err(|e| {
-                            D::Error::custom(format!("Failed to deserialize program: {:?}", e))
+                            D::Error::custom(format!("Failed to deserialize program: {e:?}"))
                         })?;
                     Task::Cairo0Program(Cairo0Executable {
                         program,
@@ -338,7 +337,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
                     })
                 } else if let Some(path) = &helper.path {
                     create_cairo0_program_task(path, program_input).map_err(|e| {
-                        D::Error::custom(format!("Error creating Program task: {:?}", e))
+                        D::Error::custom(format!("Error creating Program task: {e:?}"))
                     })?
                 } else {
                     return Err(D::Error::custom(
@@ -350,7 +349,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
                 if let Some(path) = &helper.path {
                     create_cairo1_program_task(path, helper.user_args_list, helper.user_args_file)
                         .map_err(|e| {
-                        D::Error::custom(format!("Error creating Cairo1 Program Task: {:?}", e))
+                        D::Error::custom(format!("Error creating Cairo1 Program Task: {e:?}"))
                     })?
                 } else {
                     return Err(D::Error::custom("Cairo1Executable requires a path"));

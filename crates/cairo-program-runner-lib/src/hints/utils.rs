@@ -101,7 +101,7 @@ pub fn gen_arg(
     let mut ptr = base;
     for arg in args {
         if let Some(value) = arg.downcast_ref::<MaybeRelocatable>() {
-            ptr = vm.segments.load_data(ptr, &[value.clone()])?;
+            ptr = vm.segments.load_data(ptr, std::slice::from_ref(value))?;
         } else if let Some(vector) = arg.downcast_ref::<Vec<Box<dyn Any>>>() {
             let nested_base = gen_arg(vm, vector)?;
             ptr = vm.segments.load_data(ptr, &[nested_base.into()])?;

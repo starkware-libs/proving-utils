@@ -22,8 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
+      - run: rustup component add clippy --toolchain nightly
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all -- -D warnings
+      - run: cargo +nightly clippy --all -- -D warnings
 
   tests:
     runs-on: ubuntu-latest

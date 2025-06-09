@@ -17,7 +17,7 @@ fn parse_bool(s: &str) -> Result<bool, String> {
     match s.to_lowercase().as_str() {
         "true" | "1" => Ok(true),
         "false" | "0" => Ok(false),
-        _ => Err(format!("invalid boolean value: {}", s)),
+        _ => Err(format!("invalid boolean value: {s}")),
     }
 }
 

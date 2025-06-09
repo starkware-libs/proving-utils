@@ -89,8 +89,7 @@ pub fn get_cairo_run_config(
         Some(file) => {
             assert!(
                 layout == LayoutName::dynamic,
-                "dynamic_params_file should not be provided for layout {}.",
-                layout
+                "dynamic_params_file should not be provided for layout {layout}."
             );
             Some(CairoLayoutParams::from_file(file)?)
         }
