@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - meidar/update_cairo_vm_80f9e7e
 
 jobs:
   artifacts-push:
