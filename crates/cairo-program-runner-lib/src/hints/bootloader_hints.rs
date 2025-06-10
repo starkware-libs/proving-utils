@@ -245,7 +245,7 @@ pub fn assert_is_composite_packed_output(
     match packed_output {
         PackedOutput::Composite(_) => Ok(()),
         other => Err(HintError::CustomHint(
-            format!("Expected composite packed output, got {:?}", other).into_boxed_str(),
+            format!("Expected composite packed output, got {other:?}").into_boxed_str(),
         )),
     }
 }

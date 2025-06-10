@@ -66,9 +66,9 @@ pub fn create_cairo1_program_task(
     user_args_file: Option<PathBuf>,
 ) -> Result<Task, BootloaderTaskError> {
     let file = std::fs::File::open(path)
-        .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to open file: {:?}", e)))?;
+        .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to open file: {e:?}")))?;
     let executable: Executable = serde_json::from_reader(file).map_err(|e| {
-        BootloaderTaskError::Cairo1(format!("Failed reading prebuilt executable: {:?}", e))
+        BootloaderTaskError::Cairo1(format!("Failed reading prebuilt executable: {e:?}"))
     })?;
     let user_args_list: Vec<BigInt> = user_args_list
         .unwrap_or_default()
@@ -76,9 +76,9 @@ pub fn create_cairo1_program_task(
         .map(|n| BigInt::from_str(&n.to_string()).unwrap())
         .collect();
     let (program, string_to_hint) = program_and_hints_from_executable(&executable, false)
-        .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse executable: {:?}", e)))?;
+        .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse executable: {e:?}")))?;
     let user_args = user_args_from_flags(user_args_file.as_ref(), &user_args_list)
-        .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse user args: {:?}", e)))?;
+        .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse user args: {e:?}")))?;
     Ok(Task::Cairo1Program(Cairo1Executable {
         program,
         user_args,

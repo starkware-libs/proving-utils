@@ -210,7 +210,7 @@ mod tests {
         let program_hash = compute_program_hash_chain(&stripped_program, bootloader_version)
             .expect("Failed to compute program hash.");
 
-        let program_hash_hex = format!("{:#x}", program_hash);
+        let program_hash_hex = format!("{program_hash:#x}");
 
         assert_eq!(program_hash_hex, expected_program_hash);
     }

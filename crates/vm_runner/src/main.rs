@@ -8,7 +8,7 @@ use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
-use stwo_cairo_adapter::adapter::adapt_finished_runner;
+use stwo_cairo_adapter::adapter::adapter;
 use stwo_cairo_adapter::vm_import::VmImportError;
 use stwo_cairo_adapter::{ExecutionResources, ProverInput};
 use stwo_cairo_utils::binary_utils::run_binary;
@@ -73,13 +73,16 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         dynamic_layout_params: None,
     };
     let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
-    let cairo_input = adapt_finished_runner(cairo_runner)?;
+    let mut prover_input_info = cairo_runner
+        .get_prover_input_info()
+        .expect("Unable to get prover input info");
+    let prover_input = adapter(&mut prover_input_info)?;
 
-    let execution_resources = ExecutionResources::from_prover_input(&cairo_input);
-    log::info!("Execution resources: {:#?}", execution_resources);
+    let execution_resources = ExecutionResources::from_prover_input(&prover_input);
+    log::info!("Execution resources: {execution_resources:#?}");
     std::fs::write(
         args.output_execution_resources_path,
         serde_json::to_string(&execution_resources)?,
     )?;
-    Ok(cairo_input)
+    Ok(prover_input)
 }

@@ -273,19 +273,13 @@ pub fn simulate_keccak_calc_high_low(
     let divisor = NonZeroFelt::try_from(Felt252::from(1u64 << (x * 8))).unwrap();
     let (high_felt, low_felt) = felt.div_rem(&divisor);
     insert_value_from_var_name(
-        &format!("high{}", index),
+        &format!("high{index}"),
         high_felt,
         vm,
         ids_data,
         ap_tracking,
     )?;
-    insert_value_from_var_name(
-        &format!("low{}", index),
-        low_felt,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name(&format!("low{index}"), low_felt, vm, ids_data, ap_tracking)?;
 
     Ok(())
 }
