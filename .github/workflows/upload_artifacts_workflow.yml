@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - meidar/update/stwo_cairo_rev_b24bcc0
 
 jobs:
   artifacts-push:
