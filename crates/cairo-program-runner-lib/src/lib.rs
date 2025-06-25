@@ -34,7 +34,7 @@ pub mod utils;
 pub fn cairo_run_program(
     program: &Program,
     program_input_contents: Option<String>,
-    cairo_run_config: CairoRunConfig,
+    cairo_run_config: &CairoRunConfig,
 ) -> Result<CairoRunner, CairoRunError> {
     let mut hint_processor = BootloaderHintProcessor::new();
 
@@ -51,7 +51,7 @@ pub fn cairo_run_program(
     // Run the program with the configured execution scopes and cairo_run_config
     let runner = cairo_run_program_with_initial_scope(
         program,
-        &cairo_run_config,
+        cairo_run_config,
         &mut hint_processor,
         exec_scopes,
     )?;

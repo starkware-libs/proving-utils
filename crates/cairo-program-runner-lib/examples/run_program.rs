@@ -31,13 +31,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         layout: LayoutName::starknet_with_keccak,
         dynamic_layout_params: None,
         disable_trace_padding: false,
+        relocate_mem: true,
     }
     .create_config();
 
     let mut runner = cairo_run_program(
         &simple_bootloader_program,
         Some(program_input_contents),
-        cairo_run_config,
+        &cairo_run_config,
     )?;
 
     let mut output_buffer = "Program Output:\n".to_string();

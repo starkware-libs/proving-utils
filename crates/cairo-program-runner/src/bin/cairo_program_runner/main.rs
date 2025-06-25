@@ -145,9 +145,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.proof_mode,
         args.disable_trace_padding,
         args.allow_missing_builtins,
+        true, // will affect only if proof_mode is true
     )?;
 
-    let mut runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
+    let mut runner = cairo_run_program(&program, program_input_contents, &cairo_run_config)?;
 
     // Handle program output file if specified
     if let Some(outputs_file) = args.outputs_file {
