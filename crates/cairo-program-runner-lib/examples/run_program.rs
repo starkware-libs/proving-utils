@@ -31,6 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         layout: LayoutName::starknet_with_keccak,
         dynamic_layout_params: None,
         disable_trace_padding: false,
+        relocate_mem: true,
     }
     .create_config();
 

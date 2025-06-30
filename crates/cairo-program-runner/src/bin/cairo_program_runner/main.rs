@@ -97,7 +97,16 @@ struct Args {
         help = "Write the program's execution resources after the run to this file."
     )]
     execution_resources_file: Option<PathBuf>,
+    #[clap(
+        long = "relocate_mem",
+        help = "Relocate memory in the VM run. Should be false in case of using the stwo adapter,
+        because it includes relocation.",
+        default_value = "true",
+        requires = "proof_mode"
+    )]
+    relocate_mem: bool,
 }
+
 struct FileWriter {
     buf_writer: io::BufWriter<std::fs::File>,
     bytes_written: usize,
@@ -145,6 +154,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.proof_mode,
         args.disable_trace_padding,
         args.allow_missing_builtins,
+        args.relocate_mem, // will affect only if proof_mode is true
     )?;
 
     let mut runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
