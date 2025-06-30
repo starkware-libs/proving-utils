@@ -64,7 +64,8 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
     let cairo_run_config = cairo_run::CairoRunConfig {
         entrypoint: "main",
         trace_enabled: true,
-        relocate_mem: true,
+        relocate_mem: false,
+        // we don't need to relocate memory here because we later use the adapter that does it.
         layout: args.layout,
         proof_mode: true,
         secure_run: None,
