@@ -462,6 +462,7 @@ pub enum RunMode {
         layout: LayoutName,
         dynamic_layout_params: Option<CairoLayoutParams>,
         disable_trace_padding: bool,
+        relocate_mem: bool,
     },
     Validation {
         layout: LayoutName,
@@ -476,10 +477,11 @@ impl RunMode {
                 layout,
                 dynamic_layout_params,
                 disable_trace_padding,
+                relocate_mem,
             } => CairoRunConfig {
                 entrypoint: "main",
                 trace_enabled: true,
-                relocate_mem: true,
+                relocate_mem,
                 layout,
                 proof_mode: true,
                 secure_run: None,

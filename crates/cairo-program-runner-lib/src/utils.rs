@@ -66,6 +66,8 @@ pub fn get_program_input(program_input: &Option<PathBuf>) -> io::Result<Option<S
 /// * `disable_trace_padding` - A boolean flag to disable trace padding (used in proof mode).
 /// * `allow_missing_builtins` - A boolean flag to allow missing built-ins (used in validation
 ///   mode).
+/// * `relocate_mem` - A boolean flag indicating whether to relocate memory in the VM (used in proof
+///   mode).
 ///
 /// # Returns
 ///
@@ -84,6 +86,7 @@ pub fn get_cairo_run_config(
     proof_mode: bool,
     disable_trace_padding: bool,
     allow_missing_builtins: bool,
+    relocate_mem: bool,
 ) -> std::io::Result<CairoRunConfig<'static>> {
     let dynamic_layout_params = match dynamic_params_file {
         Some(file) => {
@@ -101,6 +104,7 @@ pub fn get_cairo_run_config(
             layout,
             dynamic_layout_params,
             disable_trace_padding,
+            relocate_mem,
         }
         .create_config()
     } else {
