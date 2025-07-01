@@ -4,3 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+cairo-vm.workspace = true
+clap.workspace = true
+thiserror.workspace = true
+cairo-program-runner-lib.workspace = true
+stwo-cairo-adapter.workspace = true
