@@ -2,7 +2,7 @@
 members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
-    "crates/run_and_prove",
+    "crates/stwo_run_and_prove",
     "crates/vm_runner",
 ]
 resolver = "2"
