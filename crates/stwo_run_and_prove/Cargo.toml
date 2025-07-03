@@ -1,5 +1,5 @@
 [package]
-name = "run_and_prove"
+name = "stwo_run_and_prove"
 version = "0.1.0"
 edition = "2024"
 
