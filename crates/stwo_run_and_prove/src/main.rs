@@ -1,3 +1,5 @@
+use cairo_air::PreProcessedTraceVariant;
+use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
 use cairo_vm::types::errors::program_errors::ProgramError;
@@ -5,10 +7,22 @@ use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use clap::Parser;
+use serde::Serialize;
 use std::env;
 use std::path::PathBuf;
+use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapter;
 use stwo_cairo_adapter::vm_import::VmImportError;
+use stwo_cairo_prover::prover::{ChannelHash, ProverParameters, default_prod_prover_parameters};
+use stwo_cairo_serialize::CairoSerialize;
+use stwo_cairo_utils::file_utils::{IoErrorWithPath, read_to_string};
+use stwo_prover::core::backend::BackendForChannel;
+use stwo_prover::core::backend::simd::SimdBackend;
+use stwo_prover::core::channel::MerkleChannel;
+use stwo_prover::core::pcs::PcsConfig;
+use stwo_prover::core::vcs::blake2_merkle::Blake2sMerkleChannel;
+use stwo_prover::core::vcs::ops::MerkleHasher;
+use stwo_prover::core::vcs::poseidon252_merkle::Poseidon252MerkleChannel;
 use thiserror::Error;
 
 #[derive(Parser, Debug)]
@@ -19,6 +33,36 @@ struct Args {
     program: PathBuf,
     #[clap(long = "program_input", help = "Path to the program input file.")]
     program_input: Option<PathBuf>,
+
+    // prove args:
+
+    // The path to the JSON file containing the prover parameters (optional).
+    // The expected file format is:
+    //     {
+    //         "channel_hash":"blake2s",
+    //         "pcs_config": {
+    //             "pow_bits": 26,
+    //             "fri_config": {
+    //                 "log_last_layer_degree_bound": 0,
+    //                 "log_blowup_factor": 1,
+    //                 "n_queries": 70
+    //             }
+    //         },
+    //         "preprocessed_trace": "canonical_without_pedersen"
+    //     }
+    //
+    // Default parameters are chosen to ensure 96 bits of security.
+    #[clap(
+        long = "params_json",
+        help = "The path to the JSON file containing the prover parameters."
+    )]
+    params_json: Option<PathBuf>,
+    #[clap(long = "proof_path", help = "The output file path for the proof.")]
+    proof_path: PathBuf,
+    #[clap(long, value_enum, default_value_t = ProofFormat::Json, help = "Json or cairo-serde.")]
+    proof_format: ProofFormat,
+    #[clap(long = "verify", help = "Should verify the generated proof.")]
+    verify: bool,
 }
 
 #[derive(Debug, Error)]
@@ -35,10 +79,14 @@ enum StwoRunAndProveError {
     Program(#[from] ProgramError),
     #[error(transparent)]
     Runner(#[from] RunnerError),
+    #[error(transparent)]
+    File(#[from] IoErrorWithPath),
+    #[error(transparent)]
+    Serializing(#[from] sonic_rs::error::Error),
 }
 
 // Implement From<Box<CairoRunError>> manually
-// TODO(Nitsan, 03/07/2025): check why this error is so big and if it can be boxed where it was
+// TODO(Nitsan): check why this error is so big and if it can be boxed where it was
 // created.
 impl From<CairoRunError> for StwoRunAndProveError {
     fn from(err: CairoRunError) -> Self {
@@ -46,9 +94,6 @@ impl From<CairoRunError> for StwoRunAndProveError {
     }
 }
 
-#[allow(unused_variables)]
-// TODO(Nitsan, 03/07/2025): The prove part is not implemented yet, so we keep this unused variable
-// to avoid warnings.
 fn main() -> Result<(), StwoRunAndProveError> {
     let args = Args::try_parse_from(env::args())?;
     let program = get_program(args.program.as_path())?;
@@ -73,7 +118,51 @@ fn main() -> Result<(), StwoRunAndProveError> {
     let mut prover_input_info = runner.get_prover_input_info()?;
     let prover_input = adapter(&mut prover_input_info)?;
 
-    // TODO(Nitsan, 03/07/2025): prove will be implemented in next PR
+    let ProverParameters {
+        channel_hash,
+        pcs_config,
+        preprocessed_trace,
+    } = match args.params_json {
+        Some(path) => sonic_rs::from_str(&read_to_string(&path)?)?,
+        None => default_prod_prover_parameters(),
+    };
 
+    let prove_and_verify_fn = match channel_hash {
+        ChannelHash::Blake2s => prove_and_verify::<Blake2sMerkleChannel>,
+        ChannelHash::Poseidon252 => prove_and_verify::<Poseidon252MerkleChannel>,
+    };
+
+    prove_and_verify_fn(
+        prover_input,
+        pcs_config,
+        preprocessed_trace,
+        args.verify,
+        args.proof_path,
+        args.proof_format,
+    )?;
+
+    Ok(())
+}
+
+/// Generates proof given the Cairo VM output and prover parameters.
+/// Serializes the proof as cairo-serde or JSON and write to the output path.
+/// Verifies the proof in case the respective flag is set.
+#[allow(unused_variables)]
+// TODO(Nitsan): The prove part is not implemented yet, so we keep this unused variable
+// to avoid warnings.
+fn prove_and_verify<MC: MerkleChannel>(
+    vm_output: ProverInput,
+    pcs_config: PcsConfig,
+    preprocessed_trace: PreProcessedTraceVariant,
+    verify: bool,
+    proof_path: PathBuf,
+    proof_format: ProofFormat,
+) -> Result<(), StwoRunAndProveError>
+where
+    SimdBackend: BackendForChannel<MC>,
+    MC::H: Serialize,
+    <MC::H as MerkleHasher>::Hash: CairoSerialize,
+{
+    // TODO(Nitsan): this function will be implemented in next PR.
     Ok(())
 }
