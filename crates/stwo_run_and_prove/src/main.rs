@@ -1,5 +1,6 @@
 use cairo_air::PreProcessedTraceVariant;
 use cairo_air::utils::ProofFormat;
+use cairo_air::verifier::{CairoVerificationError, verify_cairo};
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
 use cairo_vm::types::errors::program_errors::ProgramError;
@@ -9,17 +10,21 @@ use cairo_vm::vm::errors::runner_errors::RunnerError;
 use clap::Parser;
 use serde::Serialize;
 use std::env;
+use std::io::Write;
 use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapter;
 use stwo_cairo_adapter::vm_import::VmImportError;
-use stwo_cairo_prover::prover::{ChannelHash, ProverParameters, default_prod_prover_parameters};
+use stwo_cairo_prover::prover::{
+    ChannelHash, ProverParameters, default_prod_prover_parameters, prove_cairo,
+};
 use stwo_cairo_serialize::CairoSerialize;
-use stwo_cairo_utils::file_utils::{IoErrorWithPath, read_to_string};
+use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
 use stwo_prover::core::backend::BackendForChannel;
 use stwo_prover::core::backend::simd::SimdBackend;
 use stwo_prover::core::channel::MerkleChannel;
 use stwo_prover::core::pcs::PcsConfig;
+use stwo_prover::core::prover::ProvingError;
 use stwo_prover::core::vcs::blake2_merkle::Blake2sMerkleChannel;
 use stwo_prover::core::vcs::ops::MerkleHasher;
 use stwo_prover::core::vcs::poseidon252_merkle::Poseidon252MerkleChannel;
@@ -83,6 +88,10 @@ enum StwoRunAndProveError {
     File(#[from] IoErrorWithPath),
     #[error(transparent)]
     Serializing(#[from] sonic_rs::error::Error),
+    #[error(transparent)]
+    Proving(#[from] ProvingError),
+    #[error(transparent)]
+    Verification(#[from] CairoVerificationError),
 }
 
 // Implement From<Box<CairoRunError>> manually
@@ -151,9 +160,6 @@ fn main() -> Result<(), StwoRunAndProveError> {
 /// Generates proof given the Cairo VM output and prover parameters.
 /// Serializes the proof as cairo-serde or JSON and write to the output path.
 /// Verifies the proof in case the respective flag is set.
-#[allow(unused_variables)]
-// TODO(Nitsan): The prove part is not implemented yet, so we keep this unused variable
-// to avoid warnings.
 fn prove_and_verify<MC: MerkleChannel>(
     vm_output: ProverInput,
     pcs_config: PcsConfig,
@@ -167,6 +173,31 @@ where
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
-    // TODO(Nitsan): this function will be implemented in next PR.
+    let proof = prove_cairo::<MC>(vm_output, pcs_config, preprocessed_trace)?;
+    let mut proof_file = create_file(&proof_path)?;
+
+    match proof_format {
+        ProofFormat::Json => {
+            let serialized = sonic_rs::to_string_pretty(&proof)?;
+            proof_file.write_all(serialized.as_bytes())?;
+        }
+        ProofFormat::CairoSerde => {
+            let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
+            CairoSerialize::serialize(&proof, &mut serialized);
+
+            let hex_strings: Vec<String> = serialized
+                .into_iter()
+                .map(|felt| format!("0x{:x}", felt))
+                .collect();
+
+            let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
+            proof_file.write_all(serialized_hex.as_bytes())?;
+        }
+    }
+
+    if verify {
+        verify_cairo::<MC>(proof, preprocessed_trace)?;
+    }
+
     Ok(())
 }

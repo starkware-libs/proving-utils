@@ -16,3 +16,4 @@ cairo-air.workspace = true
 serde.workspace = true
 stwo-prover.workspace = true
 sonic-rs.workspace = true
+starknet-ff.workspace = true
