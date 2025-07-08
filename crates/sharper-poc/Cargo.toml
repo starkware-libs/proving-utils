@@ -1,0 +1,24 @@
+[package]
+name = "sharper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+base64 = "0.21"
+bytes = "1"
+hyper = "1"
+cairo-vm.workspace = true
+clap.workspace = true
+thiserror.workspace = true
+cairo-program-runner-lib.workspace = true
+stwo-cairo-adapter.workspace = true
+stwo_cairo_prover.workspace = true
+stwo_cairo_utils.workspace = true
+stwo-cairo-serialize.workspace = true
+cairo-air = { git = "https://github.com/starkware-libs/cairo", package = "cairo-air" }
+serde.workspace = true
+stwo-prover.workspace = true
+sonic-rs.workspace = true
+starknet-ff.workspace = true
