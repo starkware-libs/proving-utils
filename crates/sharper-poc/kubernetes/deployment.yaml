@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sharper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sharper
+  template:
+    metadata:
+      labels:
+        app: sharper
+    spec:
+      containers:
+      - name: sharper
+        image: gcr.io/yuval-playground/sharper:latest
+        ports:
+        - containerPort: 8080
