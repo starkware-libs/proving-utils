@@ -10,12 +10,12 @@ resolver = "2"
 bincode = { version = "2.0.1", features = [
     "serde",
 ] }
-cairo-lang-executable = { git = "https://github.com/starkware-libs/cairo.git", rev = "a7bd5c9399e99040e6c9a8669256619d245f49cd" }
-cairo-lang-runner = { git = "https://github.com/starkware-libs/cairo.git", rev = "a7bd5c9399e99040e6c9a8669256619d245f49cd" }
-cairo-lang-casm = { git = "https://github.com/starkware-libs/cairo.git", rev = "a7bd5c9399e99040e6c9a8669256619d245f49cd" }
-cairo-lang-execute-utils = { git = "https://github.com/starkware-libs/cairo.git", rev = "a7bd5c9399e99040e6c9a8669256619d245f49cd" }
+cairo-lang-executable = { git = "https://github.com/starkware-libs/cairo.git", rev = "de904ec8f8e16cad0fb28238a7de83f818aa1e99" }
+cairo-lang-runner = { git = "https://github.com/starkware-libs/cairo.git", rev = "de904ec8f8e16cad0fb28238a7de83f818aa1e99" }
+cairo-lang-casm = { git = "https://github.com/starkware-libs/cairo.git", rev = "de904ec8f8e16cad0fb28238a7de83f818aa1e99" }
+cairo-lang-execute-utils = { git = "https://github.com/starkware-libs/cairo.git", rev = "de904ec8f8e16cad0fb28238a7de83f818aa1e99" }
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib" }
-cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm", rev = "b1a91f929b5fa29a1a2e9e6990a68a1220c0c673", features = [
+cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm", rev = "6fbd067f0971f117d2e5abe77caad086bb887150", features = [
     "extensive_hints",
     "mod_builtin",
     "clap",
@@ -29,8 +29,8 @@ serde = { version = "1.0.202", features = ["derive"] }
 serde_json = "1.0.117"
 starknet-crypto = "0.6.2"
 starknet-types-core = "0.1.2"
-stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "409bc61ee3d413ed3fb857e049e5081a4f649ecb" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "409bc61ee3d413ed3fb857e049e5081a4f649ecb" }
+stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e1edff3ebd34c5ae925535ec7a8873e593d02380" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e1edff3ebd34c5ae925535ec7a8873e593d02380" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
