@@ -16,3 +16,4 @@ cairo-air.workspace = true
 sonic-rs = { version = "0.3.17" }
 serde.workspace = true
 stwo-prover.workspace = true
+starknet-ff.workspace = true
