@@ -68,6 +68,11 @@ struct Args {
     proof_format: ProofFormat,
     #[clap(long = "verify", help = "Should verify the generated proof.")]
     verify: bool,
+    #[clap(
+        long = "program_output_path",
+        help = "An optional output file path for the program output."
+    )]
+    program_output_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Error)]
@@ -148,14 +153,16 @@ fn main() -> Result<(), StwoRunAndProveError> {
         args.verify,
         args.proof_path,
         args.proof_format,
+        args.program_output_path,
     )?;
 
     Ok(())
 }
 
 /// Generates proof given the Cairo VM output and prover parameters.
-/// Serializes the proof as cairo-serde or JSON and write to the output path.
+/// Serializes the proof as cairo-serde or JSON and write to the proof path.
 /// Verifies the proof in case the respective flag is set.
+/// Saves the program output to the output path in case it is given.
 fn prove_and_verify<MC: MerkleChannel>(
     vm_output: ProverInput,
     pcs_config: PcsConfig,
@@ -163,6 +170,7 @@ fn prove_and_verify<MC: MerkleChannel>(
     verify: bool,
     proof_path: PathBuf,
     proof_format: ProofFormat,
+    program_output_path: Option<PathBuf>,
 ) -> Result<(), StwoRunAndProveError>
 where
     SimdBackend: BackendForChannel<MC>,
@@ -191,8 +199,26 @@ where
         }
     }
 
+    let output_vec = if program_output_path.is_some() {
+        Some(proof.claim.public_data.public_memory.output.clone())
+    } else {
+        None
+    };
+
     if verify {
         verify_cairo::<MC>(proof, preprocessed_trace)?;
+    }
+
+    // save the output to a file as [u32; 8] values, we will convert it to [u256] in Python
+    if let Some(program_output_path) = program_output_path {
+        let mut output_file = create_file(&program_output_path)?;
+        let values: Vec<_> = output_vec
+            .unwrap()
+            .into_iter()
+            .map(|(_, value)| value)
+            .collect();
+        let formatted_values = format!("{:?}", values);
+        output_file.write_all(formatted_values.as_bytes())?;
     }
 
     Ok(())
