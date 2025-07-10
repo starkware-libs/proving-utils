@@ -68,6 +68,11 @@ struct Args {
     proof_format: ProofFormat,
     #[clap(long = "verify", help = "Should verify the generated proof.")]
     verify: bool,
+    #[clap(
+        long = "program_output",
+        help = "An optional output file path for the program output."
+    )]
+    program_output: Option<PathBuf>,
 }
 
 #[derive(Debug, Error)]
@@ -108,8 +113,8 @@ fn main() -> Result<(), StwoRunAndProveError> {
     // another function.
     let args = Args::try_parse_from(env::args())?;
     let program = get_program(args.program.as_path())?;
-
     let program_input_contents = get_program_input(&args.program_input)?;
+
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -145,7 +150,7 @@ fn main() -> Result<(), StwoRunAndProveError> {
         ChannelHash::Poseidon252 => prove_and_verify::<Poseidon252MerkleChannel>,
     };
 
-    prove_and_verify_fn(
+    let output_vec = prove_and_verify_fn(
         prover_input,
         pcs_config,
         preprocessed_trace,
@@ -154,12 +159,17 @@ fn main() -> Result<(), StwoRunAndProveError> {
         args.proof_format,
     )?;
 
+    if args.program_output.is_some() {
+        save_output_to_file(output_vec, args.program_output.unwrap())?;
+    }
+
     Ok(())
 }
 
 /// Generates proof given the Cairo VM output and prover parameters.
-/// Serializes the proof as cairo-serde or JSON and write to the output path.
+/// Serializes the proof as cairo-serde or JSON and write to the proof path.
 /// Verifies the proof in case the respective flag is set.
+/// Returns the program output in case the respective flag is set.
 fn prove_and_verify<MC: MerkleChannel>(
     vm_output: ProverInput,
     pcs_config: PcsConfig,
@@ -167,7 +177,7 @@ fn prove_and_verify<MC: MerkleChannel>(
     verify: bool,
     proof_path: PathBuf,
     proof_format: ProofFormat,
-) -> Result<(), StwoRunAndProveError>
+) -> Result<Vec<[u32; 8]>, StwoRunAndProveError>
 where
     SimdBackend: BackendForChannel<MC>,
     MC::H: Serialize,
@@ -195,9 +205,28 @@ where
         }
     }
 
+    let output_addresses_and_values = proof.claim.public_data.public_memory.output.clone();
+    let output_values = output_addresses_and_values
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect();
+
     if verify {
         verify_cairo::<MC>(proof, preprocessed_trace)?;
     }
 
+    Ok(output_values)
+}
+
+/// Saves the output to the specified output path as [u32; 8] values,
+/// that will be converted to [u256] in the Prover service.
+fn save_output_to_file(
+    output_vec: Vec<[u32; 8]>,
+    output_path: PathBuf,
+) -> Result<(), StwoRunAndProveError> {
+    let serialized_output = sonic_rs::to_string(&output_vec)?;
+    std::fs::write(output_path, serialized_output)?;
     Ok(())
 }
+
+// TODO(nitsan): add a test for the main function that runs the program and checks the output.
