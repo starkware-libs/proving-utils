@@ -68,6 +68,13 @@ struct Args {
     proof_path: PathBuf,
     #[clap(long, value_enum, default_value_t = ProofFormat::Json, help = "Json or cairo-serde.")]
     proof_format: ProofFormat,
+    #[clap(
+        long = "n_proof_attempts",
+        help = "Number of attempts for proving, in case the proof verification fails.",
+        default_value_t = 1,
+        requires = "verify"
+    )]
+    n_proof_attempts: u16,
     #[clap(long = "verify", help = "Should verify the generated proof.")]
     verify: bool,
     #[clap(
@@ -110,17 +117,28 @@ impl From<CairoRunError> for StwoRunAndProveError {
     }
 }
 
+struct ProveArgs {
+    proof_path: PathBuf,
+    proof_format: ProofFormat,
+    verify: bool,
+    n_proof_attempts: u16,
+}
+
 fn main() -> Result<(), StwoRunAndProveError> {
     let args = Args::try_parse_from(env::args())?;
+    let prove_args = ProveArgs {
+        verify: args.verify,
+        proof_path: args.proof_path,
+        proof_format: args.proof_format,
+        n_proof_attempts: args.n_proof_attempts,
+    };
 
     stwo_run_and_prove(
         args.program,
         args.program_input,
         args.program_output,
         args.params_json,
-        args.verify,
-        args.proof_path,
-        args.proof_format,
+        prove_args,
     )?;
     Ok(())
 }
@@ -130,9 +148,7 @@ fn stwo_run_and_prove(
     program_input: Option<PathBuf>,
     program_output: Option<PathBuf>,
     params_json: Option<PathBuf>,
-    verify: bool,
-    proof_path: PathBuf,
-    proof_format: ProofFormat,
+    prove_args: ProveArgs,
 ) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
@@ -155,7 +171,7 @@ fn stwo_run_and_prove(
     let mut prover_input_info = runner.get_prover_input_info()?;
     let prover_input = adapter(&mut prover_input_info)?;
 
-    let output_vec = prove(params_json, prover_input, verify, proof_path, proof_format)?;
+    let output_vec = prove(params_json, prover_input, prove_args)?;
 
     if let Some(output_path) = program_output {
         save_output_to_file(output_vec, output_path)?;
@@ -169,9 +185,7 @@ fn stwo_run_and_prove(
 fn prove(
     prover_params_json: Option<PathBuf>,
     prover_input: ProverInput,
-    verify: bool,
-    proof_path: PathBuf,
-    proof_format: ProofFormat,
+    prove_args: ProveArgs,
 ) -> Result<OutputVec, StwoRunAndProveError> {
     let ProverParameters {
         channel_hash,
@@ -187,14 +201,7 @@ fn prove(
         ChannelHash::Poseidon252 => prove_with_channel::<Poseidon252MerkleChannel>,
     };
 
-    prove_with_channel_fn(
-        prover_input,
-        pcs_config,
-        preprocessed_trace,
-        verify,
-        proof_path,
-        proof_format,
-    )
+    prove_with_channel_fn(prover_input, pcs_config, preprocessed_trace, prove_args)
 }
 
 /// Generates proof given the prover input and prover parameters, using the specified merkel
@@ -205,45 +212,57 @@ fn prove_with_channel<MC: MerkleChannel>(
     prover_input: ProverInput,
     pcs_config: PcsConfig,
     preprocessed_trace: PreProcessedTraceVariant,
-    verify: bool,
-    proof_path: PathBuf,
-    proof_format: ProofFormat,
+    prove_args: ProveArgs,
 ) -> Result<OutputVec, StwoRunAndProveError>
 where
     SimdBackend: BackendForChannel<MC>,
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
-    let proof = prove_cairo::<MC>(prover_input, pcs_config, preprocessed_trace)?;
-    let mut proof_file = create_file(&proof_path)?;
+    let mut output_values: OutputVec = Vec::new();
 
-    match proof_format {
-        ProofFormat::Json => {
-            let serialized = sonic_rs::to_string_pretty(&proof)?;
-            proof_file.write_all(serialized.as_bytes())?;
+    for i in 0..prove_args.n_proof_attempts {
+        let proof = prove_cairo::<MC>(prover_input.clone(), pcs_config, preprocessed_trace)?;
+        let mut proof_file = create_file(&prove_args.proof_path)?;
+        // TODO(nitsan): instead of getting proof_path we should get a proof_dir, and save the
+        // result of each attempt in a separate file. Will implement this in follow PR.
+        // For now, we just overwrite the file in each iteration.
+
+        match prove_args.proof_format {
+            ProofFormat::Json => {
+                let serialized = sonic_rs::to_string_pretty(&proof)?;
+                proof_file.write_all(serialized.as_bytes())?;
+            }
+            ProofFormat::CairoSerde => {
+                let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
+                CairoSerialize::serialize(&proof, &mut serialized);
+                let hex_strings: Vec<String> = serialized
+                    .into_iter()
+                    .map(|felt| format!("0x{:x}", felt))
+                    .collect();
+                let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
+                proof_file.write_all(serialized_hex.as_bytes())?;
+            }
         }
-        ProofFormat::CairoSerde => {
-            let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
-            CairoSerialize::serialize(&proof, &mut serialized);
 
-            let hex_strings: Vec<String> = serialized
-                .into_iter()
-                .map(|felt| format!("0x{:x}", felt))
-                .collect();
+        let output_addresses_and_values = proof.claim.public_data.public_memory.output.clone();
+        output_values = output_addresses_and_values
+            .into_iter()
+            .map(|(_, value)| value)
+            .collect();
 
-            let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
-            proof_file.write_all(serialized_hex.as_bytes())?;
+        if prove_args.verify {
+            if let Err(verify_err) = verify_cairo::<MC>(proof, preprocessed_trace) {
+                if i == prove_args.n_proof_attempts - 1 {
+                    return Err(StwoRunAndProveError::Verification(verify_err));
+                } else {
+                    continue; // Retry proving if verification fails
+                }
+            } else {
+                // if verification is successful
+                break;
+            }
         }
-    }
-
-    let output_addresses_and_values = proof.claim.public_data.public_memory.output.clone();
-    let output_values = output_addresses_and_values
-        .into_iter()
-        .map(|(_, value)| value)
-        .collect();
-
-    if verify {
-        verify_cairo::<MC>(proof, preprocessed_trace)?;
     }
 
     Ok(output_values)
@@ -260,4 +279,5 @@ fn save_output_to_file(
     Ok(())
 }
 
-// TODO(nitsan): add a test for the main function that runs the program and checks the output.
+// TODO(nitsan): add tests for the proof, the output and the retry logic.
+// TODO(nitsan): add logs
