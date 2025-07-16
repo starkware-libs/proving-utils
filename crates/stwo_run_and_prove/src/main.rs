@@ -5,6 +5,7 @@ use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
+use cairo_vm::types::program::Program;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use clap::Parser;
@@ -111,13 +112,29 @@ impl From<CairoRunError> for StwoRunAndProveError {
 }
 
 fn main() -> Result<(), StwoRunAndProveError> {
-    // TODO(Nitsan): keep in the main function only the arguments parsing, and move the logic to
-    // another function.
     let args = Args::try_parse_from(env::args())?;
-    let program = get_program(args.program.as_path())?;
-    let program_input_contents = get_program_input(&args.program_input)?;
-    let should_save_output = args.program_output.is_some();
 
+    stwo_run_and_prove(
+        get_program(args.program.as_path())?,
+        get_program_input(&args.program_input)?,
+        args.program_output,
+        args.params_json,
+        args.verify,
+        args.proof_path,
+        args.proof_format,
+    )?;
+    Ok(())
+}
+
+fn stwo_run_and_prove(
+    program: Program,
+    program_input_contents: Option<String>,
+    program_output: Option<PathBuf>,
+    params_json: Option<PathBuf>,
+    verify: bool,
+    proof_path: PathBuf,
+    proof_format: ProofFormat,
+) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -136,18 +153,19 @@ fn main() -> Result<(), StwoRunAndProveError> {
     let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
     let mut prover_input_info = runner.get_prover_input_info()?;
     let prover_input = adapter(&mut prover_input_info)?;
+    let should_save_output = program_output.is_some();
 
     let output_vec = prove(
-        args.params_json,
+        params_json,
         prover_input,
-        args.verify,
-        args.proof_path,
-        args.proof_format,
+        verify,
+        proof_path,
+        proof_format,
         should_save_output,
     )?;
 
     if should_save_output {
-        save_output_to_file(output_vec.unwrap(), args.program_output.unwrap())?;
+        save_output_to_file(output_vec.unwrap(), program_output.unwrap())?;
     }
 
     Ok(())
