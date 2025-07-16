@@ -111,12 +111,29 @@ impl From<CairoRunError> for StwoRunAndProveError {
 }
 
 fn main() -> Result<(), StwoRunAndProveError> {
-    // TODO(Nitsan): keep in the main function only the arguments parsing, and move the logic to
-    // another function.
     let args = Args::try_parse_from(env::args())?;
-    let program = get_program(args.program.as_path())?;
-    let program_input_contents = get_program_input(&args.program_input)?;
 
+    stwo_run_and_prove(
+        args.program,
+        args.program_input,
+        args.program_output,
+        args.params_json,
+        args.verify,
+        args.proof_path,
+        args.proof_format,
+    )?;
+    Ok(())
+}
+
+fn stwo_run_and_prove(
+    program: PathBuf,
+    program_input: Option<PathBuf>,
+    program_output: Option<PathBuf>,
+    params_json: Option<PathBuf>,
+    verify: bool,
+    proof_path: PathBuf,
+    proof_format: ProofFormat,
+) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -132,19 +149,15 @@ fn main() -> Result<(), StwoRunAndProveError> {
         false,
     )?;
 
-    let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
+    let program = get_program(program.as_path())?;
+    let program_input = get_program_input(&program_input)?;
+    let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let mut prover_input_info = runner.get_prover_input_info()?;
     let prover_input = adapter(&mut prover_input_info)?;
 
-    let output_vec = prove(
-        args.params_json,
-        prover_input,
-        args.verify,
-        args.proof_path,
-        args.proof_format,
-    )?;
+    let output_vec = prove(params_json, prover_input, verify, proof_path, proof_format)?;
 
-    if let Some(output_path) = args.program_output {
+    if let Some(output_path) = program_output {
         save_output_to_file(output_vec, output_path)?;
     }
 
