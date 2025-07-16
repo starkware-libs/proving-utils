@@ -137,26 +137,9 @@ fn main() -> Result<(), StwoRunAndProveError> {
     let mut prover_input_info = runner.get_prover_input_info()?;
     let prover_input = adapter(&mut prover_input_info)?;
 
-    // TODO(Nitsan): move the proverParameters creation and the call to the prove_and_verify_fn to
-    // another function (and later to somewhere in stwo-cairo).
-    let ProverParameters {
-        channel_hash,
-        pcs_config,
-        preprocessed_trace,
-    } = match args.params_json {
-        Some(path) => sonic_rs::from_str(&read_to_string(&path)?)?,
-        None => default_prod_prover_parameters(),
-    };
-
-    let prove_and_verify_fn = match channel_hash {
-        ChannelHash::Blake2s => prove_and_verify::<Blake2sMerkleChannel>,
-        ChannelHash::Poseidon252 => prove_and_verify::<Poseidon252MerkleChannel>,
-    };
-
-    let output_vec = prove_and_verify_fn(
+    let output_vec = prove_and_verify(
+        args.params_json,
         prover_input,
-        pcs_config,
-        preprocessed_trace,
         args.verify,
         args.proof_path,
         args.proof_format,
@@ -170,12 +153,47 @@ fn main() -> Result<(), StwoRunAndProveError> {
     Ok(())
 }
 
-/// Generates proof given the Cairo VM output and prover parameters.
+/// Prepers the prover parameters, chooses the merkle channel based on the channel hash,
+/// and calls the `prove_and_verify_helper` function to generate the proof.
+fn prove_and_verify(
+    prover_params_json: Option<PathBuf>,
+    prover_input: ProverInput,
+    verify: bool,
+    proof_path: PathBuf,
+    proof_format: ProofFormat,
+    should_return_output: bool,
+) -> Result<Option<OutputVec>, StwoRunAndProveError> {
+    let ProverParameters {
+        channel_hash,
+        pcs_config,
+        preprocessed_trace,
+    } = match prover_params_json {
+        Some(path) => sonic_rs::from_str(&read_to_string(&path)?)?,
+        None => default_prod_prover_parameters(),
+    };
+
+    let prove_and_verify_helper_fn = match channel_hash {
+        ChannelHash::Blake2s => prove_and_verify_helper::<Blake2sMerkleChannel>,
+        ChannelHash::Poseidon252 => prove_and_verify_helper::<Poseidon252MerkleChannel>,
+    };
+
+    prove_and_verify_helper_fn(
+        prover_input,
+        pcs_config,
+        preprocessed_trace,
+        verify,
+        proof_path,
+        proof_format,
+        should_return_output,
+    )
+}
+
+/// Generates proof given the prover input and prover parameters, using a specific merkel channel.
 /// Serializes the proof as cairo-serde or JSON and write to the proof path.
 /// Verifies the proof in case the respective flag is set.
 /// Returns the program output in case the respective flag is set.
-fn prove_and_verify<MC: MerkleChannel>(
-    vm_output: ProverInput,
+fn prove_and_verify_helper<MC: MerkleChannel>(
+    prover_input: ProverInput,
     pcs_config: PcsConfig,
     preprocessed_trace: PreProcessedTraceVariant,
     verify: bool,
@@ -188,7 +206,7 @@ where
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
-    let proof = prove_cairo::<MC>(vm_output, pcs_config, preprocessed_trace)?;
+    let proof = prove_cairo::<MC>(prover_input, pcs_config, preprocessed_trace)?;
     let mut proof_file = create_file(&proof_path)?;
 
     match proof_format {
@@ -223,7 +241,7 @@ where
     Ok(output_vec)
 }
 
-/// Saves the output to the specified output path as [u32; 8] values,
+/// Saves the program output to the specified output path as [u32; 8] values,
 /// that will be converted to [u256] in the Prover service.
 fn save_output(
     output_vec: Vec<(u32, [u32; 8])>,
