@@ -126,7 +126,9 @@ fn main() -> Result<(), StwoRunAndProveError> {
     )?;
 
     let runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
-    let mut prover_input_info = runner.get_prover_input_info()?;
+    let mut prover_input_info = runner
+        .get_prover_input_info()
+        .expect("Unable to get prover input info");
     let prover_input = adapter(&mut prover_input_info)?;
 
     // TODO(Nitsan): move the proverParameters creation and the call to the prove_and_verify_fn to
