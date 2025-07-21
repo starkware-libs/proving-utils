@@ -277,7 +277,7 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
         vm: &mut VirtualMachine,
         exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
-        constants: &HashMap<String, Felt252>,
+        _constants: &HashMap<String, Felt252>,
     ) -> Result<(), HintError> {
         let hint_data = hint_data
             .downcast_ref::<HintProcessorData>()
