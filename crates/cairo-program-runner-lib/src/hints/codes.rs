@@ -602,3 +602,5 @@ w = compute_message_schedule(message)
 output = sha2_compress_function(IV, w)
 padding = (message + IV + output) * number_of_missing_blocks
 segments.write_arg(ids.sha256_ptr_end, padding)";
+
+pub const SHA256_DEBUG: &str = "SHA256_DEBUG";

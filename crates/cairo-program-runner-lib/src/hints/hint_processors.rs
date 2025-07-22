@@ -61,7 +61,7 @@ use super::pedersen_merkle_hints::{
     pedersen_merkle_idx_parity_to_ap, pedersen_merkle_load_input, pedersen_merkle_update,
     pedersen_merkle_verify_auth_path_len,
 };
-use super::sha256_hints::sha2_finalize;
+use super::sha256_hints::{sha2_finalize, sha256_debug};
 use super::simple_bootloader_hints::{
     simple_bootloader_simulate_ec_op, simple_bootloader_simulate_ecdsa,
     simple_bootloader_simulate_keccak, simulate_ec_op_assert_false,
@@ -253,6 +253,7 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
                 simulate_ecdsa_fill_mem_with_felt_96_bit_limbs(vm, ids_data, ap_tracking)
             }
             SHA256_FINALIZE => sha2_finalize(vm, ids_data, ap_tracking),
+            SHA256_DEBUG => sha256_debug(vm, ids_data, ap_tracking),
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
@@ -348,6 +349,7 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
                 pedersen_merkle_update(vm, exec_scopes, ids_data, ap_tracking, false)
             }
             SHA256_FINALIZE => sha2_finalize(vm, ids_data, ap_tracking),
+            SHA256_DEBUG => sha256_debug(vm, ids_data, ap_tracking),
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
