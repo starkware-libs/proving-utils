@@ -64,8 +64,12 @@ struct Args {
         help = "The path to the JSON file containing the prover parameters."
     )]
     params_json: Option<PathBuf>,
-    #[clap(long = "proof_path", help = "The output file path for the proof.")]
-    proof_path: PathBuf,
+    #[clap(
+        long = "proofs_dir",
+        help = "Path to the output directory where the generated 
+    proofs will be saved (may include multiple proofs from repeated attempts)."
+    )]
+    proofs_dir: PathBuf,
     #[clap(long, value_enum, default_value_t = ProofFormat::Json, help = "Json or cairo-serde.")]
     proof_format: ProofFormat,
     #[clap(
@@ -118,7 +122,7 @@ impl From<CairoRunError> for StwoRunAndProveError {
 }
 
 struct ProveArgs {
-    proof_path: PathBuf,
+    proofs_dir: PathBuf,
     proof_format: ProofFormat,
     verify: bool,
     n_proof_attempts: u16,
@@ -128,7 +132,7 @@ fn main() -> Result<(), StwoRunAndProveError> {
     let args = Args::try_parse_from(env::args())?;
     let prove_args = ProveArgs {
         verify: args.verify,
-        proof_path: args.proof_path,
+        proofs_dir: args.proofs_dir,
         proof_format: args.proof_format,
         n_proof_attempts: args.n_proof_attempts,
     };
@@ -220,13 +224,12 @@ where
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
     let mut output_values: OutputVec = Vec::new();
+    std::fs::create_dir_all(&prove_args.proofs_dir)?; // create the directory if it doesn't exist
 
     for i in 0..prove_args.n_proof_attempts {
         let proof = prove_cairo::<MC>(prover_input.clone(), pcs_config, preprocessed_trace)?;
-        let mut proof_file = create_file(&prove_args.proof_path)?;
-        // TODO(nitsan): instead of getting proof_path we should get a proof_dir, and save the
-        // result of each attempt in a separate file. Will implement this in follow PR.
-        // For now, we just overwrite the file in each iteration.
+        let proof_file_path = prove_args.proofs_dir.join(format!("proof_{}", i));
+        let mut proof_file = create_file(&proof_file_path)?;
 
         match prove_args.proof_format {
             ProofFormat::Json => {
