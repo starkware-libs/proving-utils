@@ -43,6 +43,9 @@ jobs:
       - name: "Test examples"
         run: |
           RUSTFLAGS="-D warnings" cargo run --example run_program
+      - name: "Unit tests in stwo_run_and_prove"
+        run: |
+          RUSTFLAGS="-D warnings" cargo test -p stwo_run_and_prove
 
   udeps:
     runs-on: ubuntu-latest

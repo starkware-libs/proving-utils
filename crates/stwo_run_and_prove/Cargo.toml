@@ -17,3 +17,7 @@ serde.workspace = true
 sonic-rs.workspace = true
 starknet-ff.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+mockall.workspace = true
