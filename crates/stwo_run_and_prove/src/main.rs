@@ -8,9 +8,10 @@ use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use clap::Parser;
+#[cfg(test)]
+use mockall::automock;
 use serde::Serialize;
 use std::env;
-use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
@@ -37,14 +38,10 @@ type OutputVec = Vec<[u32; 8]>;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    // cairo run args:
     #[clap(long = "program", help = "Path to the compiled program")]
     program: PathBuf,
     #[clap(long = "program_input", help = "Path to the program input file.")]
     program_input: Option<PathBuf>,
-
-    // prove args:
-
     // The path to the JSON file containing the prover parameters (optional).
     // The expected file format is:
     //     {
@@ -72,7 +69,7 @@ struct Args {
     multiple proofs from repeated attempts)."
     )]
     proofs_dir: PathBuf,
-    #[clap(long, value_enum, default_value_t = ProofFormat::Json, help = "Json or cairo-serde.")]
+    #[clap(long, value_enum, default_value_t = ProofFormat::CairoSerde, help = "Json or cairo-serde.")]
     proof_format: ProofFormat,
     #[clap(
         long = "n_proof_attempts",
@@ -116,8 +113,6 @@ enum StwoRunAndProveError {
 }
 
 // Implement From<Box<CairoRunError>> manually
-// TODO(Nitsan): check why this error is so big and if it can be boxed where it was
-// created.
 impl From<CairoRunError> for StwoRunAndProveError {
     fn from(err: CairoRunError) -> Self {
         StwoRunAndProveError::CairoRun(Box::new(err))
@@ -148,11 +143,13 @@ fn main() -> Result<(), StwoRunAndProveError> {
         prover_params_json: args.prover_params_json,
     };
 
+    let stwo_prover = Box::new(StwoProverEntryPoint);
     stwo_run_and_prove(
         args.program,
         args.program_input,
         args.program_output,
         prove_config,
+        stwo_prover,
     )?;
     Ok(())
 }
@@ -165,6 +162,7 @@ fn stwo_run_and_prove(
     program_input: Option<PathBuf>,
     program_output: Option<PathBuf>,
     prove_config: ProveConfig,
+    prover: Box<dyn ProverTrait>,
 ) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
@@ -188,7 +186,7 @@ fn stwo_run_and_prove(
     let mut prover_input_info = runner.get_prover_input_info()?;
     info!("Adapting prover input.");
     let prover_input = adapter(&mut prover_input_info)?;
-    let output_vec = prove_with_retries(prover_input, prove_config)?;
+    let output_vec = prove_with_retries(prover_input, prove_config, prover)?;
 
     if let Some(output_path) = program_output {
         save_output_to_file(output_vec, output_path)?;
@@ -200,10 +198,11 @@ fn stwo_run_and_prove(
 /// Prepares the prover parameters and generates proof given the prover input and parameters.
 /// Verifies the proof in case the respective flag is set.
 /// In case the proof verification fails, it retries up to `n_proof_attempts` times.
-/// Returns the program output.
+/// Returns the program utput.
 fn prove_with_retries(
     prover_input: ProverInput,
     prove_config: ProveConfig,
+    prover: Box<dyn ProverTrait>,
 ) -> Result<OutputVec, StwoRunAndProveError> {
     let ProverParameters {
         channel_hash,
@@ -231,11 +230,10 @@ fn prove_with_retries(
             prove_config.n_proof_attempts
         );
         let proof_file_path = prove_config.proofs_dir.join(format!("proof_{}", i));
-        let proof_file = create_file(&proof_file_path)?;
 
-        match choose_channel_and_prove(
+        match prover.choose_channel_and_prove(
             &cairo_prover_inputs,
-            proof_file,
+            proof_file_path,
             &proof_format,
             channel_hash,
             prove_config.verify,
@@ -275,18 +273,57 @@ fn prove_with_retries(
 /// Chooses the appropriate channel based on the `channel_hash` and generates a proof.
 fn choose_channel_and_prove(
     cairo_prover_inputs: &CairoProverInputs,
-    proof_file: File,
+    proof_file_path: PathBuf,
     proof_format: &ProofFormat,
     channel_hash: ChannelHash,
     verify: bool,
 ) -> Result<OutputVec, StwoRunAndProveError> {
     match channel_hash {
-        ChannelHash::Blake2s => {
-            prove::<Blake2sMerkleChannel>(cairo_prover_inputs, proof_file, proof_format, verify)
-        }
-        ChannelHash::Poseidon252 => {
-            prove::<Poseidon252MerkleChannel>(cairo_prover_inputs, proof_file, proof_format, verify)
-        }
+        ChannelHash::Blake2s => prove::<Blake2sMerkleChannel>(
+            cairo_prover_inputs,
+            proof_file_path,
+            proof_format,
+            verify,
+        ),
+        ChannelHash::Poseidon252 => prove::<Poseidon252MerkleChannel>(
+            cairo_prover_inputs,
+            proof_file_path,
+            proof_format,
+            verify,
+        ),
+    }
+}
+
+#[cfg_attr(test, automock)]
+trait ProverTrait {
+    fn choose_channel_and_prove(
+        &self,
+        cairo_prover_inputs: &CairoProverInputs,
+        proof_file_path: PathBuf,
+        proof_format: &ProofFormat,
+        channel_hash: ChannelHash,
+        verify: bool,
+    ) -> Result<OutputVec, StwoRunAndProveError>;
+}
+
+struct StwoProverEntryPoint;
+
+impl ProverTrait for StwoProverEntryPoint {
+    fn choose_channel_and_prove(
+        &self,
+        cairo_prover_inputs: &CairoProverInputs,
+        proof_file_path: PathBuf,
+        proof_format: &ProofFormat,
+        channel_hash: ChannelHash,
+        verify: bool,
+    ) -> Result<OutputVec, StwoRunAndProveError> {
+        choose_channel_and_prove(
+            cairo_prover_inputs,
+            proof_file_path,
+            proof_format,
+            channel_hash,
+            verify,
+        )
     }
 }
 
@@ -296,7 +333,7 @@ fn choose_channel_and_prove(
 /// Returns the program output.
 fn prove<MC: MerkleChannel>(
     cairo_prover_inputs: &CairoProverInputs,
-    mut proof_file: File,
+    proof_file_path: PathBuf,
     proof_format: &ProofFormat,
     verify: bool,
 ) -> Result<OutputVec, StwoRunAndProveError>
@@ -310,6 +347,8 @@ where
         cairo_prover_inputs.pcs_config,
         cairo_prover_inputs.preprocessed_trace,
     )?;
+
+    let mut proof_file = create_file(&proof_file_path)?;
 
     match proof_format {
         ProofFormat::Json => {
@@ -359,5 +398,112 @@ fn save_output_to_file(
     Ok(())
 }
 
-// TODO(nitsan): add tests for the proof, the output and the retry logic.
-// TODO(nitsan): add logs
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::{NamedTempFile, TempDir, TempPath};
+
+    const ARRAY_SUM_EXPECTED_OUTPUT: [u32; 8] = [50, 0, 0, 0, 0, 0, 0, 0];
+    const RESOURCES_PATH: &str = "resources";
+    const PROGRAM_FILE_NAME: &str = "array_sum.json";
+    const PROVER_PARAMS_FILE_NAME: &str = "prover_params.json";
+    const EXPECTED_PROOF_FILE_NAME: &str = "array_sum_proof";
+    const FIRST_PROOF_FILE_NAME: &str = "proof_0";
+
+    fn get_path(file_name: &str) -> PathBuf {
+        let current_path = env::current_dir().expect("failed to get current directory");
+        current_path.join(RESOURCES_PATH).join(file_name)
+    }
+
+    fn prepare_args(n_proof_attempts: u16) -> (Args, TempPath, TempDir) {
+        let program_output_tempfile = NamedTempFile::new()
+            .expect("Failed to create temp file for program output")
+            .into_temp_path();
+        let proofs_tempdir = TempDir::new().expect("Failed to create temp directory for proofs");
+        let args = Args {
+            program: get_path(PROGRAM_FILE_NAME),
+            program_input: None,
+            program_output: Some(program_output_tempfile.to_path_buf()),
+            prover_params_json: Some(get_path(PROVER_PARAMS_FILE_NAME)),
+            proofs_dir: proofs_tempdir.path().to_path_buf(),
+            proof_format: ProofFormat::CairoSerde,
+            n_proof_attempts,
+            verify: true,
+        };
+
+        (args, program_output_tempfile, proofs_tempdir)
+    }
+
+    fn run_stwo_run_and_prove(args: Args, prover: Box<dyn ProverTrait>) {
+        let prove_config = ProveConfig {
+            verify: args.verify,
+            proofs_dir: args.proofs_dir,
+            proof_format: args.proof_format,
+            n_proof_attempts: args.n_proof_attempts,
+            prover_params_json: args.prover_params_json,
+        };
+
+        stwo_run_and_prove(
+            args.program,
+            args.program_input,
+            args.program_output.clone(),
+            prove_config,
+            prover,
+        )
+        .expect("Failed to run stwo_run_and_prove.");
+    }
+
+    fn run_with_successful_mock_prover() -> (TempPath, TempDir) {
+        let (args, program_output_tempfile, proofs_tempdir) = prepare_args(1);
+
+        let mut mock_prover = Box::new(MockProverTrait::new());
+        mock_prover
+            .expect_choose_channel_and_prove()
+            .times(1)
+            .returning(move |_, proof_file, _, _, _| {
+                let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+                fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
+                Ok(vec![ARRAY_SUM_EXPECTED_OUTPUT])
+            });
+
+        run_stwo_run_and_prove(args, mock_prover);
+
+        (program_output_tempfile, proofs_tempdir)
+    }
+
+    #[test]
+    fn test_stwo_run_and_prove_proof() {
+        let (_, proofs_temp_dir) = run_with_successful_mock_prover();
+        let proof_file = proofs_temp_dir
+            .path()
+            .to_path_buf()
+            .join(FIRST_PROOF_FILE_NAME);
+        let proof_content = std::fs::read_to_string(proof_file).expect("Failed to read proof file");
+        let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+        let expected_proof_content = std::fs::read_to_string(expected_proof_file)
+            .expect("Failed to read expected proof file");
+        assert_eq!(
+            proof_content, expected_proof_content,
+            "Proof content does not match expected proof content"
+        );
+    }
+
+    #[test]
+    fn test_stwo_run_and_prove_output() {
+        let (output_temp_file, _) = run_with_successful_mock_prover();
+        let output_content =
+            std::fs::read_to_string(output_temp_file).expect("Failed to read output file");
+        let output_vec: OutputVec =
+            sonic_rs::from_str(&output_content).expect("Failed to parse output");
+        assert_eq!(
+            output_vec[0], ARRAY_SUM_EXPECTED_OUTPUT,
+            "Expected output to be {:?}",
+            ARRAY_SUM_EXPECTED_OUTPUT
+        );
+    }
+}
+
+// TODO(nitsan): Tests -
+// add a retries test
+// add an inner test to choose_channel_and_prove
