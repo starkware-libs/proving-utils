@@ -35,14 +35,10 @@ type OutputVec = Vec<[u32; 8]>;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    // cairo run args:
     #[clap(long = "program", help = "Path to the compiled program")]
     program: PathBuf,
     #[clap(long = "program_input", help = "Path to the program input file.")]
     program_input: Option<PathBuf>,
-
-    // prove args:
-
     // The path to the JSON file containing the prover parameters (optional).
     // The expected file format is:
     //     {
@@ -70,7 +66,7 @@ struct Args {
     proofs will be saved (may include multiple proofs from repeated attempts)."
     )]
     proofs_dir: PathBuf,
-    #[clap(long, value_enum, default_value_t = ProofFormat::Json, help = "Json or cairo-serde.")]
+    #[clap(long, value_enum, default_value_t = ProofFormat::CairoSerde, help = "Json or cairo-serde.")]
     proof_format: ProofFormat,
     #[clap(
         long = "n_proof_attempts",
@@ -282,5 +278,104 @@ fn save_output_to_file(
     Ok(())
 }
 
-// TODO(nitsan): add tests for the proof, the output and the retry logic.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::{NamedTempFile, TempDir, TempPath};
+
+    type ReturnTypes = (TempPath, PathBuf, TempDir, PathBuf);
+    const ARRAY_SUM_EXCPECTED_OUTPUT: [u32; 8] = [50, 0, 0, 0, 0, 0, 0, 0];
+    const RESOURCES_PATH: &str = "resources";
+    const PROGRAM_FILE_NAME: &str = "array_sum.json";
+    const PROVER_PARAMS_FILE_NAME: &str = "prover_params.json";
+    const EXPECTED_PROOF_FILE_NAME: &str = "array_sum_proof";
+    const FIRST_PROOF_FILE_NAME: &str = "proof_0";
+
+    fn get_path(file_name: &str) -> PathBuf {
+        let current_path = env::current_dir().expect("failed to get current directory");
+        current_path.join(RESOURCES_PATH).join(file_name)
+    }
+
+    fn setup_and_run_stwo_run_and_prove() -> ReturnTypes {
+        let program_output_tempfile = NamedTempFile::new()
+            .expect("Failed to create temp file for program output")
+            .into_temp_path();
+        let proofs_tempdir = TempDir::new().expect("Failed to create temp directory for proofs");
+        let args = Args {
+            program: get_path(PROGRAM_FILE_NAME),
+            program_input: None,
+            program_output: Some(program_output_tempfile.to_path_buf()),
+            params_json: Some(get_path(PROVER_PARAMS_FILE_NAME)),
+            proofs_dir: proofs_tempdir.path().to_path_buf(),
+            proof_format: ProofFormat::CairoSerde,
+            n_proof_attempts: 1,
+            verify: true,
+        };
+
+        let prove_args = ProveArgs {
+            verify: args.verify,
+            proofs_dir: args.proofs_dir.clone(),
+            proof_format: args.proof_format,
+            n_proof_attempts: args.n_proof_attempts,
+        };
+
+        let result = stwo_run_and_prove(
+            args.program,
+            args.program_input,
+            args.program_output.clone(),
+            args.params_json,
+            prove_args,
+        );
+
+        assert!(
+            result.is_ok(),
+            "Failed to run and prove: {:?}",
+            result.err()
+        );
+
+        let unwraped_program_output = args
+            .program_output
+            .expect("Failed to unwrap program output");
+
+        (
+            program_output_tempfile,
+            unwraped_program_output,
+            proofs_tempdir,
+            args.proofs_dir,
+        )
+    }
+
+    #[test]
+    fn test_stwo_run_and_prove_proof() {
+        let (_, _, _proofs_temp_dir, proofs_dir) = setup_and_run_stwo_run_and_prove();
+        let proof_file = proofs_dir.join(FIRST_PROOF_FILE_NAME);
+        let proof_content = std::fs::read_to_string(proof_file).expect("Failed to read proof file");
+        let excpected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+        let expected_proof_content = std::fs::read_to_string(excpected_proof_file)
+            .expect("Failed to read expected proof file");
+        assert_eq!(
+            proof_content, expected_proof_content,
+            "Proof content does not match expected proof content"
+        );
+    }
+
+    #[test]
+    fn test_stwo_run_and_prove_output() {
+        let (_output_temp_file, output_path, _, _) = setup_and_run_stwo_run_and_prove();
+        let output_content =
+            std::fs::read_to_string(output_path).expect("Failed to read output file");
+        let output_vec: OutputVec =
+            sonic_rs::from_str(&output_content).expect("Failed to parse output");
+        assert_eq!(
+            output_vec[0], ARRAY_SUM_EXCPECTED_OUTPUT,
+            "Expected output to be {:?}",
+            ARRAY_SUM_EXCPECTED_OUTPUT
+        );
+    }
+}
+// TODO(nitsan): Tests -
+// use a mock prover and verifier
+// add a retries test
+// add to the check.yml the running of tests of this crate
+
 // TODO(nitsan): add logs
