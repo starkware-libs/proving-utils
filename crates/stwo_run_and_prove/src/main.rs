@@ -10,6 +10,7 @@ use cairo_vm::vm::errors::runner_errors::RunnerError;
 use clap::Parser;
 use serde::Serialize;
 use std::env;
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
@@ -110,6 +111,8 @@ enum StwoRunAndProveError {
     Proving(#[from] ProvingError),
     #[error(transparent)]
     Verification(#[from] CairoVerificationError),
+    #[error("n_proof_attempts < 1.")]
+    NonPositiveMProofAttempts,
 }
 
 // Implement From<Box<CairoRunError>> manually
@@ -210,7 +213,8 @@ fn prove(
 /// Generates proof given the prover input and prover parameters, using the specified merkel
 /// channel. Serializes the proof as cairo-serde or JSON and write to the proof path.
 /// Verifies the proof in case the respective flag is set.
-/// Returns the program output in case the respective flag is set.
+/// In case the proof verification fails, it retries up to `n_proof_attempts` times.
+/// Returns the program output.
 fn prove_with_channel<MC: MerkleChannel>(
     prover_input: ProverInput,
     pcs_config: PcsConfig,
@@ -222,51 +226,81 @@ where
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
-    let mut output_values: OutputVec = Vec::new();
     std::fs::create_dir_all(&prove_args.proofs_dir)?; // create the directory if it doesn't exist
+    let proof_format = prove_args.proof_format;
 
     for i in 0..prove_args.n_proof_attempts {
-        // TODO(nitsan): move the loop content to a separate function.
-        let proof = prove_cairo::<MC>(prover_input.clone(), pcs_config, preprocessed_trace)?;
         let proof_file_path = prove_args.proofs_dir.join(format!("proof_{}", i));
-        let mut proof_file = create_file(&proof_file_path)?;
+        let proof_file = create_file(&proof_file_path)?;
 
-        match prove_args.proof_format {
-            ProofFormat::Json => {
-                let serialized = sonic_rs::to_string_pretty(&proof)?;
-                proof_file.write_all(serialized.as_bytes())?;
-            }
-            ProofFormat::CairoSerde => {
-                let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
-                CairoSerialize::serialize(&proof, &mut serialized);
-                let hex_strings: Vec<String> = serialized
-                    .into_iter()
-                    .map(|felt| format!("0x{:x}", felt))
-                    .collect();
-                let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
-                proof_file.write_all(serialized_hex.as_bytes())?;
-            }
-        }
+        match prove_once(
+            prover_input.clone(),
+            pcs_config,
+            preprocessed_trace,
+            proof_file,
+            &proof_format,
+            prove_args.verify,
+        ) {
+            Ok(output_values) => return Ok(output_values),
 
-        let output_addresses_and_values = proof.claim.public_data.public_memory.output.clone();
-        output_values = output_addresses_and_values
-            .into_iter()
-            .map(|(_, value)| value)
-            .collect();
-
-        if prove_args.verify {
-            if let Err(verify_err) = verify_cairo::<MC>(proof, preprocessed_trace) {
-                if i == prove_args.n_proof_attempts - 1 {
-                    return Err(StwoRunAndProveError::Verification(verify_err));
-                } else {
-                    continue; // Retry proving if verification fails
-                }
-            } else {
-                // if verification is successful
-                break;
+            Err(StwoRunAndProveError::Verification(_)) if i < prove_args.n_proof_attempts - 1 => {
+                // Retry on CairoVerificationError except for the last attempt
+                continue;
             }
+
+            Err(e) => return Err(e),
         }
     }
+
+    Err(StwoRunAndProveError::NonPositiveMProofAttempts)
+}
+
+/// Generates a proof for the given prover input and parameters,
+/// serializes the proof as cairo-serde or JSON, writes it to the proof file,
+/// and verifies the proof if the `verify` flag is set.
+/// Returns the program output.
+fn prove_once<MC: MerkleChannel>(
+    prover_input: ProverInput,
+    pcs_config: PcsConfig,
+    preprocessed_trace: PreProcessedTraceVariant,
+    mut proof_file: File,
+    proof_format: &ProofFormat,
+    verify: bool,
+) -> Result<OutputVec, StwoRunAndProveError>
+where
+    SimdBackend: BackendForChannel<MC>,
+    MC::H: Serialize,
+    <MC::H as MerkleHasher>::Hash: CairoSerialize,
+{
+    let proof = prove_cairo::<MC>(prover_input, pcs_config, preprocessed_trace)?;
+
+    match proof_format {
+        ProofFormat::Json => {
+            let serialized = sonic_rs::to_string_pretty(&proof)?;
+            proof_file.write_all(serialized.as_bytes())?;
+        }
+        ProofFormat::CairoSerde => {
+            let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
+            CairoSerialize::serialize(&proof, &mut serialized);
+            let hex_strings: Vec<String> = serialized
+                .into_iter()
+                .map(|felt| format!("0x{:x}", felt))
+                .collect();
+            let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
+            proof_file.write_all(serialized_hex.as_bytes())?;
+        }
+    }
+
+    let output_addresses_and_values = proof.claim.public_data.public_memory.output.clone();
+
+    if verify {
+        verify_cairo::<MC>(proof, preprocessed_trace)?;
+    }
+
+    let output_values = output_addresses_and_values
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect();
 
     Ok(output_values)
 }
