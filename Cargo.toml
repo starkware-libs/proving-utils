@@ -35,9 +35,6 @@ stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev
 stwo_cairo_prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "d7b50347905c687a885a3b6818db4e9311683735" } 
 stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "d7b50347905c687a885a3b6818db4e9311683735" } 
 cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "d7b50347905c687a885a3b6818db4e9311683735" } 
-stwo-prover = { git = "https://github.com/starkware-libs/stwo", rev = "0e90b31", features = [ 
-    "parallel", 
-], default-features = false } 
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
