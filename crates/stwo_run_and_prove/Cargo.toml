@@ -16,3 +16,4 @@ cairo-air.workspace = true
 serde.workspace = true
 sonic-rs.workspace = true
 starknet-ff.workspace = true
+tracing.workspace = true

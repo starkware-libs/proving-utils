@@ -30,6 +30,7 @@ use stwo_cairo_prover::stwo_prover::core::vcs::poseidon252_merkle::Poseidon252Me
 use stwo_cairo_serialize::CairoSerialize;
 use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
 use thiserror::Error;
+use tracing::{error, info, warn};
 
 type OutputVec = Vec<[u32; 8]>;
 
@@ -177,8 +178,10 @@ fn stwo_run_and_prove(
 
     let program = get_program(program.as_path())?;
     let program_input = get_program_input(&program_input)?;
+    info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let mut prover_input_info = runner.get_prover_input_info()?;
+    info!("Adapting prover input.");
     let prover_input = adapter(&mut prover_input_info)?;
     let output_vec = create_params_and_prove(prover_input, prove_args)?;
 
@@ -211,6 +214,11 @@ fn create_params_and_prove(
     let proof_format = prove_args.proof_format;
 
     for i in 0..prove_args.n_proof_attempts {
+        info!(
+            "Attempting to generate proof {}/{}.",
+            i + 1,
+            prove_args.n_proof_attempts
+        );
         let proof_file_path = prove_args.proofs_dir.join(format!("proof_{}", i));
         let proof_file = create_file(&proof_file_path)?;
 
@@ -223,11 +231,29 @@ fn create_params_and_prove(
             channel_hash,
             prove_args.verify,
         ) {
-            Ok(output_values) => return Ok(output_values),
+            Ok(output_values) => {
+                info!(
+                    "Proof generated and verified successfully on attempt {}/{}",
+                    i + 1,
+                    prove_args.n_proof_attempts
+                );
+                return Ok(output_values);
+            }
 
-            Err(StwoRunAndProveError::Verification) if i < prove_args.n_proof_attempts - 1 => {
-                // Retry on verification error except for the last attempt
-                continue;
+            Err(StwoRunAndProveError::Verification) => {
+                if i < prove_args.n_proof_attempts - 1 {
+                    warn!(
+                        "Proof verification failed on attempt {}/{}. Retrying.",
+                        i + 1,
+                        prove_args.n_proof_attempts
+                    );
+                    continue;
+                }
+                error!(
+                    "Proof verification failed on last attempt - {}/{}.",
+                    i + 1,
+                    prove_args.n_proof_attempts
+                );
             }
 
             Err(e) => return Err(e),
@@ -324,6 +350,7 @@ fn save_output_to_file(
     output_vec: OutputVec,
     output_path: PathBuf,
 ) -> Result<(), StwoRunAndProveError> {
+    info!("Saving program output to: {:?}", output_path);
     let serialized_output = sonic_rs::to_string(&output_vec)?;
     std::fs::write(output_path, serialized_output)?;
     Ok(())
