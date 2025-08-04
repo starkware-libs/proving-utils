@@ -135,6 +135,7 @@ pub fn builtin_usage_set_pages_and_fact_topology(
 ///     ids.n_add_mod = program_input.get("n_add_mod", 0)
 ///     ids.n_mul_mod = program_input.get("n_mul_mod", 0)
 ///     ids.n_memory_holes = program_input.get("n_memory_holes", 0)
+///     ids.n_blake2s = program_input.get("n_blake2s", 0)
 /// %}
 pub fn flexible_builtin_usage_from_input(
     vm: &mut VirtualMachine,
@@ -201,6 +202,13 @@ pub fn flexible_builtin_usage_from_input(
     insert_value_from_var_name(
         "n_memory_holes",
         usage_input.n_memory_holes,
+        vm,
+        ids_data,
+        ap_tracking,
+    )?;
+    insert_value_from_var_name(
+        "n_blake2s",
+        usage_input.n_blake2s,
         vm,
         ids_data,
         ap_tracking,
