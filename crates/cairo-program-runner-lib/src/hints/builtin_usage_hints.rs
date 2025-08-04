@@ -14,6 +14,8 @@ use cairo_vm::{
 };
 use starknet_crypto::{pedersen_hash, FieldElement};
 
+use super::utils::{add_trivial_fact_topology, split_outputs_to_pages};
+
 use super::{
     execute_task_hints::field_element_to_felt, fact_topologies::GPS_FACT_TOPOLOGY,
     types::FlexibleBuiltinUsageInput, PROGRAM_INPUT,
@@ -214,4 +216,19 @@ pub fn flexible_builtin_usage_from_input(
         ids_data,
         ap_tracking,
     )
+}
+
+// Splits the builtin outputs to pages of max size and adds trivial fact topology.
+pub fn builtin_usage_set_max_size_pages_and_trivial_fact_topology(
+    vm: &mut VirtualMachine,
+    ids_data: &HashMap<String, HintReference>,
+    ap_tracking: &ApTracking,
+) -> Result<(), HintError> {
+    let output_start = get_ptr_from_var_name("output_start", vm, ids_data, ap_tracking)?;
+    let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
+    let output_builtin = vm.get_output_builtin_mut()?;
+    let page_size = 3800;
+    split_outputs_to_pages(output_start, output_ptr, output_builtin, page_size)?;
+    add_trivial_fact_topology(output_builtin);
+    Ok(())
 }

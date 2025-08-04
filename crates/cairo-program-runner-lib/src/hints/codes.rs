@@ -513,6 +513,28 @@ else:
         0,
         2,
     ])";
+
+pub const BUILTIN_USAGE_SET_MAX_SIZE_PAGES_AND_TRIVIAL_FACT_TOPOLOGY: &str =
+    "from starkware.python.math_utils import div_ceil
+
+output_length = ids.output_ptr - ids.output_start
+page_size = 3800
+next_page_start = min(ids.output_start + page_size, ids.output_ptr)
+next_page_id = 1
+while next_page_start < ids.output_ptr:
+    output_builtin.add_page(
+        page_id=next_page_id,
+        page_start=next_page_start,
+        page_size=min(ids.output_ptr - next_page_start, page_size),
+    )
+    next_page_start += page_size
+    next_page_id += 1
+# Use trivial fact topology.
+output_builtin.add_attribute('gps_fact_topology', [
+    1,
+    0,
+])";
+
 pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT_FINALIZE: &str =
     "# Add a segment to test pie relocation in the bootloader.
 ids.other_segment = segments.add()
