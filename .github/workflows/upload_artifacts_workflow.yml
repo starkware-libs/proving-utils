@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/flexible_usage_split_pages
       
 jobs:
   artifacts-push:

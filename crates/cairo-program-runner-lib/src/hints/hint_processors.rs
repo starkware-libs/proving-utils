@@ -35,6 +35,7 @@ use crate::hints::simple_bootloader_hints::{
     divide_num_by_2, program_hash_function_to_ap, set_ap_to_zero, set_current_task,
     set_tasks_variable, setup_run_simple_bootloader_before_task_execution,
 };
+use crate::hints::utils::output_builtin_set_pages_by_size_and_fact_topology;
 use crate::hints::verifier_hints::load_and_parse_proof;
 
 use super::applicative_bootloader_hints::{
@@ -48,7 +49,6 @@ use super::builtin_usage_hints::{
 };
 use super::concat_aggregator_hints::{
     concat_aggregator_get_handle_task_output, concat_aggregator_parse_task,
-    concat_aggregator_set_pages_and_fact_topology,
 };
 use super::fibonacci_hints::{fibonacci_load_claim_idx, fibonacci_load_second_element};
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
@@ -308,7 +308,10 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
                 concat_aggregator_get_handle_task_output(vm, exec_scopes, ids_data, ap_tracking, 0)
             }
             CONCAT_AGGREGATOR_SET_PAGES_AND_FACT_TOPOLOGY => {
-                concat_aggregator_set_pages_and_fact_topology(vm, ids_data, ap_tracking)
+                output_builtin_set_pages_by_size_and_fact_topology(vm, ids_data, ap_tracking, 10)
+            }
+            BUILTIN_USAGE_SET_MAX_SIZE_PAGES_AND_FACT_TOPOLOGY => {
+                output_builtin_set_pages_by_size_and_fact_topology(vm, ids_data, ap_tracking, 3800)
             }
             BUILTIN_USAGE_ADD_OTHER_SEGMENT => {
                 builtin_usage_add_other_segment(vm, ids_data, ap_tracking, true)

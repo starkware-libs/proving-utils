@@ -513,6 +513,10 @@ else:
         0,
         2,
     ])";
+
+pub const BUILTIN_USAGE_SET_MAX_SIZE_PAGES_AND_FACT_TOPOLOGY: &str =
+    "BUILTIN_USAGE_SET_MAX_SIZE_PAGES_AND_FACT_TOPOLOGY";
+
 pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT_FINALIZE: &str =
     "# Add a segment to test pie relocation in the bootloader.
 ids.other_segment = segments.add()
