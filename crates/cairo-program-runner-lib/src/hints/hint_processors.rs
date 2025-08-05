@@ -44,6 +44,7 @@ use super::applicative_bootloader_hints::{
 use super::bootloader_hints::load_unpacker_bootloader_input;
 use super::builtin_usage_hints::{
     builtin_usage_5_to_ap, builtin_usage_add_other_segment, builtin_usage_add_signature,
+    builtin_usage_set_max_size_pages_and_trivial_fact_topology,
     builtin_usage_set_pages_and_fact_topology, flexible_builtin_usage_from_input,
 };
 use super::concat_aggregator_hints::{
@@ -309,6 +310,13 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
             }
             CONCAT_AGGREGATOR_SET_PAGES_AND_FACT_TOPOLOGY => {
                 concat_aggregator_set_pages_and_fact_topology(vm, ids_data, ap_tracking)
+            }
+            BUILTIN_USAGE_SET_MAX_SIZE_PAGES_AND_TRIVIAL_FACT_TOPOLOGY => {
+                builtin_usage_set_max_size_pages_and_trivial_fact_topology(
+                    vm,
+                    ids_data,
+                    ap_tracking,
+                )
             }
             BUILTIN_USAGE_ADD_OTHER_SEGMENT => {
                 builtin_usage_add_other_segment(vm, ids_data, ap_tracking, true)

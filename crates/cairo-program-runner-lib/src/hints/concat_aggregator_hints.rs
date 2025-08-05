@@ -1,4 +1,4 @@
-use std::{cmp::min, collections::HashMap};
+use std::collections::HashMap;
 
 use cairo_vm::{
     hint_processor::{
@@ -13,7 +13,8 @@ use cairo_vm::{
     Felt252,
 };
 
-use super::{fact_topologies::GPS_FACT_TOPOLOGY, types::ConcatAggregatorInput, PROGRAM_INPUT};
+use super::utils::{add_fact_topology, split_outputs_to_pages};
+use super::{types::ConcatAggregatorInput, PROGRAM_INPUT};
 use num_traits::ToPrimitive;
 
 const TASKS_OUTPUTS: &str = "tasks_outputs";
@@ -177,30 +178,9 @@ pub fn concat_aggregator_set_pages_and_fact_topology(
 ) -> Result<(), HintError> {
     let output_start = get_ptr_from_var_name("output_start", vm, ids_data, ap_tracking)?;
     let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
-    let page_size = 10;
-    let mut next_page_start = min((output_start + page_size)?, output_ptr);
-    let mut next_page_id = 1;
     let output_builtin = vm.get_output_builtin_mut()?;
-    while next_page_start < output_ptr {
-        let current_page_size = min(output_ptr.offset - next_page_start.offset, page_size);
-
-        output_builtin
-            .add_page(next_page_id, next_page_start, current_page_size)
-            .map_err(|e| {
-                HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
-            })?;
-
-        next_page_start = (next_page_start + page_size)?;
-        next_page_id += 1;
-    }
-    if next_page_id == 1 {
-        output_builtin.add_attribute(GPS_FACT_TOPOLOGY.into(), [1, 0].to_vec());
-    } else {
-        output_builtin.add_attribute(
-            GPS_FACT_TOPOLOGY.into(),
-            [next_page_id, next_page_id - 1, 0, 2].to_vec(),
-        );
-    }
-
+    let page_size = 10;
+    let n_pages = split_outputs_to_pages(output_start, output_ptr, output_builtin, page_size)?;
+    add_fact_topology(output_builtin, n_pages);
     Ok(())
 }
