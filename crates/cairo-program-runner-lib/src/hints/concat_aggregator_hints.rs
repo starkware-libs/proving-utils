@@ -1,5 +1,6 @@
-use std::{cmp::min, collections::HashMap};
+use std::collections::HashMap;
 
+use super::{types::ConcatAggregatorInput, PROGRAM_INPUT};
 use cairo_vm::{
     hint_processor::{
         builtin_hint_processor::hint_utils::{
@@ -12,8 +13,6 @@ use cairo_vm::{
     vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
     Felt252,
 };
-
-use super::{fact_topologies::GPS_FACT_TOPOLOGY, types::ConcatAggregatorInput, PROGRAM_INPUT};
 use num_traits::ToPrimitive;
 
 const TASKS_OUTPUTS: &str = "tasks_outputs";
@@ -138,69 +137,4 @@ pub fn concat_aggregator_get_handle_task_output(
         ids_data,
         ap_tracking,
     )
-}
-
-/// Implements hint:
-/// %{
-///     from starkware.python.math_utils import div_ceil
-///
-///     output_length = ids.output_ptr - ids.output_start
-///     page_size = 10
-///     next_page_start = min(ids.output_start + page_size, ids.output_ptr)
-///     next_page_id = 1
-///     while next_page_start < ids.output_ptr:
-///         output_builtin.add_page(
-///             page_id=next_page_id,
-///             page_start=next_page_start,
-///             page_size=min(ids.output_ptr - next_page_start, page_size),
-///         )
-///         next_page_start += page_size
-///         next_page_id += 1
-///     if next_page_id == 1:
-///         # Single page. Use trivial fact topology.
-///         output_builtin.add_attribute('gps_fact_topology', [
-///             1,
-///             0,
-///         ])
-///     else:
-///         output_builtin.add_attribute('gps_fact_topology', [
-///             next_page_id,
-///             next_page_id - 1,
-///             0,
-///             2,
-///         ])
-/// %}
-pub fn concat_aggregator_set_pages_and_fact_topology(
-    vm: &mut VirtualMachine,
-    ids_data: &HashMap<String, HintReference>,
-    ap_tracking: &ApTracking,
-) -> Result<(), HintError> {
-    let output_start = get_ptr_from_var_name("output_start", vm, ids_data, ap_tracking)?;
-    let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
-    let page_size = 10;
-    let mut next_page_start = min((output_start + page_size)?, output_ptr);
-    let mut next_page_id = 1;
-    let output_builtin = vm.get_output_builtin_mut()?;
-    while next_page_start < output_ptr {
-        let current_page_size = min(output_ptr.offset - next_page_start.offset, page_size);
-
-        output_builtin
-            .add_page(next_page_id, next_page_start, current_page_size)
-            .map_err(|e| {
-                HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
-            })?;
-
-        next_page_start = (next_page_start + page_size)?;
-        next_page_id += 1;
-    }
-    if next_page_id == 1 {
-        output_builtin.add_attribute(GPS_FACT_TOPOLOGY.into(), [1, 0].to_vec());
-    } else {
-        output_builtin.add_attribute(
-            GPS_FACT_TOPOLOGY.into(),
-            [next_page_id, next_page_id - 1, 0, 2].to_vec(),
-        );
-    }
-
-    Ok(())
 }
