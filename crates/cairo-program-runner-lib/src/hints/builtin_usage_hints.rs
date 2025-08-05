@@ -1,5 +1,9 @@
 use std::collections::HashMap;
 
+use super::{
+    execute_task_hints::field_element_to_felt, fact_topologies::GPS_FACT_TOPOLOGY,
+    types::FlexibleBuiltinUsageInput, PROGRAM_INPUT,
+};
 use cairo_vm::{
     hint_processor::{
         builtin_hint_processor::hint_utils::{
@@ -13,11 +17,6 @@ use cairo_vm::{
     Felt252,
 };
 use starknet_crypto::{pedersen_hash, FieldElement};
-
-use super::{
-    execute_task_hints::field_element_to_felt, fact_topologies::GPS_FACT_TOPOLOGY,
-    types::FlexibleBuiltinUsageInput, PROGRAM_INPUT,
-};
 
 /// Implements hint:
 /// %{
