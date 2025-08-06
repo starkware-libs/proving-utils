@@ -261,6 +261,7 @@ fn prove_with_retries(
                     i + 1,
                     prove_config.n_proof_attempts
                 );
+                return Err(StwoRunAndProveError::Verification);
             }
 
             Err(e) => return Err(e),
@@ -416,6 +417,11 @@ mod tests {
         current_path.join(RESOURCES_PATH).join(file_name)
     }
 
+    fn is_file_empty(path: &PathBuf) -> std::io::Result<bool> {
+        let metadata = fs::metadata(path)?;
+        Ok(metadata.len() == 0)
+    }
+
     fn prepare_args(n_proof_attempts: u16) -> (Args, TempPath, TempDir) {
         let program_output_tempfile = NamedTempFile::new()
             .expect("Failed to create temp file for program output")
@@ -435,7 +441,10 @@ mod tests {
         (args, program_output_tempfile, proofs_tempdir)
     }
 
-    fn run_stwo_run_and_prove(args: Args, prover: Box<dyn ProverTrait>) {
+    fn run_stwo_run_and_prove(
+        args: Args,
+        prover: Box<dyn ProverTrait>,
+    ) -> Result<(), StwoRunAndProveError> {
         let prove_config = ProveConfig {
             verify: args.verify,
             proofs_dir: args.proofs_dir,
@@ -451,7 +460,6 @@ mod tests {
             prove_config,
             prover,
         )
-        .expect("Failed to run stwo_run_and_prove.");
     }
 
     fn tests_helper_with_mock_prover() -> (TempPath, TempDir) {
@@ -467,7 +475,35 @@ mod tests {
                 Ok(vec![ARRAY_SUM_EXPECTED_OUTPUT])
             });
 
-        run_stwo_run_and_prove(args, mock_prover);
+        run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
+
+        (program_output_tempfile, proofs_tempdir)
+    }
+
+    fn tests_helper_with_verifier_failures() -> (TempPath, TempDir) {
+        let (args, program_output_tempfile, proofs_tempdir) = prepare_args(3);
+
+        let mut mock_prover = Box::new(MockProverTrait::new());
+        mock_prover
+            .expect_choose_channel_and_prove()
+            .times(3)
+            .returning(move |_, proof_file, _, _, _| {
+                let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+                fs::copy(&expected_proof_file, &proof_file).map_err(|e| {
+                    StwoRunAndProveError::IO(std::io::Error::other(format!(
+                        "Failed to copy proof file: {}",
+                        e
+                    )))
+                })?;
+                Err(StwoRunAndProveError::Verification)
+            });
+
+        let result = run_stwo_run_and_prove(args, mock_prover);
+        assert!(
+            matches!(result, Err(StwoRunAndProveError::Verification)),
+            "run and prove should return StwoRunAndProveError::Verification error but got: {:?}",
+            result,
+        );
 
         (program_output_tempfile, proofs_tempdir)
     }
@@ -502,8 +538,26 @@ mod tests {
             ARRAY_SUM_EXPECTED_OUTPUT
         );
     }
+
+    #[test]
+    fn test_stwo_run_and_prove_retries() {
+        let (output_temp_file, proofs_temp_dir) = tests_helper_with_verifier_failures();
+        let proofs_dir = proofs_temp_dir.path().to_path_buf();
+
+        for i in 0..3 {
+            let proof_file = proofs_dir.join(format!("proof_{}", i));
+            assert!(
+                proof_file.exists(),
+                "Proof file {:?} should exist after running with verifier failures",
+                i + 1,
+            );
+        }
+        assert!(
+            is_file_empty(&output_temp_file.to_path_buf()).unwrap(),
+            "Output file should be empty after running with verifier failures",
+        );
+    }
 }
 
 // TODO(nitsan): Tests -
-// add a retries test
 // add an inner test to choose_channel_and_prove
