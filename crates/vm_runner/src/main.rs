@@ -74,7 +74,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         allow_missing_builtins: None,
         dynamic_layout_params: None,
     };
-    let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
+    let mut cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
     let mut prover_input_info = cairo_runner
         .get_prover_input_info()
         .expect("Unable to get prover input info");

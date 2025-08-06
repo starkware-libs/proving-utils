@@ -3,6 +3,7 @@ use cairo_air::utils::ProofFormat;
 use cairo_air::verifier::{CairoVerificationError, verify_cairo};
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
+use cairo_vm::prover_input_info::ProverInputInfoError;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
@@ -110,6 +111,8 @@ enum StwoRunAndProveError {
     Proving(#[from] ProvingError),
     #[error(transparent)]
     Verification(#[from] CairoVerificationError),
+    #[error(transparent)]
+    ProverInputInfo(#[from] ProverInputInfoError),
 }
 
 // Implement From<Box<CairoRunError>> manually
@@ -171,7 +174,7 @@ fn stwo_run_and_prove(
 
     let program = get_program(program.as_path())?;
     let program_input = get_program_input(&program_input)?;
-    let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
+    let mut runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let mut prover_input_info = runner.get_prover_input_info()?;
     let prover_input = adapter(&mut prover_input_info)?;
 

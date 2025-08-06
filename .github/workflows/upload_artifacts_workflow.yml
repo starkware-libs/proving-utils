@@ -3,8 +3,8 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
-      
+      - meidar/update_revision_for_mini_mirror
+
 jobs:
   artifacts-push:
     runs-on: ubuntu-24.04
