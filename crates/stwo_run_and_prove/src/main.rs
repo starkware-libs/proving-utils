@@ -263,6 +263,7 @@ fn prove_with_retries(
                     i + 1,
                     prove_config.n_proof_attempts
                 );
+                return Err(StwoRunAndProveError::Verification);
             }
 
             Err(e) => return Err(e),
@@ -418,6 +419,11 @@ mod tests {
         current_path.join(RESOURCES_PATH).join(file_name)
     }
 
+    fn is_file_empty(path: &PathBuf) -> std::io::Result<bool> {
+        let metadata = fs::metadata(path)?;
+        Ok(metadata.len() == 0)
+    }
+
     fn setup(n_proof_attempts: u16) -> (Args, ProveConfig, TempPath, PathBuf, TempDir, PathBuf) {
         let program_output_tempfile = NamedTempFile::new()
             .expect("Failed to create temp file for program output")
@@ -463,20 +469,14 @@ mod tests {
         args: Args,
         prove_config: ProveConfig,
         entry_point: Box<dyn ProverTrait>,
-    ) {
-        let result = stwo_run_and_prove(
+    ) -> Result<(), StwoRunAndProveError> {
+        stwo_run_and_prove(
             args.program,
             args.program_input,
             args.program_output.clone(),
             prove_config,
             entry_point,
-        );
-
-        assert!(
-            result.is_ok(),
-            "Failed to run and prove: {:?}",
-            result.err()
-        );
+        )
     }
 
     fn tests_helper_with_mock_prover() -> (TempPath, PathBuf, TempDir, PathBuf) {
@@ -506,7 +506,54 @@ mod tests {
                 },
             );
 
-        run_stwo_run_and_prove(args, prove_config, mock_prover);
+        let result = run_stwo_run_and_prove(args, prove_config, mock_prover);
+        assert!(
+            result.is_ok(),
+            "Failed to run and prove: {:?}",
+            result.err()
+        );
+
+        (
+            program_output_tempfile,
+            unwraped_program_output,
+            proofs_tempdir,
+            proofs_dir,
+        )
+    }
+
+    fn tests_helper_with_verifier_failures() -> (TempPath, PathBuf, TempDir, PathBuf) {
+        let (
+            args,
+            prove_args,
+            program_output_tempfile,
+            unwraped_program_output,
+            proofs_tempdir,
+            proofs_dir,
+        ) = setup(3);
+
+        let mut mock_prover = Box::new(MockProverTrait::new());
+        mock_prover
+            .expect_choose_channel_and_prove()
+            .times(3)
+            .returning(
+                move |_prove_cairo_input, _proof_file, _format, _hash, _verify| {
+                    let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+                    fs::copy(&expected_proof_file, &_proof_file).map_err(|e| {
+                        StwoRunAndProveError::IO(std::io::Error::other(format!(
+                            "Failed to copy proof file: {}",
+                            e
+                        )))
+                    })?;
+                    Err(StwoRunAndProveError::Verification)
+                },
+            );
+
+        let result = run_stwo_run_and_prove(args, prove_args, mock_prover);
+        assert!(
+            matches!(result, Err(StwoRunAndProveError::Verification)),
+            "run and prove should return StwoRunAndProveError::Verification error but got: {:?}",
+            result,
+        );
 
         (
             program_output_tempfile,
@@ -543,8 +590,29 @@ mod tests {
             ARRAY_SUM_EXPECTED_OUTPUT
         );
     }
+
+    #[test]
+    fn test_stwo_run_and_prove_retries() {
+        let (_output_temp_file, output_path, _proofs_temp_dir, proofs_dir) =
+            tests_helper_with_verifier_failures();
+        assert!(
+            proofs_dir.exists(),
+            "Proofs directory should exist after running with verifier failures"
+        );
+        for i in 0..3 {
+            let proof_file = proofs_dir.join(format!("proof_{}", i));
+            assert!(
+                proof_file.exists(),
+                "Proof file {:?} should exist after running with verifier failures",
+                i + 1,
+            );
+        }
+        assert!(
+            is_file_empty(&output_path).unwrap(),
+            "Output file should be empty after running with verifier failures",
+        );
+    }
 }
 
 // TODO(nitsan): Tests -
-// add a retries test
 // add an inner test to choose_channel_and_prove
