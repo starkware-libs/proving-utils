@@ -165,7 +165,7 @@ fn stwo_run_and_prove(
     program_output: Option<PathBuf>,
     prove_config: ProveConfig,
     entry_point: Box<dyn ProverTrait>,
-) -> Result<(), StwoRunAndProveError> {
+) -> Result<u16, StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -188,13 +188,14 @@ fn stwo_run_and_prove(
     let mut prover_input_info = runner.get_prover_input_info()?;
     info!("Adapting prover input.");
     let prover_input = adapter(&mut prover_input_info)?;
-    let output_vec = prove_with_retries(prover_input, prove_config, entry_point)?;
+    let (successful_proof_attempt, output_vec) =
+        prove_with_retries(prover_input, prove_config, entry_point)?;
 
     if let Some(output_path) = program_output {
         save_output_to_file(output_vec, output_path)?;
     }
 
-    Ok(())
+    Ok(successful_proof_attempt)
 }
 
 /// Prepares the prover parameters and generates proof given the prover input and parameters.
@@ -205,7 +206,7 @@ fn prove_with_retries(
     prover_input: ProverInput,
     prove_config: ProveConfig,
     entry_point: Box<dyn ProverTrait>,
-) -> Result<OutputVec, StwoRunAndProveError> {
+) -> Result<(u16, OutputVec), StwoRunAndProveError> {
     let ProverParameters {
         channel_hash,
         pcs_config,
@@ -231,7 +232,7 @@ fn prove_with_retries(
             i + 1,
             prove_config.n_proof_attempts
         );
-        let proof_file_path = prove_config.proofs_dir.join(format!("proof_{}", i));
+        let proof_file_path = prove_config.proofs_dir.join(format!("proof_{}", i + 1));
 
         match entry_point.choose_channel_and_prove(
             &cairo_prover_inputs,
@@ -246,7 +247,7 @@ fn prove_with_retries(
                     i + 1,
                     prove_config.n_proof_attempts
                 );
-                return Ok(output_values);
+                return Ok((i + 1, output_values));
             }
 
             Err(StwoRunAndProveError::Verification) => {
@@ -412,7 +413,7 @@ mod tests {
     const PROGRAM_FILE_NAME: &str = "array_sum.json";
     const PROVER_PARAMS_FILE_NAME: &str = "prover_params.json";
     const EXPECTED_PROOF_FILE_NAME: &str = "array_sum_proof";
-    const FIRST_PROOF_FILE_NAME: &str = "proof_0";
+    const FIRST_PROOF_FILE_NAME: &str = "proof_1";
 
     fn get_path(file_name: &str) -> PathBuf {
         let current_path = env::current_dir().expect("failed to get current directory");
@@ -469,7 +470,7 @@ mod tests {
         args: Args,
         prove_config: ProveConfig,
         entry_point: Box<dyn ProverTrait>,
-    ) -> Result<(), StwoRunAndProveError> {
+    ) -> Result<u16, StwoRunAndProveError> {
         stwo_run_and_prove(
             args.program,
             args.program_input,
@@ -511,6 +512,13 @@ mod tests {
             result.is_ok(),
             "Failed to run and prove: {:?}",
             result.err()
+        );
+
+        let successful_proof_attempt = result.unwrap();
+        assert_eq!(
+            successful_proof_attempt, 1,
+            "successful proof attempt should be 1, but got {:?}",
+            successful_proof_attempt
         );
 
         (
@@ -600,7 +608,7 @@ mod tests {
             "Proofs directory should exist after running with verifier failures"
         );
         for i in 0..3 {
-            let proof_file = proofs_dir.join(format!("proof_{}", i));
+            let proof_file = proofs_dir.join(format!("proof_{}", i + 1));
             assert!(
                 proof_file.exists(),
                 "Proof file {:?} should exist after running with verifier failures",
