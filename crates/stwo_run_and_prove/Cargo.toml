@@ -21,3 +21,6 @@ tracing.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 mockall.workspace = true
+
+[features]
+slow-tests = []

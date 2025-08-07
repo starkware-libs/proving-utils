@@ -560,7 +560,61 @@ mod tests {
             "Output file should be empty after running with verifier failures",
         );
     }
-}
 
-// TODO(nitsan): Tests -
-// add an inner test to choose_channel_and_prove
+    #[cfg(feature = "slow-tests")]
+    #[test]
+    fn test_choose_channel_and_prove() {
+        let (
+            args,
+            prove_config,
+            _program_output_tempfile,
+            _unwraped_program_output,
+            _proofs_tempdir,
+            proofs_dir,
+        ) = setup(1);
+
+        let cairo_run_config =
+            get_cairo_run_config(&None, LayoutName::all_cairo_stwo, true, true, true, false)
+                .expect("get_cairo_run_config failed");
+
+        let prover_parameters = default_prod_prover_parameters();
+
+        let program = get_program(args.program.as_path()).expect("get_program failed");
+        let program_input =
+            get_program_input(&args.program_input).expect("get_program_input failed");
+        let runner = cairo_run_program(&program, program_input, cairo_run_config)
+            .expect("cairo_run_program failed");
+        let mut prover_input_info = runner
+            .get_prover_input_info()
+            .expect("get_prover_input_info failed");
+        let prover_input = adapter(&mut prover_input_info).expect("adapter failed");
+        let cairo_prover_inputs = CairoProverInputs {
+            prover_input,
+            pcs_config: prover_parameters.pcs_config,
+            preprocessed_trace: prover_parameters.preprocessed_trace,
+        };
+        let proof_format = prove_config.proof_format;
+        let real_prover = StwoProverEntryPoint;
+        let result = real_prover.choose_channel_and_prove(
+            &cairo_prover_inputs,
+            proofs_dir.join(FIRST_PROOF_FILE_NAME),
+            &proof_format,
+            prover_parameters.channel_hash,
+            prove_config.verify,
+        );
+
+        assert!(
+            result.is_ok(),
+            "Failed to run test_choose_channel_and_prove: {:?}",
+            result.err()
+        );
+
+        let output_vec = result.unwrap();
+
+        assert_eq!(
+            output_vec[0], ARRAY_SUM_EXPECTED_OUTPUT,
+            "Expected output to be {:?}",
+            ARRAY_SUM_EXPECTED_OUTPUT
+        );
+    }
+}
