@@ -289,6 +289,10 @@ fn choose_channel_and_prove(
     channel_hash: ChannelHash,
     verify: bool,
 ) -> Result<OutputVec, StwoRunAndProveError> {
+    println!(
+        "Choosing channel and proving with channel hash: {:?}",
+        channel_hash
+    );
     match channel_hash {
         ChannelHash::Blake2s => prove::<Blake2sMerkleChannel>(
             cairo_prover_inputs,
@@ -353,11 +357,13 @@ where
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
+    println!("running prove_cairo");
     let proof = prove_cairo::<MC>(
         cairo_prover_inputs.prover_input.clone(),
         cairo_prover_inputs.pcs_config,
         cairo_prover_inputs.preprocessed_trace,
     )?;
+    println!("finished prove_cairo");
 
     let mut proof_file = create_file(&proof_file_path)?;
 
@@ -377,22 +383,26 @@ where
             proof_file.write_all(serialized_hex.as_bytes())?;
         }
     }
+    println!("saved proof to file");
 
     let output_addresses_and_values = proof.claim.public_data.public_memory.output.clone();
 
     if verify {
+        println!("running verify cairo");
         // We want to map this error to `StwoRunAndProveError::Verification` because we intend to
         // retry the proof generation in case of a verification failure. In the calling function we
         // assume this specific error type, so if we don't map it, and the error type returned by
         // `verify_cairo` changes, it will break the retry logic.
         verify_cairo::<MC>(proof, cairo_prover_inputs.preprocessed_trace)
             .map_err(|_| StwoRunAndProveError::Verification)?;
+        println!("finished verify cairo");
     }
 
     let output_values = output_addresses_and_values
         .into_iter()
         .map(|(_, value)| value)
         .collect();
+    println!("finished prove function");
 
     Ok(output_values)
 }
@@ -520,6 +530,50 @@ mod tests {
         (program_output_tempfile, proofs_tempdir)
     }
 
+    // #[cfg(feature = "slow-tests")]
+    fn setup_for_choose_channel_and_prove() -> (
+        StwoProverEntryPoint,
+        CairoProverInputs,
+        TempDir,
+        ProofFormat,
+        bool,
+    ) {
+        let (args, _, proofs_tempdir) = prepare_args(1);
+
+        let cairo_run_config =
+            get_cairo_run_config(&None, LayoutName::all_cairo_stwo, true, true, true, false)
+                .expect("get_cairo_run_config failed");
+
+        let prover_parameters = default_prod_prover_parameters();
+
+        let program = get_program(args.program.as_path()).expect("get_program failed");
+        let program_input =
+            get_program_input(&args.program_input).expect("get_program_input failed");
+        let runner = cairo_run_program(&program, program_input, cairo_run_config)
+            .expect("cairo_run_program failed");
+        println!("finished cairo_run_program");
+        let mut prover_input_info = runner
+            .get_prover_input_info()
+            .expect("get_prover_input_info failed");
+        let prover_input = adapter(&mut prover_input_info).expect("adapter failed");
+        println!("finished adapter");
+        let cairo_prover_inputs = CairoProverInputs {
+            prover_input,
+            pcs_config: prover_parameters.pcs_config,
+            preprocessed_trace: prover_parameters.preprocessed_trace,
+        };
+        let proof_format = args.proof_format;
+        let stwo_prover = StwoProverEntryPoint;
+
+        (
+            stwo_prover,
+            cairo_prover_inputs,
+            proofs_tempdir,
+            proof_format,
+            args.verify,
+        )
+    }
+
     #[test]
     fn test_stwo_run_and_prove() {
         let (output_temp_file, proofs_temp_dir) = run_with_successful_mock_prover(1);
@@ -568,7 +622,62 @@ mod tests {
             "Output file should be empty after running with verifier failures",
         );
     }
-}
 
-// TODO(nitsan): Tests -
-// add an inner test to choose_channel_and_prove
+    // #[cfg(feature = "slow-tests")]
+    #[test]
+    fn test_choose_channel_and_prove_blake() {
+        println!("Running test_choose_channel_and_prove_blake");
+        let (prover, cairo_prover_inputs, proofs_tempdir, proof_format, verify) =
+            setup_for_choose_channel_and_prove();
+        println!("finished setup_for_choose_channel_and_prove");
+
+        let output_vec = prover
+            .choose_channel_and_prove(
+                &cairo_prover_inputs,
+                proofs_tempdir
+                    .path()
+                    .to_path_buf()
+                    .join(FIRST_PROOF_FILE_NAME),
+                &proof_format,
+                ChannelHash::Blake2s,
+                verify,
+            )
+            .expect("Failed to run test_choose_channel_and_prove");
+        println!("finished choose_channel_and_prove");
+
+        assert_eq!(
+            output_vec[0], ARRAY_SUM_EXPECTED_OUTPUT,
+            "Expected output to be {:?}",
+            ARRAY_SUM_EXPECTED_OUTPUT
+        );
+    }
+
+    // #[cfg(feature = "slow-tests")]
+    #[test]
+    fn test_choose_channel_and_prove_poseidon() {
+        println!("Running test_choose_channel_and_prove_poseidon");
+        let (prover, cairo_prover_inputs, proofs_tempdir, proof_format, verify) =
+            setup_for_choose_channel_and_prove();
+        println!("finished setup_for_choose_channel_and_prove");
+
+        let output_vec = prover
+            .choose_channel_and_prove(
+                &cairo_prover_inputs,
+                proofs_tempdir
+                    .path()
+                    .to_path_buf()
+                    .join(FIRST_PROOF_FILE_NAME),
+                &proof_format,
+                ChannelHash::Poseidon252,
+                verify,
+            )
+            .expect("Failed to run test_choose_channel_and_prove");
+        println!("finished choose_channel_and_prove");
+
+        assert_eq!(
+            output_vec[0], ARRAY_SUM_EXPECTED_OUTPUT,
+            "Expected output to be {:?}",
+            ARRAY_SUM_EXPECTED_OUTPUT
+        );
+    }
+}
