@@ -555,6 +555,48 @@ mod tests {
         (program_output_tempfile, proofs_tempdir)
     }
 
+    #[cfg(feature = "slow-tests")]
+    fn setup_for_choose_channel_and_prove() -> (
+        StwoProverEntryPoint,
+        CairoProverInputs,
+        TempDir,
+        ProofFormat,
+        bool,
+    ) {
+        let (args, _, proofs_tempdir) = prepare_args(1);
+
+        let cairo_run_config =
+            get_cairo_run_config(&None, LayoutName::all_cairo_stwo, true, true, true, false)
+                .expect("get_cairo_run_config failed");
+
+        let prover_parameters = default_prod_prover_parameters();
+
+        let program = get_program(args.program.as_path()).expect("get_program failed");
+        let program_input =
+            get_program_input(&args.program_input).expect("get_program_input failed");
+        let runner = cairo_run_program(&program, program_input, cairo_run_config)
+            .expect("cairo_run_program failed");
+        let mut prover_input_info = runner
+            .get_prover_input_info()
+            .expect("get_prover_input_info failed");
+        let prover_input = adapter(&mut prover_input_info).expect("adapter failed");
+        let cairo_prover_inputs = CairoProverInputs {
+            prover_input,
+            pcs_config: prover_parameters.pcs_config,
+            preprocessed_trace: prover_parameters.preprocessed_trace,
+        };
+        let proof_format = args.proof_format;
+        let stwo_prover = StwoProverEntryPoint;
+
+        (
+            stwo_prover,
+            cairo_prover_inputs,
+            proofs_tempdir,
+            proof_format,
+            args.verify,
+        )
+    }
+
     #[test]
     fn test_stwo_run_and_prove() {
         let (output_temp_file, proofs_temp_dir) = run_with_successful_mock_prover(1);
@@ -630,7 +672,26 @@ mod tests {
             n_proof_attempts,
         );
     }
-}
 
-// TODO(nitsan): Tests -
-// add an inner test to choose_channel_and_prove
+    #[cfg(feature = "slow-tests")]
+    #[rstest]
+    #[case::blake(ChannelHash::Blake2s)]
+    #[case::poseidon(ChannelHash::Poseidon252)]
+    fn test_choose_channel_and_prove(#[case] channel_hash: ChannelHash) {
+        let (prover, cairo_prover_inputs, proofs_tempdir, proof_format, verify) =
+            setup_for_choose_channel_and_prove();
+
+        prover
+            .choose_channel_and_prove(
+                &cairo_prover_inputs,
+                proofs_tempdir
+                    .path()
+                    .to_path_buf()
+                    .join(FIRST_PROOF_FILE_NAME),
+                &proof_format,
+                channel_hash,
+                verify,
+            )
+            .expect("Failed to run test_choose_channel_and_prove");
+    }
+}
