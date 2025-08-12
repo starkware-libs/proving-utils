@@ -466,9 +466,9 @@ mod tests {
     #[fixture]
     fn packed_outputs() -> Vec<PackedOutput> {
         vec![
-            PackedOutput::Plain(vec![]),
-            PackedOutput::Plain(vec![]),
-            PackedOutput::Plain(vec![]),
+            PackedOutput::Plain,
+            PackedOutput::Plain,
+            PackedOutput::Plain,
         ]
     }
 
@@ -495,10 +495,11 @@ mod tests {
         packed_outputs: Vec<PackedOutput>,
         fact_topologies: Vec<FactTopology>,
     ) {
-        let plain_fact_topologies = compute_fact_topologies(&packed_outputs, &fact_topologies)
+        let applicative_bootloader_program_hash = Felt252::from(1234);
+        let plain_fact_topologies = compute_fact_topologies(&packed_outputs, &fact_topologies, applicative_bootloader_program_hash)
             .expect("Failed to compute fact topologies");
         for (topology, plain_topology) in std::iter::zip(&fact_topologies, plain_fact_topologies) {
-            assert_eq!(topology, plain_topology);
+            assert_eq!(*topology, plain_topology);
         }
     }
 
@@ -510,7 +511,8 @@ mod tests {
             tree_structure: vec![],
             page_sizes: vec![],
         }];
-        let result = compute_fact_topologies(&packed_outputs, &fact_topologies);
+        let applicative_bootloader_program_hash = Felt252::from(1234);
+        let result = compute_fact_topologies(&packed_outputs, &fact_topologies, applicative_bootloader_program_hash);
         assert!(matches!(
             result,
             Err(FactTopologyError::CompositePackedOutputNotSupported(_))
@@ -520,10 +522,10 @@ mod tests {
     #[test]
     /// Both arguments to `compute_fact_topologies` must have the same length.
     fn test_compute_fact_topologies_arg_len_mismatch() {
-        let packed_outputs = vec![PackedOutput::Plain(vec![])];
+        let packed_outputs = vec![PackedOutput::Plain];
         let fact_topologies = vec![];
-
-        let result = compute_fact_topologies(&packed_outputs, &fact_topologies);
+        let applicative_bootloader_program_hash = Felt252::from(1234);
+        let result = compute_fact_topologies(&packed_outputs, &fact_topologies, applicative_bootloader_program_hash);
         assert!(
             matches!(result, Err(FactTopologyError::WrongNumberOfFactTopologies(n_outputs, n_topologies)) if n_outputs == packed_outputs.len() && n_topologies == fact_topologies.len())
         )
@@ -543,7 +545,7 @@ mod tests {
         };
 
         let result = add_consecutive_output_pages(
-            &fact_topology,
+            &fact_topology.page_sizes,
             &mut output_builtin,
             page_id,
             output_start,

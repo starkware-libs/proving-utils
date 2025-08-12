@@ -341,19 +341,18 @@ mod tests {
     #[test]
     fn test_relocate_address() {
         let mut relocation_table = RelocationTable::new();
-        let relocation = Relocatable::from((2, 5));
+        let relocation = MaybeRelocatable::from((2, 5));
         relocation_table.insert(1, relocation.clone()).unwrap();
 
         let address = Relocatable::from((1, 27));
-        let expected_address = Relocatable::from((2, 32));
+        let expected_address = MaybeRelocatable::from((2, 32));
         assert_eq!(
             relocation_table.relocate_address(address),
-            Ok(expected_address)
+            Ok(expected_address.clone())
         );
 
         let value = MaybeRelocatable::RelocatableValue(address);
-        let expected_value = MaybeRelocatable::RelocatableValue(expected_address);
-        assert_eq!(relocation_table.relocate_value(value), Ok(expected_value));
+        assert_eq!(relocation_table.relocate_value(value), Ok(expected_address.clone()));
     }
 
     #[test]
@@ -370,12 +369,12 @@ mod tests {
     #[test]
     fn test_relocation_table_write_twice() {
         let segment_index = 1;
-        let relocation = Relocatable::from((2, 0));
+        let relocation = MaybeRelocatable::from((2, 0));
 
         let mut relocation_table = RelocationTable::new();
         relocation_table.insert(segment_index, relocation).unwrap();
 
-        let new_relocation = Relocatable::from((3, 0));
+        let new_relocation = MaybeRelocatable::from((3, 0));
 
         let result = relocation_table.insert(segment_index, new_relocation);
         assert_matches!(
