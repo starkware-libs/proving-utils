@@ -456,12 +456,10 @@ pub fn write_to_fact_topologies_file<FT: AsRef<FactTopology>>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use super::*;
     use crate::hints::types::CompositePackedOutput;
     use rstest::{fixture, rstest};
-
-    use super::*;
+    use std::collections::HashMap;
 
     #[fixture]
     fn packed_outputs() -> Vec<PackedOutput> {
@@ -507,12 +505,35 @@ mod tests {
         }
     }
 
+    // TODO(idanh) Consider editing this test to have realistic scenario.
     #[test]
-    /// Composite outputs are not supported (yet).
     fn test_compute_fact_topologies_composite_output() {
-        let packed_outputs = vec![PackedOutput::Composite(CompositePackedOutput::default())];
+        // Create two plain fact topologies for subtasks
+        let subtask_fact_topologies = vec![
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![5],
+            },
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![7],
+            },
+        ];
+        // CompositePackedOutput with two subtasks and two outputs
+        let composite_packed_output = CompositePackedOutput {
+            outputs: vec![
+                Felt252::from(2),
+                Felt252::from(2),
+                Felt252::from(1234),
+                Felt252::from(2),
+                Felt252::from(1234),
+            ],
+            subtasks: vec![PackedOutput::Plain, PackedOutput::Plain],
+            fact_topologies: subtask_fact_topologies.clone(),
+        };
+        let packed_outputs = vec![PackedOutput::Composite(composite_packed_output)];
         let fact_topologies = vec![FactTopology {
-            tree_structure: vec![],
+            tree_structure: vec![], // Not used for composite, but required by API
             page_sizes: vec![],
         }];
         let applicative_bootloader_program_hash = Felt252::from(1234);
@@ -520,11 +541,20 @@ mod tests {
             &packed_outputs,
             &fact_topologies,
             applicative_bootloader_program_hash,
-        );
-        assert!(matches!(
-            result,
-            Err(FactTopologyError::CompositePackedOutputNotSupported(_))
-        ));
+        )
+        .expect("Composite packed output should be supported and return subtask fact topologies");
+
+        let expected_subtask_fact_topologies = vec![
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![1],
+            },
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![3],
+            },
+        ];
+        assert_eq!(result, expected_subtask_fact_topologies);
     }
 
     #[test]

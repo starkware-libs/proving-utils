@@ -186,16 +186,12 @@ mod tests {
     #[rstest]
     // Expected hashes generated with `cairo-hash-program`
     #[case::fibonacci(
-        "../cairo_programs/fibonacci.json",
-        "0x43b17e9592f33142246af4c06cd2b574b460dd1f718d76b51341175a62b220f"
+        "resources/compiled_programs/test_programs/fibonacci_compiled.json",
+        "0x4f028ea2f2568d9b71509641f65cd3879482a371ab2a18d20ca7528d960dd45"
     )]
-    #[case::field_arithmetic(
-        "../cairo_programs/field_arithmetic.json",
-        "0x1031772ca86e618b058101af9c9a3277bac90712b750bcea1cc69d6c7cad8a7"
-    )]
-    #[case::keccak_copy_inputs(
-        "../cairo_programs/keccak_copy_inputs.json",
-        "0x49484fdc8e7a85061f9f21b7e21fe276d8a88c8e96681101a2518809e686c6c"
+    #[case::builtin_usage(
+        "resources/compiled_programs/test_programs/builtin_usage_compiled.json",
+        "0x4b91dbb7dc2f33ff104023b86e8dac0b94382695bcdcca4a352e6a51ef522c7"
     )]
     fn test_compute_program_hash_chain(
         #[case] program_path: PathBuf,
