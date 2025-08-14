@@ -222,7 +222,7 @@ mod tests {
             BuiltinName::pedersen,
         ];
 
-        let mut vm = VirtualMachine::new(false);
+        let mut vm = VirtualMachine::new(false, true);
         let builtin_list_ptr = vm.add_memory_segment();
 
         let builtins_offset = 4;
@@ -241,8 +241,7 @@ mod tests {
 
     #[fixture]
     fn fibonacci() -> Program {
-        let program_content =
-            include_bytes!("../../../../../cairo_programs/fibonacci.json").to_vec();
+        let program_content = include_bytes!("../../examples/fibonacci.json").to_vec();
 
         Program::from_bytes(&program_content, Some("main"))
             .expect("Loading example program failed unexpectedly")
@@ -278,10 +277,10 @@ mod tests {
     }
 
     #[rstest]
-    fn test_load_header(fibonacci: Program) {
+    fn test_load_header(fibonacci: Program) -> Result<(), Box<dyn std::error::Error>> {
         let program = fibonacci.get_stripped_program().unwrap();
 
-        let mut vm = VirtualMachine::new(false);
+        let mut vm = VirtualMachine::new(false, true);
         let mut segments = MemorySegmentManager::new();
         let base_address = segments.add();
 
@@ -296,7 +295,9 @@ mod tests {
         check_loaded_header(&vm, base_address.clone(), &program, bootloader_version);
 
         let builtin_list_ptr = (base_address + builtins_offset)?;
+
         check_loaded_builtins(&vm, &vec![], builtin_list_ptr);
+        Ok(())
     }
 
     fn check_loaded_program(
@@ -317,7 +318,7 @@ mod tests {
     fn test_load_program(fibonacci: Program) {
         let program = fibonacci.get_stripped_program().unwrap();
 
-        let mut vm = VirtualMachine::new(false);
+        let mut vm = VirtualMachine::new(false, true);
         let mut segments = MemorySegmentManager::new();
         let base_address = segments.add();
 
