@@ -456,10 +456,8 @@ pub fn write_to_fact_topologies_file<FT: AsRef<FactTopology>>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use crate::hints::types::CompositePackedOutput;
     use rstest::{fixture, rstest};
+    use std::collections::HashMap;
 
     use super::*;
 
@@ -505,26 +503,6 @@ mod tests {
         for (topology, plain_topology) in std::iter::zip(&fact_topologies, plain_fact_topologies) {
             assert_eq!(*topology, plain_topology);
         }
-    }
-
-    #[test]
-    /// Composite outputs are not supported (yet).
-    fn test_compute_fact_topologies_composite_output() {
-        let packed_outputs = vec![PackedOutput::Composite(CompositePackedOutput::default())];
-        let fact_topologies = vec![FactTopology {
-            tree_structure: vec![],
-            page_sizes: vec![],
-        }];
-        let applicative_bootloader_program_hash = Felt252::from(1234);
-        let result = compute_fact_topologies(
-            &packed_outputs,
-            &fact_topologies,
-            applicative_bootloader_program_hash,
-        );
-        assert!(matches!(
-            result,
-            Err(FactTopologyError::CompositePackedOutputNotSupported(_))
-        ));
     }
 
     #[test]
