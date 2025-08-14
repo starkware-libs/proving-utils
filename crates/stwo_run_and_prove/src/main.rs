@@ -134,7 +134,10 @@ struct CairoProverInputs {
 }
 
 fn main() -> Result<(), StwoRunAndProveError> {
-    let args = Args::try_parse_from(env::args())?;
+    let args = match Args::try_parse_from(env::args()) {
+        Ok(args) => args,
+        Err(err) => err.exit(),
+    };
     let prove_config = ProveConfig {
         verify: args.verify,
         proofs_dir: args.proofs_dir,
