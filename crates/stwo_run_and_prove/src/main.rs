@@ -35,6 +35,15 @@ use tracing::{error, info, warn};
 
 type OutputVec = Vec<[u32; 8]>;
 
+fn parse_usize_ge1(s: &str) -> Result<usize, String> {
+    let v: usize = s.parse().map_err(|_| "must be a number".to_string())?;
+    if v >= 1 {
+        Ok(v)
+    } else {
+        Err("must be >= 1".into())
+    }
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -74,11 +83,11 @@ struct Args {
     #[clap(
         long = "n_proof_attempts",
         help = "Number of attempts for proving, in case the proof verification fails.",
-        default_value_t = 1,
+        default_value_t = 1usize,
         requires = "verify",
-        value_parser = clap::value_parser!(u16).range(1..)
+        value_parser = parse_usize_ge1
     )]
-    n_proof_attempts: u16,
+    n_proof_attempts: usize,
     #[clap(long = "verify", help = "Should verify the generated proof.")]
     verify: bool,
     #[clap(
@@ -123,7 +132,7 @@ struct ProveConfig {
     proofs_dir: PathBuf,
     proof_format: ProofFormat,
     verify: bool,
-    n_proof_attempts: u16,
+    n_proof_attempts: usize,
     prover_params_json: Option<PathBuf>,
 }
 
@@ -261,6 +270,7 @@ fn prove_with_retries(
                     i + 1,
                     prove_config.n_proof_attempts
                 );
+                return Err(StwoRunAndProveError::Verification);
             }
 
             Err(e) => return Err(e),
@@ -416,7 +426,12 @@ mod tests {
         current_path.join(RESOURCES_PATH).join(file_name)
     }
 
-    fn prepare_args(n_proof_attempts: u16) -> (Args, TempPath, TempDir) {
+    fn is_file_empty(path: &PathBuf) -> std::io::Result<bool> {
+        let metadata = fs::metadata(path)?;
+        Ok(metadata.len() == 0)
+    }
+
+    fn prepare_args(n_proof_attempts: usize) -> (Args, TempPath, TempDir) {
         let program_output_tempfile = NamedTempFile::new()
             .expect("Failed to create temp file for program output")
             .into_temp_path();
@@ -435,7 +450,10 @@ mod tests {
         (args, program_output_tempfile, proofs_tempdir)
     }
 
-    fn run_stwo_run_and_prove(args: Args, prover: Box<dyn ProverTrait>) {
+    fn run_stwo_run_and_prove(
+        args: Args,
+        prover: Box<dyn ProverTrait>,
+    ) -> Result<(), StwoRunAndProveError> {
         let prove_config = ProveConfig {
             verify: args.verify,
             proofs_dir: args.proofs_dir,
@@ -451,30 +469,54 @@ mod tests {
             prove_config,
             prover,
         )
-        .expect("Failed to run stwo_run_and_prove.");
     }
 
-    fn run_with_successful_mock_prover() -> (TempPath, TempDir) {
-        let (args, program_output_tempfile, proofs_tempdir) = prepare_args(1);
+    fn run_with_successful_mock_prover(n_proof_attempts: usize) -> (TempPath, TempDir) {
+        let (args, program_output_tempfile, proofs_tempdir) = prepare_args(n_proof_attempts);
 
         let mut mock_prover = Box::new(MockProverTrait::new());
         mock_prover
             .expect_choose_channel_and_prove()
-            .times(1)
+            .times(n_proof_attempts)
             .returning(move |_, proof_file, _, _, _| {
                 let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
                 fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
                 Ok(vec![ARRAY_SUM_EXPECTED_OUTPUT])
             });
 
-        run_stwo_run_and_prove(args, mock_prover);
+        run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
+
+        (program_output_tempfile, proofs_tempdir)
+    }
+
+    fn run_with_verification_error_mock_prover(n_proof_attempts: usize) -> (TempPath, TempDir) {
+        let (args, program_output_tempfile, proofs_tempdir) = prepare_args(n_proof_attempts);
+
+        let mut mock_prover = Box::new(MockProverTrait::new());
+        mock_prover
+            .expect_choose_channel_and_prove()
+            .times(n_proof_attempts)
+            .returning(move |_, proof_file, _, _, _| {
+                let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+                fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
+                Err(StwoRunAndProveError::Verification)
+            });
+
+        let result = run_stwo_run_and_prove(args, mock_prover);
+        assert!(
+            matches!(result, Err(StwoRunAndProveError::Verification)),
+            "run and prove should return StwoRunAndProveError::Verification error but got: {:?}",
+            result,
+        );
 
         (program_output_tempfile, proofs_tempdir)
     }
 
     #[test]
-    fn test_stwo_run_and_prove_proof() {
-        let (_, proofs_temp_dir) = run_with_successful_mock_prover();
+    fn test_stwo_run_and_prove() {
+        let (output_temp_file, proofs_temp_dir) = run_with_successful_mock_prover(1);
+
+        // Verifying the proof content.
         let proof_file = proofs_temp_dir
             .path()
             .to_path_buf()
@@ -487,11 +529,8 @@ mod tests {
             proof_content, expected_proof_content,
             "Proof content does not match expected proof content"
         );
-    }
 
-    #[test]
-    fn test_stwo_run_and_prove_output() {
-        let (output_temp_file, _) = run_with_successful_mock_prover();
+        // Verifying the proof output.
         let output_content =
             std::fs::read_to_string(output_temp_file).expect("Failed to read output file");
         let output_vec: OutputVec =
@@ -502,8 +541,26 @@ mod tests {
             ARRAY_SUM_EXPECTED_OUTPUT
         );
     }
+
+    #[test]
+    fn test_stwo_run_and_prove_retries() {
+        let (output_temp_file, proofs_temp_dir) = run_with_verification_error_mock_prover(3);
+        let proofs_dir = proofs_temp_dir.path().to_path_buf();
+
+        for i in 0..3 {
+            let proof_file = proofs_dir.join(format!("proof_{}", i));
+            assert!(
+                proof_file.exists(),
+                "Proof file {:?} should exist after running with verifier failures",
+                i + 1,
+            );
+        }
+        assert!(
+            is_file_empty(&output_temp_file.to_path_buf()).unwrap(),
+            "Output file should be empty after running with verifier failures",
+        );
+    }
 }
 
 // TODO(nitsan): Tests -
-// add a retries test
 // add an inner test to choose_channel_and_prove
