@@ -37,9 +37,9 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      #      - name: "Unit tests"
-      #        run: |
-      #          RUSTFLAGS="-D warnings" cargo test
+      - name: "Unit tests"
+        run: |
+          RUSTFLAGS="-D warnings" cargo test
       - name: "Test examples"
         run: |
           RUSTFLAGS="-D warnings" cargo run --example run_program
