@@ -207,8 +207,9 @@ mod tests {
         let stripped_program = program.get_stripped_program().unwrap();
         let bootloader_version = 0;
 
-        let program_hash = compute_program_hash_chain(&stripped_program, bootloader_version)
-            .expect("Failed to compute program hash.");
+        let program_hash =
+            compute_program_hash_chain(&stripped_program, bootloader_version, HashFunc::Pedersen)
+                .expect("Failed to compute program hash.");
 
         let program_hash_hex = format!("{program_hash:#x}");
 
