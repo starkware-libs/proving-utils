@@ -3,6 +3,7 @@ use std::{
     str::FromStr,
 };
 
+use cairo_lang_executable::executable::EntryPointKind;
 use cairo_lang_executable::executable::Executable;
 use cairo_lang_execute_utils::{program_and_hints_from_executable, user_args_from_flags};
 use cairo_vm::types::errors::program_errors::ProgramError;
@@ -75,7 +76,19 @@ pub fn create_cairo1_program_task(
         .iter()
         .map(|n| BigInt::from_str(&n.to_string()).unwrap())
         .collect();
-    let (program, string_to_hint) = program_and_hints_from_executable(&executable, false)
+
+    let entrypoint = executable
+        .entrypoints
+        .iter()
+        .find(|e| e.kind == EntryPointKind::Bootloader)
+        .ok_or_else(|| {
+            BootloaderTaskError::Cairo1(format!(
+                "{:?} entrypoint not found",
+                EntryPointKind::Bootloader
+            ))
+        })?;
+
+    let (program, string_to_hint) = program_and_hints_from_executable(&executable, entrypoint)
         .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse executable: {e:?}")))?;
     let user_args = user_args_from_flags(user_args_file.as_ref(), &user_args_list)
         .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse user args: {e:?}")))?;
