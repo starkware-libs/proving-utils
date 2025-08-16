@@ -596,6 +596,7 @@ mod tests {
     use cairo_vm::vm::runners::builtin_runner::BuiltinRunner;
     use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
     use rstest::{fixture, rstest};
+    use std::collections::BTreeMap;
 
     /// This test checks that the program data is allocated in a new segment and that the
     /// pointers in the ids_data point to it.
@@ -805,8 +806,8 @@ mod tests {
         let expected_output_runner_data = OutputBuiltinState {
             base: 3,
             base_offset: 0,
-            pages: HashMap::new(),
-            attributes: HashMap::new(),
+            pages: BTreeMap::new(),
+            attributes: BTreeMap::new(),
         };
 
         // Asserting that output runner was initialized correctly, and the data is correct.
@@ -961,11 +962,11 @@ mod tests {
         let output_builtin_state = OutputBuiltinState {
             base: 0,
             base_offset: 0,
-            pages: HashMap::from([
+            pages: BTreeMap::from([
                 (1, PublicMemoryPage { start: 0, size: 7 }),
                 (2, PublicMemoryPage { start: 7, size: 3 }),
             ]),
-            attributes: HashMap::from([("gps_fact_topology".to_string(), tree_structure.clone())]),
+            attributes: BTreeMap::from([("gps_fact_topology".to_string(), tree_structure.clone())]),
         };
 
         let mut output_builtin = OutputBuiltinRunner::new(true);

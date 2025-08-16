@@ -70,6 +70,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         // we don't need to relocate memory in the VM because we later call the adapter that does
         // relocation.
         relocate_mem: false,
+        relocate_trace: false,
         layout: args.layout,
         proof_mode: true,
         secure_run: None,
@@ -78,10 +79,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         dynamic_layout_params: None,
     };
     let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
-    let mut prover_input_info = cairo_runner
-        .get_prover_input_info()
-        .expect("Unable to get prover input info");
-    let prover_input = adapter(&mut prover_input_info)?;
+    let prover_input = adapter(&cairo_runner);
 
     let execution_resources = ExecutionResources::from_prover_input(&prover_input);
     log::info!("Execution resources: {execution_resources:#?}");

@@ -228,6 +228,7 @@ mod tests {
     use cairo_vm::vm::vm_core::VirtualMachine;
     use rstest::rstest;
     use std::borrow::Cow;
+    use std::collections::BTreeMap;
 
     fn prepare_vm_for_flexible_builtin_usage_test(
         input: &FlexibleBuiltinUsageInput,
@@ -452,11 +453,11 @@ mod tests {
             let expected_output_builtin_state = OutputBuiltinState {
                 base: 2,
                 base_offset: 0,
-                pages: HashMap::from([
+                pages: BTreeMap::from([
                     (1, PublicMemoryPage { start: 1, size: 2 }),
                     (2, PublicMemoryPage { start: 3, size: 2 }),
                 ]),
-                attributes: HashMap::from([(GPS_FACT_TOPOLOGY.into(), vec![3, 2, 0, 1, 0, 2])]),
+                attributes: BTreeMap::from([(GPS_FACT_TOPOLOGY.into(), vec![3, 2, 0, 1, 0, 2])]),
             };
             assert_eq!(output_builtin_state, expected_output_builtin_state);
         } else {
