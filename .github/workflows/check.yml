@@ -3,7 +3,7 @@ name: check
 on:
   push:
     branches:
-      - main
+      - meidar/update_rev/main/bl_unpacking
   pull_request:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
       - run: rustup show
       - run: rustup component add clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all -- -D warnings
+      - run: cargo +nightly-2025-07-14 clippy --all -- -D warnings
 
   tests:
     runs-on: ubuntu-latest
@@ -45,7 +45,7 @@ jobs:
           RUSTFLAGS="-D warnings" cargo run --example run_program
       - name: "Unit tests in stwo_run_and_prove"
         run: |
-          RUSTFLAGS="-D warnings" cargo test -p stwo_run_and_prove
+          RUSTFLAGS="-D warnings" cargo +nightly-2025-07-14 test -p stwo_run_and_prove
 
   udeps:
     runs-on: ubuntu-latest
@@ -56,4 +56,4 @@ jobs:
           cache-on-failure: true
       - run: cargo install cargo-udeps --locked
       #      - run: cargo +nightly udeps --all-targets
-      - run: cargo +nightly-2025-04-06 udeps
+      - run: cargo +nightly-2025-07-14 udeps

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::errors::math_errors::MathError;
@@ -77,7 +77,7 @@ impl From<CairoPieLoaderError> for HintError {
 /// a pointer in the VM memory, or to an integer in case the segment is uninitialized.
 /// Those will be wrapped by the appropriate `MaybeRelocatable` variant.
 pub struct RelocationTable {
-    relocations: HashMap<isize, MaybeRelocatable>,
+    relocations: BTreeMap<isize, MaybeRelocatable>,
 }
 
 impl RelocationTable {
@@ -156,11 +156,11 @@ pub fn extract_segment(maybe_relocatable: MaybeRelocatable) -> Result<isize, Rel
     }
 }
 
-/// Builds a hashmap of address -> value from the `CairoPieMemory` vector.
+/// Builds a BTreeMap of address -> value from the `CairoPieMemory` vector.
 ///
 /// Makes it more convenient to access values in the Cairo PIE memory.
-fn build_cairo_pie_memory_map(memory: &CairoPieMemory) -> HashMap<Relocatable, &MaybeRelocatable> {
-    let mut memory_map: HashMap<Relocatable, &MaybeRelocatable> = HashMap::new();
+fn build_cairo_pie_memory_map(memory: &CairoPieMemory) -> BTreeMap<Relocatable, &MaybeRelocatable> {
+    let mut memory_map: BTreeMap<Relocatable, &MaybeRelocatable> = BTreeMap::new();
 
     for ((segment_index, offset), value) in memory.0.iter() {
         let address = Relocatable::from((*segment_index as isize, *offset));
@@ -203,7 +203,7 @@ pub fn build_cairo_pie_relocation_table(
         offset: 0,
     };
 
-    // Create a hashmap of the program memory for easier searching.
+    // Create a BTreeMap of the program memory for easier searching.
     // If this turns out to be too expensive, consider building it directly
     // when building the CairoPie object.
     let memory_map = build_cairo_pie_memory_map(&cairo_pie.memory);
@@ -231,7 +231,7 @@ pub fn build_cairo_pie_relocation_table(
 
 fn extend_additional_data(
     builtin: &mut SignatureBuiltinRunner,
-    data: &HashMap<Relocatable, (Felt252, Felt252)>,
+    data: &BTreeMap<Relocatable, (Felt252, Felt252)>,
     relocation_table: &RelocationTable,
 ) -> Result<(), SignatureRelocationError> {
     for (addr, signature) in data {
