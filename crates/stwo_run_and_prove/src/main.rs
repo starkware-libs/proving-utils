@@ -20,14 +20,15 @@ use stwo_cairo_adapter::vm_import::VmImportError;
 use stwo_cairo_prover::prover::{
     ChannelHash, ProverParameters, default_prod_prover_parameters, prove_cairo,
 };
-use stwo_cairo_prover::stwo_prover::core::backend::BackendForChannel;
-use stwo_cairo_prover::stwo_prover::core::backend::simd::SimdBackend;
-use stwo_cairo_prover::stwo_prover::core::channel::MerkleChannel;
-use stwo_cairo_prover::stwo_prover::core::pcs::PcsConfig;
-use stwo_cairo_prover::stwo_prover::core::prover::ProvingError;
-use stwo_cairo_prover::stwo_prover::core::vcs::blake2_merkle::Blake2sMerkleChannel;
-use stwo_cairo_prover::stwo_prover::core::vcs::ops::MerkleHasher;
-use stwo_cairo_prover::stwo_prover::core::vcs::poseidon252_merkle::Poseidon252MerkleChannel;
+
+use stwo_cairo_prover::stwo::core::channel::MerkleChannel;
+use stwo_cairo_prover::stwo::core::pcs::PcsConfig;
+use stwo_cairo_prover::stwo::core::vcs::MerkleHasher;
+use stwo_cairo_prover::stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
+use stwo_cairo_prover::stwo::core::vcs::poseidon252_merkle::Poseidon252MerkleChannel;
+use stwo_cairo_prover::stwo::prover::ProvingError;
+use stwo_cairo_prover::stwo::prover::backend::BackendForChannel;
+use stwo_cairo_prover::stwo::prover::backend::simd::SimdBackend;
 use stwo_cairo_serialize::CairoSerialize;
 use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
 use thiserror::Error;
@@ -198,9 +199,7 @@ fn stwo_run_and_prove(
     let program_input = get_program_input(&program_input)?;
     info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
-    let mut prover_input_info = runner.get_prover_input_info()?;
-    info!("Adapting prover input.");
-    let prover_input = adapter(&mut prover_input_info)?;
+    let prover_input = adapter(&runner);
     let (successful_proof_attempt, output_vec) =
         prove_with_retries(prover_input, prove_config, prover)?;
 
@@ -244,7 +243,7 @@ fn prove_with_retries(
             "Attempting to generate proof {}/{}.",
             i, prove_config.n_proof_attempts
         );
-        let proof_file_path = prove_config.proofs_dir.join(format!("proof_{}", i));
+        let proof_file_path = prove_config.proofs_dir.join(format!("proof_{i}"));
 
         match prover.choose_channel_and_prove(
             &cairo_prover_inputs,
@@ -373,7 +372,7 @@ where
             CairoSerialize::serialize(&proof, &mut serialized);
             let hex_strings: Vec<String> = serialized
                 .into_iter()
-                .map(|felt| format!("0x{:x}", felt))
+                .map(|felt| format!("0x{felt:x}"))
                 .collect();
             let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
             proof_file.write_all(serialized_hex.as_bytes())?;

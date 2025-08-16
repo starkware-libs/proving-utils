@@ -502,6 +502,7 @@ mod tests {
     use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
     use cairo_vm::Felt252;
     use rstest::{fixture, rstest};
+    use std::collections::BTreeMap;
     use std::ops::Add;
 
     #[fixture]
@@ -1075,7 +1076,7 @@ mod tests {
         );
         assert_eq!(
             vm.get_output_builtin_mut().unwrap().get_state().pages,
-            HashMap::from([
+            BTreeMap::from([
                 (1, PublicMemoryPage { start: 2, size: 3 }),
                 (2, PublicMemoryPage { start: 5, size: 1 }),
                 (3, PublicMemoryPage { start: 8, size: 10 }),

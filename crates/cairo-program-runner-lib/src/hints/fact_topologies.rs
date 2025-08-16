@@ -267,7 +267,7 @@ pub fn configure_fact_topologies<FT: AsRef<FactTopology>>(
 }
 
 fn check_tree_structure(tree_structure: &[usize]) -> Result<(), TreeStructureError> {
-    if (!tree_structure.len() % 2 == 0) || (tree_structure.len() > 10) {
+    if (!tree_structure.len()).is_multiple_of(2) || (tree_structure.len() > 10) {
         return Err(TreeStructureError::InvalidTreeStructure);
     }
 
@@ -459,7 +459,7 @@ mod tests {
     use super::*;
     use crate::hints::types::CompositePackedOutput;
     use rstest::{fixture, rstest};
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     #[fixture]
     fn packed_outputs() -> Vec<PackedOutput> {
@@ -598,7 +598,7 @@ mod tests {
         let output_builtin_state = output_builtin.get_state();
         assert_eq!(
             output_builtin_state.pages,
-            HashMap::from([
+            BTreeMap::from([
                 (1, PublicMemoryPage { start: 10, size: 1 }),
                 (2, PublicMemoryPage { start: 11, size: 2 }),
                 (3, PublicMemoryPage { start: 13, size: 1 })
@@ -629,7 +629,7 @@ mod tests {
         let output_builtin_state = output_builtin.get_state();
         assert_eq!(
             output_builtin_state.pages,
-            HashMap::from([
+            BTreeMap::from([
                 (1, PublicMemoryPage { start: 12, size: 1 }),
                 (2, PublicMemoryPage { start: 15, size: 1 }),
                 (3, PublicMemoryPage { start: 16, size: 2 }),
@@ -643,8 +643,8 @@ mod tests {
         let expected_tree_structure = vec![7, 12, 4, 0];
 
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::new(),
-            attributes: HashMap::from([(
+            pages: BTreeMap::new(),
+            attributes: BTreeMap::from([(
                 GPS_FACT_TOPOLOGY.to_string(),
                 expected_tree_structure.clone(),
             )]),
@@ -658,8 +658,8 @@ mod tests {
     #[test]
     fn test_get_tree_structure_default() {
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::new(),
-            attributes: HashMap::new(),
+            pages: BTreeMap::new(),
+            attributes: BTreeMap::new(),
         };
 
         let tree_structure = get_tree_structure_from_output_data(&output_builtin_data)
@@ -673,8 +673,8 @@ mod tests {
     #[case::value_too_large(vec![0, 1073741825])] // 1073741825 = 2^30 + 1
     fn test_get_tree_structure_invalid_tree(#[case] tree_structure: Vec<usize>) {
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::new(),
-            attributes: HashMap::from([(GPS_FACT_TOPOLOGY.to_string(), tree_structure.clone())]),
+            pages: BTreeMap::new(),
+            attributes: BTreeMap::from([(GPS_FACT_TOPOLOGY.to_string(), tree_structure.clone())]),
         };
 
         let result = get_tree_structure_from_output_data(&output_builtin_data);
@@ -687,8 +687,8 @@ mod tests {
     #[test]
     fn test_get_tree_structure_default_with_pages() {
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::from([(1, PublicMemoryPage { start: 0, size: 10 })]),
-            attributes: HashMap::new(),
+            pages: BTreeMap::from([(1, PublicMemoryPage { start: 0, size: 10 })]),
+            attributes: BTreeMap::new(),
         };
 
         let result = get_tree_structure_from_output_data(&output_builtin_data);
@@ -701,7 +701,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_from_pages() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (2, PublicMemoryPage { start: 7, size: 3 }),
         ]);
@@ -714,7 +714,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_missing() {
         let output_size = 10usize;
-        let page_sizes = get_page_sizes_from_pages(output_size, &HashMap::new())
+        let page_sizes = get_page_sizes_from_pages(output_size, &BTreeMap::new())
             .expect("Could not compute page sizes");
         assert_eq!(page_sizes, vec![output_size]);
     }
@@ -722,7 +722,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_unexpected_page_id() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (3, PublicMemoryPage { start: 7, size: 3 }),
         ]);
@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_invalid_page_start() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 12, size: 7 }),
             (2, PublicMemoryPage { start: 19, size: 3 }),
         ]);
@@ -746,7 +746,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_unexpected_page_start() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (2, PublicMemoryPage { start: 8, size: 3 }),
         ]);
@@ -758,7 +758,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_output_not_fully_covered() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (2, PublicMemoryPage { start: 7, size: 2 }),
         ]);
