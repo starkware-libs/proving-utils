@@ -207,7 +207,7 @@ impl<'de> Deserialize<'de> for PackedOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Task {
     Cairo0Program(Cairo0Executable),
@@ -215,16 +215,24 @@ pub enum Task {
     Cairo1Program(Cairo1Executable),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Cairo0Executable {
     pub program: Program,
     pub program_input: Option<String>,
 }
+
 #[derive(Debug, Clone)]
 pub struct Cairo1Executable {
     pub program: Program,
     pub user_args: Vec<Arg>,
     pub string_to_hint: HashMap<String, Hint>,
+}
+
+impl PartialEq for Cairo1Executable {
+    // This implementation ignores user_args for equality checks.
+    fn eq(&self, other: &Self) -> bool {
+        self.program == other.program && self.string_to_hint == other.string_to_hint
+    }
 }
 
 impl Task {
@@ -254,7 +262,7 @@ struct TaskSpecHelper {
     user_args_file: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TaskSpec {
     pub task: Task,
     pub program_hash_function: HashFunc,
@@ -381,7 +389,7 @@ impl TaskSpec {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct SimpleBootloaderInput {
     pub fact_topologies_path: Option<PathBuf>,
     pub single_page: bool,
