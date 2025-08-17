@@ -47,9 +47,12 @@ fn parse_usize_ge1(s: &str) -> Result<usize, String> {
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(long = "program", help = "Path to the compiled program")]
+    #[clap(long = "program", help = "Absolute path to the compiled program.")]
     program: PathBuf,
-    #[clap(long = "program_input", help = "Path to the program input file.")]
+    #[clap(
+        long = "program_input",
+        help = "Absolute path to the program input file."
+    )]
     program_input: Option<PathBuf>,
     // The path to the JSON file containing the prover parameters (optional).
     // The expected file format is:
@@ -69,12 +72,12 @@ struct Args {
     // Default parameters are chosen to ensure 96 bits of security.
     #[clap(
         long = "prover_params_json",
-        help = "The path to the JSON file containing the prover parameters."
+        help = "Absolute path to the JSON file containing the prover parameters."
     )]
     prover_params_json: Option<PathBuf>,
     #[clap(
         long = "proofs_dir",
-        help = "Path to the output directory where the generated proofs will be saved (may include
+        help = "Absolute path to the output directory where the generated proofs will be saved (may include
     multiple proofs from repeated attempts)."
     )]
     proofs_dir: PathBuf,
@@ -92,7 +95,7 @@ struct Args {
     verify: bool,
     #[clap(
         long = "program_output",
-        help = "An optional output file path for the program output."
+        help = "Optional absolute path for the program output."
     )]
     program_output: Option<PathBuf>,
 }
@@ -143,7 +146,10 @@ struct CairoProverInputs {
 }
 
 fn main() -> Result<(), StwoRunAndProveError> {
-    let args = Args::try_parse_from(env::args())?;
+    let args = match Args::try_parse_from(env::args()) {
+        Ok(args) => args,
+        Err(err) => err.exit(),
+    };
     let prove_config = ProveConfig {
         verify: args.verify,
         proofs_dir: args.proofs_dir,
