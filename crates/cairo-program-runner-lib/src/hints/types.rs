@@ -34,7 +34,7 @@ pub struct BootloaderConfig {
 }
 
 pub const BOOTLOADER_CONFIG_SIZE: usize = 3;
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Deserialize, Debug, Default, Clone, PartialEq)]
 /// Represents a composite packed output, which consists of a set of outputs,
 /// subtasks (which could be plain or composite themselves), and associated fact topologies of the
 /// plain subtasks.
@@ -154,7 +154,7 @@ impl CompositePackedOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PackedOutput {
     Plain,
     Composite(CompositePackedOutput),
