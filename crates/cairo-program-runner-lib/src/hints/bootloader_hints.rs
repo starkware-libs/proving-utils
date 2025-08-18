@@ -488,25 +488,21 @@ pub fn assert_program_address(
 
 #[cfg(test)]
 mod tests {
-    //use num_traits::ToPrimitive;
-
+    use super::*;
+    use crate::hints::codes::*;
+    use crate::hints::hint_processors::MinimalBootloaderHintProcessor;
     use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
+    use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
+    use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
+    use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
+    use cairo_vm::serde::deserialize_program::OffsetValue;
     use cairo_vm::vm::runners::builtin_runner::{
         BuiltinRunner, OutputBuiltinRunner, OutputBuiltinState,
     };
-    //use assert_matches::assert_matches;
-    // use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::{
-    //     BuiltinHintProcessor, HintProcessorData,
-    // };
-    use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
-    // use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
-    // use cairo_vm::serde::deserialize_program::OffsetValue;
-    // use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
-    //use cairo_vm::{any_box, relocatable, Felt252};
+    use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
     use cairo_vm::Felt252;
     use rstest::{fixture, rstest};
-
-    use super::*;
+    use std::ops::Add;
 
     #[fixture]
     fn bootloader_input() -> BootloaderInput {
@@ -813,328 +809,377 @@ mod tests {
         );
     }
 
-    // #[rstest]
-    // fn test_gen_arg() {
-    //     let mut vm = vm!();
+    #[rstest]
+    fn test_gen_arg() {
+        // Tests that gen_arg correctly generates a segment with the provided arguments.
+        // It should create a new segment and store the arguments in it.
+        // Tests both simple and nested arguments.
+        let mut vm = VirtualMachine::new(false, false);
 
-    //     let mut nested_args = Vec::<Box<dyn Any>>::new();
-    //     nested_args.push(Box::new(MaybeRelocatable::from(128)));
-    //     nested_args.push(Box::new(MaybeRelocatable::from(42)));
+        let mut nested_args = Vec::<Box<dyn Any>>::new();
+        nested_args.push(Box::new(MaybeRelocatable::from(128)));
+        nested_args.push(Box::new(MaybeRelocatable::from(42)));
 
-    //     let mut args = Vec::<Box<dyn Any>>::new();
-    //     args.push(Box::new(MaybeRelocatable::from(1001)));
-    //     args.push(Box::new(MaybeRelocatable::from(2048)));
-    //     args.push(Box::new(nested_args));
+        let mut args = Vec::<Box<dyn Any>>::new();
+        args.push(Box::new(MaybeRelocatable::from(1001)));
+        args.push(Box::new(MaybeRelocatable::from(2048)));
+        args.push(Box::new(nested_args));
 
-    //     let args_base: Relocatable = gen_arg(&mut vm, &args).expect("gen_args failed
-    // unexpectedly");
+        let args_base: Relocatable = gen_arg(&mut vm, &args).expect("gen_args failed unexpectedly");
 
-    //     let values = vm
-    //         .segments
-    //         .memory
-    //         .get_integer_range(args_base, 2)
-    //         .expect("Loading values failed");
+        let values = vm
+            .segments
+            .memory
+            .get_integer_range(args_base, 2)
+            .expect("Loading values failed");
 
-    //     assert_eq!(*values[0], 1001.into());
-    //     assert_eq!(*values[1], 2048.into());
+        assert_eq!(*values[0], 1001.into());
+        assert_eq!(*values[1], 2048.into());
 
-    //     let nested_args_address: Relocatable = args_base.add(2i32).unwrap();
-    //     let nested_args_base = vm
-    //         .segments
-    //         .memory
-    //         .get_relocatable(nested_args_address)
-    //         .expect("Nested vector should be here");
+        let nested_args_address: Relocatable = args_base.add(2i32).unwrap();
+        let nested_args_base = vm
+            .segments
+            .memory
+            .get_relocatable(nested_args_address)
+            .expect("Nested vector should be here");
 
-    //     let nested_values = vm
-    //         .segments
-    //         .memory
-    //         .get_integer_range(nested_args_base, 2)
-    //         .expect("Loading nested values failed");
+        let nested_values = vm
+            .segments
+            .memory
+            .get_integer_range(nested_args_base, 2)
+            .expect("Loading nested values failed");
 
-    //     assert_eq!(*nested_values[0], 128.into());
-    //     assert_eq!(*nested_values[1], 42.into());
-    // }
+        assert_eq!(*nested_values[0], 128.into());
+        assert_eq!(*nested_values[1], 42.into());
+    }
 
-    // #[rstest]
-    // fn test_enter_packed_output_scope() {
-    //     let mut vm = vm!();
-    //     // Set n_subtasks to 2
-    //     vm.run_context.fp = 1;
-    //     vm.segments = segments![((1, 0), 2)];
-    //     let ids_data = ids_data!["n_subtasks"];
+    #[rstest]
+    fn test_enter_packed_output_scope() {
+        // Tests that enter_packed_output_scope correctly enters a new scope with the packed output
+        // and updates the execution scopes accordingly.
+        // The entered scope should contain the packed_outputs.
+        let mut vm = VirtualMachine::new(false, false);
 
-    //     let ap_tracking = ApTracking::default();
+        // Set n_subtasks to 2
+        vm.set_fp(1);
+        vm.segments.add();
+        vm.segments.add();
+        let _ = vm.segments.load_data(
+            Relocatable::from((1, 0)),
+            &[MaybeRelocatable::Int(Felt252::from(2))],
+        );
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        let ids_data = prepare_ids_data_for_test(&["n_subtasks"]);
 
-    //     let packed_outputs = vec![
-    //         PackedOutput::Plain(vec![]),
-    //         PackedOutput::Composite(CompositePackedOutput::default()),
-    //         PackedOutput::Plain(vec![]),
-    //     ];
-    //     exec_scopes.insert_value(vars::PACKED_OUTPUTS, packed_outputs);
+        let ap_tracking = ApTracking::default();
 
-    //     enter_packed_output_scope(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+        let mut exec_scopes = ExecutionScopes::new();
 
-    //     // Check that we entered a new scope
-    //     assert_eq!(exec_scopes.data.len(), 2);
-    //     assert_eq!(exec_scopes.data[1].len(), 1);
+        let packed_outputs = vec![
+            PackedOutput::Plain,
+            PackedOutput::Composite(CompositePackedOutput::default()),
+            PackedOutput::Plain,
+        ];
+        exec_scopes.insert_value(vars::PACKED_OUTPUTS, packed_outputs);
 
-    //     let packed_output = exec_scopes
-    //         .get(vars::PACKED_OUTPUT)
-    //         .expect("PACKED_OUTPUT not present in scope");
+        enter_packed_output_scope(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    //     assert!(matches!(packed_output, PackedOutput::Composite(_)));
-    // }
+        // Check that we entered a new scope
+        assert_eq!(exec_scopes.data.len(), 2);
+        assert_eq!(exec_scopes.data[1].len(), 1);
 
-    // #[test]
-    // fn test_is_plain_packed_output() {
-    //     let mut vm = vm!();
-    //     add_segments!(vm, 2);
+        let packed_output = exec_scopes
+            .get(vars::PACKED_OUTPUT)
+            .expect("PACKED_OUTPUT not present in scope");
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        assert!(matches!(packed_output, PackedOutput::Composite(_)));
+    }
 
-    //     fn is_plain(
-    //         vm: &mut VirtualMachine,
-    //         exec_scopes: &mut ExecutionScopes,
-    //         packed_output: PackedOutput,
-    //     ) -> bool { exec_scopes.insert_value(vars::PACKED_OUTPUT, packed_output);
-    //       is_plain_packed_output(vm, exec_scopes).expect("Hint failed unexpectedly"); let result
-    //       = vm .segments .memory .get_integer(vm.run_context.get_ap()) .unwrap();
+    #[test]
+    fn test_is_plain_packed_output() {
+        // Tests that is_plain_packed_output correctly checks if the packed output is plain
+        // and stores the result in the VM memory at the current AP.
+        let mut vm = VirtualMachine::new(false, false);
+        vm.segments.add();
+        vm.segments.add();
 
-    //         result.into_owned() != Felt252::from(0)
-    //     }
+        let mut exec_scopes = ExecutionScopes::new();
 
-    //     let plain_packed_output = PackedOutput::Plain(Vec::<Felt252>::new());
-    //     let composite_packed_output = PackedOutput::Composite(CompositePackedOutput::default());
+        fn is_plain(
+            vm: &mut VirtualMachine,
+            exec_scopes: &mut ExecutionScopes,
+            packed_output: PackedOutput,
+        ) -> bool {
+            exec_scopes.insert_value(vars::PACKED_OUTPUT, packed_output);
+            is_plain_packed_output(vm, exec_scopes).expect("Hint failed unexpectedly");
+            let result = vm.segments.memory.get_integer(vm.get_ap()).unwrap();
 
-    //     assert!(is_plain(&mut vm, &mut exec_scopes, plain_packed_output));
+            result.into_owned() != Felt252::from(0)
+        }
 
-    //     // Increment AP to avoid an inconsistent memory error writing in the same slot
-    //     vm.run_context.ap += 1;
-    //     assert!(!is_plain(
-    //         &mut vm,
-    //         &mut exec_scopes,
-    //         composite_packed_output
-    //     ));
-    // }
+        let plain_packed_output = PackedOutput::Plain;
+        let composite_packed_output = PackedOutput::Composite(CompositePackedOutput::default());
 
-    // #[test]
-    // fn test_save_output_pointer() {
-    //     let mut vm = vm!();
-    //     vm.segments = segments![((1, 0), (0, 0))];
-    //     let mut hint_ref = HintReference::new(0, 0, true, false);
-    //     hint_ref.offset2 = OffsetValue::Value(2);
-    //     let ids_data = HashMap::from([("output_ptr".to_string(), hint_ref)]);
+        assert!(is_plain(&mut vm, &mut exec_scopes, plain_packed_output));
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        // Increment AP to avoid an inconsistent memory error writing in the same slot
+        let current_ap = vm.get_ap().offset;
+        vm.set_ap(current_ap + 1);
+        assert!(!is_plain(
+            &mut vm,
+            &mut exec_scopes,
+            composite_packed_output
+        ));
+    }
 
-    //     let hint_data = HintProcessorData::new_default(
-    //         String::from(hint_code::BOOTLOADER_SAVE_OUTPUT_POINTER),
-    //         ids_data,
-    //     );
-    //     let mut hint_processor = BuiltinHintProcessor::new_empty();
-    //     assert_matches!(
-    //         hint_processor.execute_hint(
-    //             &mut vm,
-    //             &mut exec_scopes,
-    //             &any_box!(hint_data),
-    //             &HashMap::new(),
-    //         ),
-    //         Ok(())
-    //     );
+    #[test]
+    fn test_save_output_pointer() {
+        // Tests that save_output_pointer correctly saves the output pointer in the execution
+        // scopes.
+        let mut vm = VirtualMachine::new(false, false);
+        vm.segments.add();
+        vm.segments.add();
+        let _ = vm.segments.load_data(
+            Relocatable::from((1, 0)),
+            &[(MaybeRelocatable::RelocatableValue(Relocatable::from((0, 0))))],
+        );
 
-    //     let output_ptr = exec_scopes.get::<Relocatable>("output_start");
-    //     assert_matches!(
-    //         output_ptr,
-    //         Ok(x) if x == relocatable!(0, 2)
-    //     );
-    // }
+        let mut hint_ref = HintReference::new(0, 0, true, false, true);
+        hint_ref.offset2 = OffsetValue::Value(2);
+        let ids_data = HashMap::from([("output_ptr".to_string(), hint_ref)]);
 
-    // #[test]
-    // fn test_save_packed_outputs() {
-    //     let packed_outputs = vec![
-    //         PackedOutput::Plain(Default::default()),
-    //         PackedOutput::Plain(Default::default()),
-    //         PackedOutput::Plain(Default::default()),
-    //     ];
+        let mut exec_scopes = ExecutionScopes::new();
 
-    //     let bootloader_input = BootloaderInput {
-    //         simple_bootloader_input: SimpleBootloaderInput {
-    //             fact_topologies_path: None,
-    //             single_page: false,
-    //             tasks: vec![],
-    //         },
-    //         bootloader_config: BootloaderConfig {
-    //             simple_bootloader_program_hash: 42u64.into(),
-    //             supported_cairo_verifier_program_hashes: Default::default(),
-    //         },
-    //         packed_outputs: packed_outputs.clone(),
-    //     };
+        let hint_data =
+            HintProcessorData::new_default(String::from(BOOTLOADER_SAVE_OUTPUT_POINTER), ids_data);
+        let mut hint_processor = MinimalBootloaderHintProcessor::new();
+        assert!(matches!(
+            hint_processor.execute_hint(
+                &mut vm,
+                &mut exec_scopes,
+                &any_box!(hint_data),
+                &HashMap::new(),
+            ),
+            Ok(())
+        ));
 
-    //     let mut vm = vm!();
-    //     let mut exec_scopes = ExecutionScopes::new();
+        let output_ptr = exec_scopes.get::<Relocatable>("output_start");
+        assert!(matches!(
+            output_ptr,
+            Ok(x) if x == Relocatable::from((0, 2))
+        ));
+    }
 
-    //     exec_scopes.insert_box("bootloader_input", Box::new(bootloader_input.clone()));
+    #[test]
+    fn test_save_packed_outputs() {
+        // Tests that save_packed_outputs correctly saves the packed outputs from the bootloader
+        // input into the execution scopes.
+        let packed_outputs = vec![
+            PackedOutput::Plain,
+            PackedOutput::Plain,
+            PackedOutput::Plain,
+        ];
 
-    //     let hint_data = HintProcessorData::new_default(
-    //         String::from(hint_code::BOOTLOADER_SAVE_PACKED_OUTPUTS),
-    //         HashMap::new(),
-    //     );
-    //     let mut hint_processor = BuiltinHintProcessor::new_empty();
-    //     assert_matches!(
-    //         hint_processor.execute_hint(
-    //             &mut vm,
-    //             &mut exec_scopes,
-    //             &any_box!(hint_data),
-    //             &HashMap::new(),
-    //         ),
-    //         Ok(())
-    //     );
+        let bootloader_input = BootloaderInput {
+            simple_bootloader_input: SimpleBootloaderInput {
+                fact_topologies_path: None,
+                single_page: false,
+                tasks: vec![],
+            },
+            bootloader_config: BootloaderConfig {
+                supported_simple_bootloader_hash_list: vec![Felt252::from(1234)],
+                supported_cairo_verifier_program_hash_list: Default::default(),
+                supported_applicative_bootloader_program_hash: Felt252::from(2222),
+            },
+            packed_outputs: packed_outputs.clone(),
+        };
 
-    //     let saved_packed_outputs = exec_scopes.get::<Vec<PackedOutput>>("packed_outputs");
-    //     assert_matches!(
-    //         saved_packed_outputs,
-    //         Ok(ref x) if x == &packed_outputs
-    //     );
+        let mut vm: VirtualMachine = VirtualMachine::new(false, false);
+        let mut exec_scopes = ExecutionScopes::new();
 
-    //     assert_eq!(
-    //         saved_packed_outputs.expect("asserted Ok above, qed").len(),
-    //         3
-    //     );
-    // }
+        exec_scopes.insert_box("bootloader_input", Box::new(bootloader_input.clone()));
 
-    // #[rstest]
-    // fn test_compute_and_configure_fact_topologies(bootloader_input: BootloaderInput) {
-    //     let mut vm = vm!();
-    //     let mut output_builtin = OutputBuiltinRunner::new(true);
-    //     output_builtin.initialize_segments(&mut vm.segments);
-    //     vm.builtin_runners
-    //         .push(BuiltinRunner::Output(output_builtin.clone()));
+        let hint_data = HintProcessorData::new_default(
+            String::from(BOOTLOADER_SAVE_PACKED_OUTPUTS),
+            HashMap::new(),
+        );
+        let mut hint_processor = MinimalBootloaderHintProcessor::new();
+        assert!(matches!(
+            hint_processor.execute_hint(
+                &mut vm,
+                &mut exec_scopes,
+                &any_box!(hint_data),
+                &HashMap::new(),
+            ),
+            Ok(())
+        ));
 
-    //     let mut exec_scopes = ExecutionScopes::new();
-    //     let packed_outputs = vec![PackedOutput::Plain(vec![]), PackedOutput::Plain(vec![])];
-    //     let fact_topologies = vec![
-    //         FactTopology {
-    //             tree_structure: vec![],
-    //             page_sizes: vec![3usize, 1usize],
-    //         },
-    //         FactTopology {
-    //             tree_structure: vec![],
-    //             page_sizes: vec![10usize],
-    //         },
-    //     ];
-    //     let output_start = Relocatable {
-    //         segment_index: output_builtin.base() as isize,
-    //         offset: 0,
-    //     };
-    //     exec_scopes.insert_value(vars::BOOTLOADER_INPUT, bootloader_input);
-    //     exec_scopes.insert_value(vars::PACKED_OUTPUTS, packed_outputs);
-    //     exec_scopes.insert_value(vars::FACT_TOPOLOGIES, fact_topologies);
-    //     exec_scopes.insert_value(vars::OUTPUT_START, output_start);
+        let saved_packed_outputs = exec_scopes.get::<Vec<PackedOutput>>("packed_outputs");
 
-    //     compute_and_configure_fact_topologies(&mut vm, &mut exec_scopes)
-    //         .expect("Hint failed unexpectedly");
+        let expected = &packed_outputs;
+        match saved_packed_outputs {
+            Ok(ref actual) => {
+                assert_eq!(actual.len(), expected.len());
+                for (i, item) in actual.iter().enumerate() {
+                    assert_eq!(item, &expected[i]);
+                }
+            }
+            other => panic!("Expected Ok(Vec<PackedOutput>), got {:?}", other),
+        }
+    }
 
-    //     let output_start: Relocatable = exec_scopes.get(vars::OUTPUT_START).unwrap();
-    //     assert_eq!(
-    //         output_start,
-    //         Relocatable {
-    //             segment_index: 0,
-    //             offset: 18
-    //         }
-    //     );
-    //     assert_eq!(
-    //         vm.get_output_builtin().unwrap().pages,
-    //         HashMap::from([
-    //             (1, PublicMemoryPage { start: 2, size: 3 }),
-    //             (2, PublicMemoryPage { start: 5, size: 1 }),
-    //             (3, PublicMemoryPage { start: 8, size: 10 }),
-    //         ])
-    //     );
-    // }
+    #[rstest]
+    fn test_compute_and_configure_fact_topologies(bootloader_input: BootloaderInput) {
+        // Tests that compute_and_configure_fact_topologies correctly computes the fact topologies
+        // based on the packed outputs and fact topologies, and configures the output builtin state
+        // accordingly. It should update the output_start and the output builtin state with the
+        // computed fact topologies.
+        let mut vm: VirtualMachine = VirtualMachine::new(false, false);
+        let mut output_builtin = OutputBuiltinRunner::new(true);
+        output_builtin.initialize_segments(&mut vm.segments);
+        vm.builtin_runners
+            .push(BuiltinRunner::Output(output_builtin.clone()));
 
-    // #[test]
-    // fn test_set_packed_output_to_subtasks() {
-    //     let mut vm = vm!();
-    //     let mut exec_scopes = ExecutionScopes::new();
+        let mut exec_scopes = ExecutionScopes::new();
+        let packed_outputs = vec![PackedOutput::Plain, PackedOutput::Plain];
+        let fact_topologies = vec![
+            FactTopology {
+                tree_structure: vec![],
+                page_sizes: vec![3usize, 1usize],
+            },
+            FactTopology {
+                tree_structure: vec![],
+                page_sizes: vec![10usize],
+            },
+        ];
+        let output_start = Relocatable {
+            segment_index: output_builtin.base() as isize,
+            offset: 0,
+        };
+        exec_scopes.insert_value(vars::BOOTLOADER_INPUT, bootloader_input);
+        exec_scopes.insert_value(vars::PACKED_OUTPUTS, packed_outputs);
+        exec_scopes.insert_value(vars::FACT_TOPOLOGIES, fact_topologies);
+        exec_scopes.insert_value(vars::OUTPUT_START, output_start);
 
-    //     let subtasks = vec![
-    //         PackedOutput::Plain(vec![]),
-    //         PackedOutput::Composite(CompositePackedOutput::default()),
-    //     ];
-    //     exec_scopes.insert_value(
-    //         vars::PACKED_OUTPUT,
-    //         PackedOutput::Composite(CompositePackedOutput {
-    //             outputs: vec![],
-    //             subtasks: subtasks.clone(),
-    //         }),
-    //     );
+        compute_and_configure_fact_topologies(&mut vm, &mut exec_scopes)
+            .expect("Hint failed unexpectedly");
 
-    //     let hint_data = HintProcessorData::new_default(
-    //         String::from(hint_code::BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS),
-    //         HashMap::new(),
-    //     );
-    //     let mut hint_processor = BuiltinHintProcessor::new_empty();
-    //     assert_matches!(
-    //         hint_processor.execute_hint(
-    //             &mut vm,
-    //             &mut exec_scopes,
-    //             &any_box!(hint_data),
-    //             &HashMap::new(),
-    //         ),
-    //         Ok(())
-    //     );
+        let output_start: Relocatable = exec_scopes.get(vars::OUTPUT_START).unwrap();
+        assert_eq!(
+            output_start,
+            Relocatable {
+                segment_index: 0,
+                offset: 18
+            }
+        );
+        assert_eq!(
+            vm.get_output_builtin_mut().unwrap().get_state().pages,
+            HashMap::from([
+                (1, PublicMemoryPage { start: 2, size: 3 }),
+                (2, PublicMemoryPage { start: 5, size: 1 }),
+                (3, PublicMemoryPage { start: 8, size: 10 }),
+            ])
+        );
+    }
 
-    //     let packed_outputs: Vec<PackedOutput> = exec_scopes.get(vars::PACKED_OUTPUTS).unwrap();
-    //     assert_eq!(packed_outputs, subtasks);
-    // }
+    #[test]
+    fn test_set_packed_output_to_subtasks() {
+        // Tests that set_packed_output_to_subtasks correctly sets the packed outputs to the
+        // subtasks from the packed output in the execution scopes.
+        let mut vm: VirtualMachine = VirtualMachine::new(false, false);
+        let mut exec_scopes = ExecutionScopes::new();
 
-    // #[test]
-    // fn test_guess_pre_image_of_subtasks_output_hash() {
-    //     let mut vm = vm!();
-    //     add_segments!(vm, 2);
-    //     vm.run_context.fp = 2;
+        let subtasks = vec![
+            PackedOutput::Plain,
+            PackedOutput::Composite(CompositePackedOutput::default()),
+        ];
+        exec_scopes.insert_value(
+            vars::PACKED_OUTPUT,
+            PackedOutput::Composite(CompositePackedOutput {
+                outputs: vec![],
+                subtasks: subtasks.clone(),
+                fact_topologies: vec![],
+            }),
+        );
 
-    //     let ids_data = ids_data!["nested_subtasks_output_len", "nested_subtasks_output"];
+        let hint_data = HintProcessorData::new_default(
+            String::from(BOOTLOADER_SET_PACKED_OUTPUT_TO_SUBTASKS),
+            HashMap::new(),
+        );
+        let mut hint_processor = MinimalBootloaderHintProcessor::new();
+        assert!(matches!(
+            hint_processor.execute_hint(
+                &mut vm,
+                &mut exec_scopes,
+                &any_box!(hint_data),
+                &HashMap::new(),
+            ),
+            Ok(())
+        ));
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        let packed_outputs: Vec<PackedOutput> = exec_scopes.get(vars::PACKED_OUTPUTS).unwrap();
+        assert_eq!(packed_outputs, subtasks);
+    }
 
-    //     exec_scopes.insert_box(
-    //         "packed_output",
-    //         Box::new(PackedOutput::Composite(CompositePackedOutput {
-    //             outputs: vec![Felt252::from(42)],
-    //             subtasks: vec![],
-    //         })),
-    //     );
+    #[test]
+    fn test_guess_pre_image_of_subtasks_output_hash() {
+        // Tests that guess_pre_image_of_subtasks_output_hash correctly computes the pre-image of
+        // the subtasks output hash and sets the nested_subtasks_output_len and nested_subtasks
+        // output in the VM segments.
+        let mut vm: VirtualMachine = VirtualMachine::new(false, false);
+        vm.segments.add();
+        vm.segments.add();
+        vm.set_fp(2);
 
-    //     let ap_tracking = ApTracking::new();
+        let ids_data =
+            prepare_ids_data_for_test(&["nested_subtasks_output_len", "nested_subtasks_output"]);
 
-    //     assert_matches!(
-    //         run_hint!(
-    //             vm,
-    //             ids_data.clone(),
-    //             hint_code::BOOTLOADER_GUESS_PRE_IMAGE_OF_SUBTASKS_OUTPUT_HASH,
-    //             &mut exec_scopes
-    //         ),
-    //         Ok(())
-    //     );
-    //     let nested_subtasks_output_len =
-    //         get_integer_from_var_name("nested_subtasks_output_len", &vm, &ids_data, &ap_tracking)
-    //             .expect("nested_subtasks_output_len should be set")
-    //             .into_owned();
-    //     assert_eq!(nested_subtasks_output_len, 1.into());
+        let mut exec_scopes = ExecutionScopes::new();
 
-    //     let nested_subtasks_output =
-    //         get_ptr_from_var_name("nested_subtasks_output", &vm, &ids_data, &ap_tracking)
-    //             .expect("nested_subtasks_output should be set");
-    //     let arg = vm.get_integer(nested_subtasks_output).unwrap().into_owned();
-    //     assert_eq!(arg, Felt252::from(42));
-    // }
+        exec_scopes.insert_box(
+            "packed_output",
+            Box::new(PackedOutput::Composite(CompositePackedOutput {
+                outputs: vec![Felt252::from(42)],
+                subtasks: vec![],
+                fact_topologies: vec![],
+            })),
+        );
+
+        let hint_data = HintProcessorData::new_default(
+            String::from(BOOTLOADER_GUESS_PRE_IMAGE_OF_SUBTASKS_OUTPUT_HASH),
+            ids_data.clone(),
+        );
+        let ap_tracking = ApTracking::new();
+        let mut hint_processor = MinimalBootloaderHintProcessor::new();
+
+        assert!(matches!(
+            hint_processor.execute_hint(
+                &mut vm,
+                &mut exec_scopes,
+                &any_box!(hint_data),
+                &HashMap::new(),
+            ),
+            Ok(())
+        ));
+
+        let nested_subtasks_output_len =
+            get_integer_from_var_name("nested_subtasks_output_len", &vm, &ids_data, &ap_tracking)
+                .expect("nested_subtasks_output_len should be set");
+
+        assert_eq!(nested_subtasks_output_len, 1.into());
+
+        let nested_subtasks_output =
+            get_ptr_from_var_name("nested_subtasks_output", &vm, &ids_data, &ap_tracking)
+                .expect("nested_subtasks_output should be set");
+        let arg = vm.get_integer(nested_subtasks_output).unwrap().into_owned();
+        assert_eq!(arg, Felt252::from(42));
+    }
 
     #[rstest]
     fn test_assert_is_composite_packed_output() {
+        // Tests that assert_is_composite_packed_output correctly identifies composite packed
+        // outputs and returns an error for plain packed outputs.
         let mut exec_scopes = ExecutionScopes::new();
 
         let plain_packed_output = PackedOutput::Plain;
@@ -1149,56 +1194,64 @@ mod tests {
         assert!(assert_is_composite_packed_output(&mut exec_scopes).is_ok());
     }
 
-    //     #[rstest]
-    //     #[case(false)]
-    //     #[case(true)]
-    //     fn test_assert_program_address(#[case] expect_fail: bool) {
-    //         let mut vm = vm!();
+    #[rstest]
+    #[case(false)]
+    #[case(true)]
+    fn test_assert_program_address(#[case] expect_fail: bool) {
+        // Tests that assert_program_address correctly checks the program address
+        // and returns an error if the program address is incorrect.
+        let mut vm: VirtualMachine = VirtualMachine::new(false, false);
+        vm.segments.add();
+        vm.segments.add();
+        vm.set_fp(2);
 
-    //         add_segments!(vm, 2);
-    //         vm.run_context.fp = 2;
+        let ids_data = prepare_ids_data_for_test(&["program_address"]);
+        let ap_tracking = ApTracking::new();
 
-    //         let ids_data = ids_data!(vars::PROGRAM_ADDRESS);
-    //         let ap_tracking = ApTracking::new();
+        let mut ptr = Relocatable {
+            segment_index: 42,
+            offset: 42,
+        };
+        let _ = insert_value_from_var_name(
+            vars::PROGRAM_ADDRESS,
+            ptr.clone(),
+            &mut vm,
+            &ids_data,
+            &ap_tracking,
+        )
+        .map_err(|e| panic!("could not insert var: {}", e));
 
-    //         let mut ptr = Relocatable {
-    //             segment_index: 42,
-    //             offset: 42,
-    //         };
-    //         let _ = insert_value_from_var_name(
-    //             vars::PROGRAM_ADDRESS,
-    //             ptr.clone(),
-    //             &mut vm,
-    //             &ids_data,
-    //             &ap_tracking,
-    //         )
-    //         .map_err(|e| panic!("could not insert var: {}", e));
+        if expect_fail {
+            ptr = Relocatable {
+                segment_index: 1,
+                offset: 1,
+            };
+        }
 
-    //         if expect_fail {
-    //             ptr = Relocatable {
-    //                 segment_index: 1,
-    //                 offset: 1,
-    //             };
-    //         }
+        let mut exec_scopes = ExecutionScopes::new();
+        exec_scopes.insert_box(vars::PROGRAM_ADDRESS, any_box!(ptr));
 
-    //         let mut exec_scopes = ExecutionScopes::new();
-    //         exec_scopes.insert_box(vars::PROGRAM_ADDRESS, any_box!(ptr));
+        let hint_data = HintProcessorData::new_default(
+            String::from(EXECUTE_TASK_ASSERT_PROGRAM_ADDRESS),
+            ids_data.clone(),
+        );
+        let mut hint_processor = MinimalBootloaderHintProcessor::new();
 
-    //         let result = run_hint!(
-    //             vm,
-    //             ids_data.clone(),
-    //             hint_code::EXECUTE_TASK_ASSERT_PROGRAM_ADDRESS,
-    //             &mut exec_scopes
-    //         );
+        let result = hint_processor.execute_hint(
+            &mut vm,
+            &mut exec_scopes,
+            &any_box!(hint_data),
+            &HashMap::new(),
+        );
 
-    //         match result {
-    //             Ok(_) => assert!(!expect_fail),
-    //             Err(HintError::CustomHint(e)) => {
-    //                 assert!(expect_fail);
-    //                 assert_eq!(e.as_ref(), "program address is incorrect");
-    //                 ()
-    //             }
-    //             _ => panic!("result not recognized"),
-    //         }
-    //     }
+        match result {
+            Ok(_) => assert!(!expect_fail),
+            Err(HintError::CustomHint(e)) => {
+                assert!(expect_fail);
+                assert_eq!(e.as_ref(), "program address is incorrect");
+                ()
+            }
+            _ => panic!("result not recognized"),
+        }
+    }
 }
