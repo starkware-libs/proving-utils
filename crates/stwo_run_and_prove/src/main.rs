@@ -414,6 +414,7 @@ fn save_output_to_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use std::fs;
     use tempfile::{NamedTempFile, TempDir, TempPath};
 
@@ -522,6 +523,37 @@ mod tests {
         (program_output_tempfile, proofs_tempdir)
     }
 
+    fn run_with_mock_prover_succeeds_on_retry(n_proof_attempts: usize) -> (TempPath, TempDir) {
+        let (args, program_output_tempfile, proofs_tempdir) = prepare_args(n_proof_attempts);
+        let mut mock_prover = Box::new(MockProverTrait::new());
+
+        // Create iterator that return errors for the first n-1 attempts, and a successful result
+        // for the last attempt.
+        let mut results = (0..n_proof_attempts.saturating_sub(1))
+            .map(|_| Err(StwoRunAndProveError::Verification))
+            .chain(std::iter::once(Ok(vec![ARRAY_SUM_EXPECTED_OUTPUT])));
+
+        mock_prover
+            .expect_choose_channel_and_prove()
+            .times(n_proof_attempts)
+            .returning(move |_, proof_file, _, _, _| {
+                let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+                fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
+                results.next().unwrap()
+            });
+
+        let successful_proof_attempt =
+            run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
+
+        assert_eq!(
+            successful_proof_attempt, n_proof_attempts,
+            "successful proof attempt should be {:?}, but got {:?}",
+            n_proof_attempts, successful_proof_attempt
+        );
+
+        (program_output_tempfile, proofs_tempdir)
+    }
+
     #[test]
     fn test_stwo_run_and_prove() {
         let (output_temp_file, proofs_temp_dir) = run_with_successful_mock_prover(1);
@@ -553,7 +585,7 @@ mod tests {
     }
 
     #[test]
-    fn test_stwo_run_and_prove_retries() {
+    fn test_stwo_run_and_prove_all_retries_fail() {
         let n_proof_attempts = 3;
         let (output_temp_file, proofs_temp_dir) =
             run_with_verification_error_mock_prover(n_proof_attempts);
@@ -570,6 +602,29 @@ mod tests {
         assert!(
             is_file_empty(&output_temp_file.to_path_buf()).unwrap(),
             "Output file should be empty after running with verifier failures",
+        );
+    }
+
+    #[rstest]
+    #[case::two_tries(2)]
+    #[case::three_tries(3)]
+    fn test_stwo_run_and_prove_succeeds_on_retry(#[case] n_proof_attempts: usize) {
+        let (output_temp_file, proofs_temp_dir) =
+            run_with_mock_prover_succeeds_on_retry(n_proof_attempts);
+        let proofs_dir = proofs_temp_dir.path().to_path_buf();
+
+        for i in 1..n_proof_attempts + 1 {
+            let proof_file = proofs_dir.join(format!("proof_{}", i));
+            assert!(
+                proof_file.exists(),
+                "Proof file {:?} should exist after a run that succeeds on the n_proof_attempts-th proof and verify try",
+                i,
+            );
+        }
+
+        assert!(
+            !is_file_empty(&output_temp_file.to_path_buf()).unwrap(),
+            "Output file should not be empty after a run that succeeds on the second proof and verify try",
         );
     }
 }
