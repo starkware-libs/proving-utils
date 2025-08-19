@@ -95,6 +95,12 @@ impl<'vm> ProgramLoader<'vm> {
 
         let builtins = &program.builtins;
         let n_builtins = builtins.len();
+        println!(
+            "Loading program header at address: {base_address:?} with {} builtins",
+            n_builtins
+        );
+        println!("The builtins are: {builtins:?}");
+
         let header_size = self.builtins_offset + n_builtins;
 
         // data_length does not include the data_length header field in the calculation.
@@ -154,6 +160,10 @@ impl<'vm> ProgramLoader<'vm> {
         let header_size = self.load_header(base_address, program, bootloader_version)?;
 
         let program_address = (base_address + header_size)?;
+        println!(
+            "Loading program at address: {program_address:?} with size: {}",
+            program.data.len()
+        );
         self.load_code(program_address, program)?;
 
         Ok(LoadedProgram {

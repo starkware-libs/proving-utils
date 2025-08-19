@@ -374,6 +374,7 @@ fn process_program_common_logic(
                         })
                 })
                 .collect::<Result<Vec<_>, HintError>>()?;
+            println!("compiled hint is: {:?}", compiled_hints);
             hint_extension.insert(adjusted_pc, compiled_hints);
             Ok::<(), HintError>(())
         })?;
@@ -580,81 +581,91 @@ mod util {
 
 #[cfg(test)]
 mod tests {
-    // TODO(Idan): Understand and fix the tests below - some of these macros no longer exist.
+    //use std::sync::{Arc, ReentrantLock};
 
-    // use std::path::Path;
-    // use std::sync::Arc;
+    use crate::hints::codes::*;
+    use crate::hints::types::{
+        /* BootloaderConfig, */ Cairo0Executable, /* SimpleBootloaderInput, */ Task,
+    };
+    use crate::test_utils::{
+        get_hint_codes_at_pc,
+        /* prepare_ids_data_for_test, */ prepare_non_continuous_ids_data_for_test,
+    };
+    //use assert_matches::assert_matches;
+    use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
+    //use cairo_vm::hint_processor::builtin_hint_processor::hint_code;
+    //use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
+    use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
+    //cairo_vm::serde::deserialize_program::OffsetValue;
+    //use cairo_vm::types::program;
+    //use cairo_vm::types::program::SharedProgramData;
+    use cairo_vm::vm::runners::builtin_runner::BuiltinRunner;
+    //use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
+    use cairo_vm::any_box;
+    //use num_traits::ToPrimitive;
+    use rstest::{fixture, rstest};
+    //use std::sync::Arc;
 
-    // use assert_matches::assert_matches;
-    // use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::{
-    //     BuiltinHintProcessor, HintProcessorData,
-    // };
-    // use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
-    // use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
-    // use cairo_vm::serde::deserialize_program::OffsetValue;
-    // use cairo_vm::vm::runners::builtin_runner::BuiltinRunner;
-    // use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
-    // use cairo_vm::{any_box, relocatable, Felt252};
-    // use num_traits::ToPrimitive;
-    // use rstest::{fixture, rstest};
+    use super::*;
+    use crate::test_utils::prepare_vm_for_bootloader_test;
 
-    // use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput, Task};
+    #[rstest]
+    fn test_allocation_in_load_program_hint() {
+        // This test checks that the program data is allocated in a new segment and that the
+        // pointers in the ids_data point to it.
+        let (
+            mut vm,
+            ids_data,
+            mut exec_scopes,
+            ap_tracking,
+            expected_program_data_segment_index,
+            _,
+            _task,
+        ) = prepare_vm_for_bootloader_test(fibonacci());
 
-    // use super::*;
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    // #[rstest]
-    // fn test_allocation_in_load_program_hint() {
-    //     let mut vm = vm!();
-    //     // Allocate space for program_data_ptr
-    //     vm.run_context.fp = 1;
-    //     add_segments!(vm, 2);
-    //     let ids_data = ids_data!["program_data_ptr"];
-    //     let expected_program_data_segment_index = vm.segments.num_segments();
+        let program_data_ptr =
+            get_ptr_from_var_name("program_data_ptr", &mut vm, &ids_data, &ap_tracking)
+                .expect("program_data_ptr is not set");
 
-    //     let mut exec_scopes = ExecutionScopes::new();
-    //     let ap_tracking = ApTracking::new();
+        let program_data_base: Relocatable = exec_scopes
+            .get(vars::PROGRAM_DATA_BASE)
+            .expect(format!("{} is not set", vars::PROGRAM_DATA_BASE).as_ref());
+        assert_eq!(program_data_ptr, program_data_base);
 
-    //     load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+        // Check that we allocated a new segment and that the pointers point to it
+        assert_eq!(
+            vm.segments.num_segments(),
+            expected_program_data_segment_index + 1
+        );
+        assert_eq!(
+            program_data_ptr,
+            Relocatable {
+                segment_index: expected_program_data_segment_index as isize,
+                offset: 0
+            }
+        );
+    }
 
-    //     let program_data_ptr =
-    //         get_ptr_from_var_name("program_data_ptr", &mut vm, &ids_data, &ap_tracking)
-    //             .expect("program_data_ptr is not set");
+    #[fixture]
+    fn fibonacci() -> Program {
+        let program_content = include_bytes!(
+            "../../resources/compiled_programs/test_programs/fibonacci_compiled.json"
+        )
+        .to_vec();
 
-    //     let program_data_base: Relocatable = exec_scopes
-    //         .get(vars::PROGRAM_DATA_BASE)
-    //         .expect(format!("{} is not set", vars::PROGRAM_DATA_BASE).as_ref());
+        Program::from_bytes(&program_content, Some("main"))
+            .expect("Loading example program failed unexpectedly")
+    }
 
-    //     assert_eq!(program_data_ptr, program_data_base);
-    //     // Check that we allocated a new segment and that the pointers point to it
-    //     assert_eq!(
-    //         vm.segments.num_segments(),
-    //         expected_program_data_segment_index + 1
-    //     );
-    //     assert_eq!(
-    //         program_data_ptr,
-    //         Relocatable {
-    //             segment_index: expected_program_data_segment_index as isize,
-    //             offset: 0
-    //         }
-    //     );
-    // }
-    // TODO(Idan): Understand and fix the tests below - these programs are no longer available.
-    // #[fixture]
-    // fn fibonacci() -> Program {
-    //     let program_content =
-    //         include_bytes!("../../../../../cairo_programs/fibonacci.json").to_vec();
-
-    //     Program::from_bytes(&program_content, Some("main"))
-    //         .expect("Loading example program failed unexpectedly")
-    // }
-
-    // #[fixture]
-    // fn fibonacci_pie() -> CairoPie {
-    //     let pie_file =
-    //         Path::new("../cairo_programs/manually_compiled/fibonacci_cairo_pie/fibonacci_pie.zip"
-    // );     CairoPie::from_file(pie_file).expect("Failed to load the program PIE")
-    // }
+    #[fixture]
+    fn fibonacci_pie() -> CairoPie {
+        let pie_bytes =
+            include_bytes!("../../resources/compiled_programs/test_programs/fibonacci_pie.zip");
+        CairoPie::from_bytes(pie_bytes).expect("Failed to load the program PIE")
+    }
 
     // #[fixture]
     // fn field_arithmetic_program() -> Program {
@@ -665,135 +676,201 @@ mod tests {
     //         .expect("Loading example program failed unexpectedly")
     // }
 
-    // #[rstest]
-    // fn test_load_program(fibonacci: Program) {
-    //     let task = Task::Cairo0Program(fibonacci.clone());
+    #[rstest]
+    fn test_load_program(fibonacci: Program) {
+        // This test checks that the program is loaded correctly into memory and that the
+        // program address is set correctly. This test does not check the content of the program,
+        // but rather that the program is loaded into a new segment and that the program address
+        // is set correctly, and the entire program is loaded into memory. The loaded content of
+        // memory is checked in program_loader.rs tests.
+        let (
+            mut vm,
+            ids_data,
+            mut exec_scopes,
+            ap_tracking,
+            _expected_program_data_segment_index,
+            program_header_ptr,
+            _task,
+        ) = prepare_vm_for_bootloader_test(fibonacci.clone());
 
-    //     let mut vm = vm!();
-    //     vm.run_context.fp = 1;
-    //     // Set program_header_ptr to (2, 0)
-    //     vm.segments = segments![((1, 0), (2, 0))];
-    //     let program_header_ptr = Relocatable::from((2, 0));
-    //     add_segments!(vm, 1);
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    //     let mut exec_scopes = ExecutionScopes::new();
-    //     exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
-    //     exec_scopes.insert_value(vars::TASK, task);
+        // The Fibonacci program has only one builtin (output) -> the header size is 4 + #builtins =
+        // 5.
+        let header_size = 5;
+        let expected_code_address = Relocatable::from((
+            program_header_ptr.segment_index,
+            program_header_ptr.offset + header_size,
+        ));
 
-    //     let ids_data = ids_data!["program_header"];
-    //     let ap_tracking = ApTracking::new();
+        let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS).unwrap();
+        assert_eq!(program_address, expected_code_address);
 
-    //     load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+        // Check that the segment was finalized
+        let expected_program_size = header_size + fibonacci.data_len();
+        assert_eq!(
+            vm.segments.segment_sizes[&(program_address.segment_index as usize)],
+            expected_program_size
+        );
+    }
 
-    //     // Note that we do not check the loaded content in memory here, this is tested
-    //     // in `program_loader.rs`
+    #[rstest]
+    fn test_call_task(fibonacci: Program) {
+        // This test checks that the call_task hint works correctly. It sets up the VM, loads the
+        // program, and then calls the call_task hint. It loads the program into memory, and
+        // afterwards sets up the BuiltinData from the pre-execution of the call_task hint.
+        // After it runs the hint, it asserts that the hints from the program are loaded to the hint
+        // extension, and that the output runner data is set correctly.
+        let (
+            mut vm,
+            ids_data,
+            mut exec_scopes,
+            ap_tracking,
+            _expected_program_data_segment_index,
+            _program_header_ptr,
+            _task,
+        ) = prepare_vm_for_bootloader_test(fibonacci.clone());
 
-    //     // The Fibonacci program has no builtins -> the header size is 4
-    //     let header_size = 4;
-    //     let expected_code_address = &program_header_ptr + header_size;
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    //     let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS).unwrap();
-    //     assert_eq!(program_address, expected_code_address);
+        // Allocate space for pre-execution (8 felts), which mimics the `BuiltinData` struct in
+        // the Bootloader's Cairo code. Our code only uses the first felt (`output` field in
+        // the struct)
+        let _ = vm
+            .segments
+            .load_data(Relocatable::from((1, 3)), &[MaybeRelocatable::from((3, 0))]);
+        // Set FP to 3 + 8 = 11, Since now the memory at segment 1 is:
+        // (1, 0): (2, 0) // program segment pointer
+        // (1, 1): (2, 0) // program header pointer
+        // (1, 2): (2, 0) // program data pointer
+        // (1, 3): (3, 0) // pre-execution output builtin pointer
+        // (1, 4) to (1, 11) -> NONE // space for pre-execution builtins (only output is used)
+        vm.set_fp(11);
+        vm.set_ap(11);
+        println!("after load data ap is {:?}", vm.get_ap());
+        let ids_data =
+            prepare_non_continuous_ids_data_for_test(&[(vars::PRE_EXECUTION_BUILTIN_PTRS, -8)]);
 
-    //     // Check that the segment was finalized
-    //     let expected_program_size = header_size + fibonacci.shared_program_data.data.len();
-    //     assert_eq!(
-    //         vm.segments.segment_sizes[&(program_address.segment_index as usize)],
-    //         expected_program_size
-    //     );
-    // }
+        let mut output_builtin = OutputBuiltinRunner::new(true);
+        output_builtin.initialize_segments(&mut vm.segments);
+        vm.builtin_runners
+            .push(BuiltinRunner::Output(output_builtin));
 
-    // #[rstest]
-    // fn test_call_task(fibonacci: Program) {
-    //     let mut vm = vm!();
+        let task = Task::Cairo0Program(Cairo0Executable {
+            program: fibonacci.clone(),
+            program_input: None,
+        });
 
-    //     // Allocate space for pre-execution (8 felts), which mimics the `BuiltinData` struct in
-    // the     // Bootloader's Cairo code. Our code only uses the first felt (`output` field in
-    // the struct)     vm.segments = segments![((1, 0), (2, 0))];
-    //     vm.run_context.fp = 8;
-    //     add_segments!(vm, 1);
+        exec_scopes.insert_box(vars::TASK, Box::new(task));
 
-    //     let ids_data = non_continuous_ids_data![(vars::PRE_EXECUTION_BUILTIN_PTRS, -8)];
+        let hint_data =
+            HintProcessorData::new_default(String::from(EXECUTE_TASK_CALL_TASK), ids_data);
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        let mut hint_processor = BootloaderHintProcessor::new();
 
-    //     let mut output_builtin = OutputBuiltinRunner::new(true);
-    //     output_builtin.initialize_segments(&mut vm.segments);
-    //     vm.builtin_runners
-    //         .push(BuiltinRunner::Output(output_builtin));
+        let hint_extension = hint_processor
+            .execute_hint_extensive(
+                &mut vm,
+                &mut exec_scopes,
+                &any_box!(hint_data),
+                &HashMap::new(),
+            )
+            .expect("Hint failed unexpectedly");
 
-    //     let task = Task::Cairo0Program(fibonacci);
-    //     exec_scopes.insert_box(vars::TASK, Box::new(task));
+        println!("hint extension is: {:?}", hint_extension);
 
-    //     assert_matches!(
-    //         run_hint!(
-    //             vm,
-    //             ids_data.clone(),
-    //             hint_code::EXECUTE_TASK_CALL_TASK,
-    //             &mut exec_scopes
-    //         ),
-    //         Ok(())
-    //     );
-    // }
+        // Fibonnacci code should be loaded after the header whose size is 5 as checked in
+        // test_load_program.
+        let expected_code_address_offset = 5;
 
-    // /// Creates a fake Program struct to act as a placeholder for the `BOOTLOADER_PROGRAM`
-    // variable. /// These other options have been considered:
-    // /// * a `HasIdentifiers` trait cannot be used as exec_scopes requires to cast to `Box<dyn
-    // Any>`, ///   making casting back to the trait impossible.
-    // /// * using an enum requires defining test-only variants.
-    // fn mock_program_with_identifiers(symbols: HashMap<String, usize>) -> Program {
-    //     let identifiers = symbols
-    //         .into_iter()
-    //         .map(|(name, pc)| {
-    //             (
-    //                 name,
-    //                 Identifier {
-    //                     pc: Some(pc),
-    //                     type_: None,
-    //                     value: None,
-    //                     full_name: None,
-    //                     members: None,
-    //                     cairo_type: None,
-    //                 },
-    //             )
-    //         })
-    //         .collect();
+        // Fibonacci program has 2 hints:
+        // 1. "memory[ap] = program_input['second_element']" at instruction 8
+        // 2. "memory[ap] = program_input['fibonacci_claim_index']" at instruction 9
+        // they should be loaded at (2, 5 + 8) and (2, 5 + 9) respectively.
+        let hint_codes_1 = get_hint_codes_at_pc(
+            &hint_extension,
+            Relocatable::from((2, expected_code_address_offset + 8)),
+        );
+        println!("Hint(s) at PC 1: {:?}", hint_codes_1);
+        assert!(hint_codes_1.contains(&"memory[ap] = program_input['second_element']"));
 
-    //     let shared_program_data = SharedProgramData {
-    //         identifiers,
-    //         ..Default::default()
-    //     };
-    //     let program = Program {
-    //         shared_program_data: Arc::new(shared_program_data),
-    //         constants: Default::default(),
-    //         builtins: vec![],
-    //     };
+        let hint_codes_2 = get_hint_codes_at_pc(
+            &hint_extension,
+            Relocatable::from((2, expected_code_address_offset + 9)),
+        );
+        println!("Hint(s) at PC 2: {:?}", hint_codes_2);
+        assert!(hint_codes_2.contains(&"memory[ap] = program_input['fibonacci_claim_index']"));
 
-    //     program
+        let _ = exec_scopes.exit_scope();
+        let expected_output_runner_data = OutputBuiltinState {
+            base: 3,
+            base_offset: 0,
+            pages: HashMap::new(),
+            attributes: HashMap::new(),
+        };
+
+        // Asserting that output runner was initialized correctly, and the data is correct.
+        // After exiting the scope, OUTPUT_RUNNER_DATA should be available in the current scope.
+        println!(
+            "exec_scopes after exiting scope: {:?}",
+            exec_scopes.get_local_variables()
+        );
+        let data = exec_scopes
+            .get::<Option<OutputBuiltinState>>(vars::OUTPUT_RUNNER_DATA)
+            .expect("OUTPUT_RUNNER_DATA should be available after exiting the scope")
+            .unwrap();
+
+        println!("output runner data is: {:?}", data);
+        assert_eq!(data, expected_output_runner_data);
+    }
+
+    // fn get_simple_bootloader_program() -> Program {
+    //     let bootloader_program_content = include_bytes!(
+    //         "../../resources/compiled_programs/bootloaders/simple_bootloader_compiled.json"
+    //     )
+    //     .to_vec();
+
+    //     Program::from_bytes(&bootloader_program_content, Some("main"))
+    //         .expect("Loading simple bootloader program failed unexpectedly")
     // }
 
     // #[rstest]
     // fn test_call_cairo_pie_task(fibonacci_pie: CairoPie) {
-    //     let mut vm = vm!();
+    //     let mut vm = VirtualMachine::new(false, false);
 
     //     // We set the program header pointer at (1, 0) and make it point to the start of segment
     // #2.     // Allocate space for pre-execution (8 values), which follows the `BuiltinData`
     // struct in     // the Bootloader Cairo code. Our code only uses the first felt (`output`
     // field in the     // struct). Finally, we put the mocked output of `select_input_builtins`
     // in the next     // memory address and increase the AP register accordingly.
-    //     vm.segments = segments![((1, 0), (2, 0)), ((1, 1), (4, 0)), ((1, 9), (4, 42))];
-    //     vm.run_context.ap = 10;
-    //     vm.run_context.fp = 9;
-    //     add_segments!(vm, 3);
+    //     vm.segments.add();
+    //     vm.segments.add();
+    //     vm.segments.add();
+    //     let _ = vm.segments.load_data(
+    //         Relocatable::from((1, 0)),
+    //         &[
+    //             MaybeRelocatable::from((2, 0)), // program header pointer
+    //             MaybeRelocatable::from((4, 0)), // pre-execution builtins pointer
+    //         ],
+    //     );
+    //     let _ = vm.segments.load_data(
+    //         Relocatable::from((1, 9)),
+    //         &[MaybeRelocatable::from((4, 42))], // mocked output of select_input_builtins
+    //     );
+    //     vm.set_ap(10);
+    //     vm.set_fp(9);
+    //     vm.segments.add();
+    //     vm.segments.add();
+    //     vm.segments.add();
 
     //     let program_header_ptr = Relocatable::from((2, 0));
-    //     let ids_data = non_continuous_ids_data![
+    //     let ids_data = prepare_non_continuous_ids_data_for_test(&[
     //         ("program_header", -9),
     //         (vars::PRE_EXECUTION_BUILTIN_PTRS, -8),
-    //     ];
+    //     ]);
     //     let ap_tracking = ApTracking::new();
-
     //     let mut exec_scopes = ExecutionScopes::new();
 
     //     let mut output_builtin = OutputBuiltinRunner::new(true);
@@ -805,13 +882,18 @@ mod tests {
     //     exec_scopes.insert_value(vars::TASK, task);
     //     let bootloader_identifiers = HashMap::from(
     //         [
-    //
+    //             
+    // ("starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.pc_label".
+    //             to_string(), 9usize),
+    //             
     // ("starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label".
-    // to_string(), 10usize),
+    //             to_string(), 10usize),
+    //             
     // ("starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.call_task".
-    // to_string(), 8usize)         ]
+    //             to_string(), 8usize)
+    //         ]
     //     );
-    //     let bootloader_program = mock_program_with_identifiers(bootloader_identifiers);
+    //     let bootloader_program = get_simple_bootloader_program();
     //     exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
     //     exec_scopes.insert_value(vars::PROGRAM_OBJECT, bootloader_program);
 
@@ -820,8 +902,15 @@ mod tests {
     //         .expect("Failed to load Cairo PIE task in the VM memory");
 
     //     // Execute it
-    //     setup_subtask_for_execution(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+    //     let mut hint_processor = BootloaderHintProcessor::new();
+    //     setup_subtask_for_execution(
+    //         &mut hint_processor,
+    //         &mut vm,
+    //         &mut exec_scopes,
+    //         &ids_data,
+    //         &ap_tracking,
+    //     )
+    //     .expect("Hint failed unexpectedly");
     // }
 
     // #[rstest]
