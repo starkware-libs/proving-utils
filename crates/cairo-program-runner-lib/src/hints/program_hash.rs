@@ -193,6 +193,8 @@ mod tests {
         "resources/compiled_programs/test_programs/builtin_usage_compiled.json",
         "0x4b91dbb7dc2f33ff104023b86e8dac0b94382695bcdcca4a352e6a51ef522c7"
     )]
+    // TODO(idanh): try to compute the hashchain seperately as well to see that this function works
+    // correctly. if neccessary, change the expected hashes.
     fn test_compute_program_hash_chain(
         #[case] program_path: PathBuf,
         #[case] expected_program_hash: String,

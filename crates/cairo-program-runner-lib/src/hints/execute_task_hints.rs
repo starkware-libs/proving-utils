@@ -381,10 +381,12 @@ fn process_program_common_logic(
     Ok(())
 }
 
-/// Implements a hint that sets up the subtask for execution. It loads the program into memory,
-/// sets the program address, and prepares the output runner data. It also handles the
-/// builtins and the program input.
+/// Implements a hint that sets up the subtask for execution. It assumes that the program is already
+/// loaded into memory and the task is set in the execution scopes.
 /// Supports Cairo0 and Cairo1 programs, as well as CairoPIEs.
+/// If the program is Cairo0 or Cairo1, it processes the program's hints and constants.
+/// If the program is a CairoPIE, it loads the PIE into memory and sets up the necessary pointers.
+/// It also prepares the output runner data and enters a new scope with the task locals.
 pub fn setup_subtask_for_execution(
     hint_processor: &mut BootloaderHintProcessor,
     vm: &mut VirtualMachine,
@@ -580,395 +582,531 @@ mod util {
 
 #[cfg(test)]
 mod tests {
-    // TODO(Idan): Understand and fix the tests below - some of these macros no longer exist.
+    use super::*;
+    use crate::hints::codes::*;
+    use crate::hints::types::{Cairo0Executable, Task};
+    use crate::test_utils::prepare_vm_for_load_program_loading_test;
+    use crate::test_utils::{get_hint_codes_at_pc, prepare_non_continuous_ids_data_for_test};
+    use cairo_vm::any_box;
+    use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
+    use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
+    use cairo_vm::vm::runners::builtin_runner::BuiltinRunner;
+    use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
+    use rstest::{fixture, rstest};
 
-    // use std::path::Path;
-    // use std::sync::Arc;
+    /// This test checks that the program data is allocated in a new segment and that the
+    /// pointers in the ids_data point to it.
+    #[rstest]
+    fn test_allocation_in_load_program_hint(fibonacci: Program) {
+        let fibonacci_task = Task::Cairo0Program(Cairo0Executable {
+            program: fibonacci.clone(),
+            program_input: None,
+        });
+        let (
+            mut vm,
+            ids_data,
+            mut exec_scopes,
+            ap_tracking,
+            expected_program_data_segment_index,
+            _,
+            _task,
+        ) = prepare_vm_for_load_program_loading_test(fibonacci_task.clone());
 
-    // use assert_matches::assert_matches;
-    // use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::{
-    //     BuiltinHintProcessor, HintProcessorData,
-    // };
-    // use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
-    // use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
-    // use cairo_vm::serde::deserialize_program::OffsetValue;
-    // use cairo_vm::vm::runners::builtin_runner::BuiltinRunner;
-    // use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
-    // use cairo_vm::{any_box, relocatable, Felt252};
-    // use num_traits::ToPrimitive;
-    // use rstest::{fixture, rstest};
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    // use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput, Task};
+        let program_data_ptr =
+            get_ptr_from_var_name("program_data_ptr", &mut vm, &ids_data, &ap_tracking)
+                .expect("program_data_ptr is not set");
 
-    // use super::*;
+        let program_data_base: Relocatable = exec_scopes
+            .get(vars::PROGRAM_DATA_BASE)
+            .expect(format!("{} is not set", vars::PROGRAM_DATA_BASE).as_ref());
+        assert_eq!(program_data_ptr, program_data_base);
 
-    // #[rstest]
-    // fn test_allocation_in_load_program_hint() {
-    //     let mut vm = vm!();
-    //     // Allocate space for program_data_ptr
-    //     vm.run_context.fp = 1;
-    //     add_segments!(vm, 2);
-    //     let ids_data = ids_data!["program_data_ptr"];
-    //     let expected_program_data_segment_index = vm.segments.num_segments();
+        // Check that we allocated a new segment and that the pointers point to it
+        assert_eq!(
+            vm.segments.num_segments(),
+            expected_program_data_segment_index + 1
+        );
+        assert_eq!(
+            program_data_ptr,
+            Relocatable {
+                segment_index: expected_program_data_segment_index as isize,
+                offset: 0
+            }
+        );
+    }
 
-    //     let mut exec_scopes = ExecutionScopes::new();
-    //     let ap_tracking = ApTracking::new();
+    #[fixture]
+    fn fibonacci() -> Program {
+        let program_content = include_bytes!(
+            "../../resources/compiled_programs/test_programs/fibonacci_compiled.json"
+        )
+        .to_vec();
 
-    //     load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+        Program::from_bytes(&program_content, Some("main"))
+            .expect("Loading example program failed unexpectedly")
+    }
 
-    //     let program_data_ptr =
-    //         get_ptr_from_var_name("program_data_ptr", &mut vm, &ids_data, &ap_tracking)
-    //             .expect("program_data_ptr is not set");
+    #[fixture]
+    fn fibonacci_pie() -> CairoPie {
+        let pie_bytes =
+            include_bytes!("../../resources/compiled_programs/test_programs/fibonacci_pie.zip");
+        CairoPie::from_bytes(pie_bytes).expect("Failed to load the program PIE")
+    }
 
-    //     let program_data_base: Relocatable = exec_scopes
-    //         .get(vars::PROGRAM_DATA_BASE)
-    //         .expect(format!("{} is not set", vars::PROGRAM_DATA_BASE).as_ref());
+    #[fixture]
+    fn builtin_usage_program() -> Program {
+        let program_content = include_bytes!(
+            "../../resources/compiled_programs/test_programs/builtin_usage_all_cairo_compiled.json"
+        )
+        .to_vec();
 
-    //     assert_eq!(program_data_ptr, program_data_base);
-    //     // Check that we allocated a new segment and that the pointers point to it
-    //     assert_eq!(
-    //         vm.segments.num_segments(),
-    //         expected_program_data_segment_index + 1
-    //     );
-    //     assert_eq!(
-    //         program_data_ptr,
-    //         Relocatable {
-    //             segment_index: expected_program_data_segment_index as isize,
-    //             offset: 0
-    //         }
-    //     );
-    // }
-    // TODO(Idan): Understand and fix the tests below - these programs are no longer available.
-    // #[fixture]
-    // fn fibonacci() -> Program {
-    //     let program_content =
-    //         include_bytes!("../../../../../cairo_programs/fibonacci.json").to_vec();
+        Program::from_bytes(&program_content, Some("main"))
+            .expect("Loading example program failed unexpectedly")
+    }
 
-    //     Program::from_bytes(&program_content, Some("main"))
-    //         .expect("Loading example program failed unexpectedly")
-    // }
+    /// This test checks that the program is loaded correctly into memory and that the
+    /// program address is set correctly. This test does not check the content of the program,
+    /// but rather that the program is loaded into a new segment and that the program address
+    /// is set correctly, and the entire program is loaded into memory. The loaded content of
+    /// memory is checked in program_loader.rs tests.
+    #[rstest]
+    fn test_load_program(fibonacci: Program) {
+        let fibonacci_task = Task::Cairo0Program(Cairo0Executable {
+            program: fibonacci.clone(),
+            program_input: None,
+        });
 
-    // #[fixture]
-    // fn fibonacci_pie() -> CairoPie {
-    //     let pie_file =
-    //         Path::new("../cairo_programs/manually_compiled/fibonacci_cairo_pie/fibonacci_pie.zip"
-    // );     CairoPie::from_file(pie_file).expect("Failed to load the program PIE")
-    // }
+        let (
+            mut vm,
+            ids_data,
+            mut exec_scopes,
+            ap_tracking,
+            _expected_program_data_segment_index,
+            program_header_ptr,
+            _task,
+        ) = prepare_vm_for_load_program_loading_test(fibonacci_task.clone());
 
-    // #[fixture]
-    // fn field_arithmetic_program() -> Program {
-    //     let program_content =
-    //         include_bytes!("../../../../../cairo_programs/field_arithmetic.json").to_vec();
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    //     Program::from_bytes(&program_content, Some("main"))
-    //         .expect("Loading example program failed unexpectedly")
-    // }
+        // The Fibonacci program has only one builtin (output) -> the header size is 4 + #builtins =
+        // 5.
+        let header_size = 5;
+        let expected_code_address = Relocatable::from((
+            program_header_ptr.segment_index,
+            program_header_ptr.offset + header_size,
+        ));
 
-    // #[rstest]
-    // fn test_load_program(fibonacci: Program) {
-    //     let task = Task::Cairo0Program(fibonacci.clone());
+        let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS).unwrap();
+        assert_eq!(program_address, expected_code_address);
 
-    //     let mut vm = vm!();
-    //     vm.run_context.fp = 1;
-    //     // Set program_header_ptr to (2, 0)
-    //     vm.segments = segments![((1, 0), (2, 0))];
-    //     let program_header_ptr = Relocatable::from((2, 0));
-    //     add_segments!(vm, 1);
+        // Check that the segment was finalized
+        let expected_program_size = header_size + fibonacci.data_len();
+        assert_eq!(
+            vm.segments.segment_sizes[&(program_address.segment_index as usize)],
+            expected_program_size
+        );
+    }
 
-    //     let mut exec_scopes = ExecutionScopes::new();
-    //     exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
-    //     exec_scopes.insert_value(vars::TASK, task);
+    /// This test checks that the call_task hint works correctly. It sets up the VM, loads the
+    /// program, and then calls the call_task hint. It loads the program into memory, and
+    /// afterwards sets up the BuiltinData from the pre-execution of the call_task hint.
+    /// After it runs the hint, it asserts that the hints from the program are loaded to the hint
+    /// extension, and that the output runner data is set correctly.
+    #[rstest]
+    fn test_call_task(fibonacci: Program) {
+        let fibonacci_task = Task::Cairo0Program(Cairo0Executable {
+            program: fibonacci.clone(),
+            program_input: None,
+        });
+        let (
+            mut vm,
+            ids_data,
+            mut exec_scopes,
+            ap_tracking,
+            _expected_program_data_segment_index,
+            _program_header_ptr,
+            _task,
+        ) = prepare_vm_for_load_program_loading_test(fibonacci_task.clone());
 
-    //     let ids_data = ids_data!["program_header"];
-    //     let ap_tracking = ApTracking::new();
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    //     load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+        // Allocate space for pre-execution (8 felts), which mimics the `BuiltinData` struct in
+        // the Bootloader's Cairo code. Our code only uses the first felt (`output` field in
+        // the struct)
+        let _ = vm
+            .segments
+            .load_data(Relocatable::from((1, 3)), &[MaybeRelocatable::from((3, 0))]);
+        // Set FP to 3 + 8 = 11, Since now the memory at segment 1 is:
+        // (1, 0): (2, 0) // program segment pointer
+        // (1, 1): (2, 0) // program header pointer
+        // (1, 2): (2, 0) // program data pointer
+        // (1, 3): (3, 0) // pre-execution output builtin pointer
+        // (1, 4) to (1, 11) -> NONE // space for pre-execution builtins (only output is used)
+        vm.set_fp(11);
+        vm.set_ap(11);
+        let ids_data: HashMap<String, HintReference> =
+            prepare_non_continuous_ids_data_for_test(&[(vars::PRE_EXECUTION_BUILTIN_PTRS, -8)]);
 
-    //     // Note that we do not check the loaded content in memory here, this is tested
-    //     // in `program_loader.rs`
+        let mut output_builtin = OutputBuiltinRunner::new(true);
+        output_builtin.initialize_segments(&mut vm.segments);
+        vm.builtin_runners
+            .push(BuiltinRunner::Output(output_builtin));
 
-    //     // The Fibonacci program has no builtins -> the header size is 4
-    //     let header_size = 4;
-    //     let expected_code_address = &program_header_ptr + header_size;
+        let task = Task::Cairo0Program(Cairo0Executable {
+            program: fibonacci.clone(),
+            program_input: None,
+        });
 
-    //     let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS).unwrap();
-    //     assert_eq!(program_address, expected_code_address);
+        exec_scopes.insert_box(vars::TASK, Box::new(task));
 
-    //     // Check that the segment was finalized
-    //     let expected_program_size = header_size + fibonacci.shared_program_data.data.len();
-    //     assert_eq!(
-    //         vm.segments.segment_sizes[&(program_address.segment_index as usize)],
-    //         expected_program_size
-    //     );
-    // }
+        let hint_data =
+            HintProcessorData::new_default(String::from(EXECUTE_TASK_CALL_TASK), ids_data);
 
-    // #[rstest]
-    // fn test_call_task(fibonacci: Program) {
-    //     let mut vm = vm!();
+        let mut hint_processor = BootloaderHintProcessor::new();
 
-    //     // Allocate space for pre-execution (8 felts), which mimics the `BuiltinData` struct in
-    // the     // Bootloader's Cairo code. Our code only uses the first felt (`output` field in
-    // the struct)     vm.segments = segments![((1, 0), (2, 0))];
-    //     vm.run_context.fp = 8;
-    //     add_segments!(vm, 1);
+        let hint_extension = hint_processor
+            .execute_hint_extensive(
+                &mut vm,
+                &mut exec_scopes,
+                &any_box!(hint_data),
+                &HashMap::new(),
+            )
+            .expect("Hint failed unexpectedly");
 
-    //     let ids_data = non_continuous_ids_data![(vars::PRE_EXECUTION_BUILTIN_PTRS, -8)];
+        // Fibonnacci code should be loaded after the header whose size is 5 as checked in
+        // test_load_program.
+        let expected_code_address_offset = 5;
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        // Fibonacci program has 2 hints:
+        // 1. "memory[ap] = program_input['second_element']" at instruction 8
+        // 2. "memory[ap] = program_input['fibonacci_claim_index']" at instruction 9
+        // they should be loaded at (2, 5 + 8) and (2, 5 + 9) respectively.
+        let hint_codes_1 = get_hint_codes_at_pc(
+            &hint_extension,
+            Relocatable::from((2, expected_code_address_offset + 8)),
+        );
+        assert!(hint_codes_1.contains(&"memory[ap] = program_input['second_element']"));
 
-    //     let mut output_builtin = OutputBuiltinRunner::new(true);
-    //     output_builtin.initialize_segments(&mut vm.segments);
-    //     vm.builtin_runners
-    //         .push(BuiltinRunner::Output(output_builtin));
+        let hint_codes_2 = get_hint_codes_at_pc(
+            &hint_extension,
+            Relocatable::from((2, expected_code_address_offset + 9)),
+        );
+        assert!(hint_codes_2.contains(&"memory[ap] = program_input['fibonacci_claim_index']"));
 
-    //     let task = Task::Cairo0Program(fibonacci);
-    //     exec_scopes.insert_box(vars::TASK, Box::new(task));
+        let _ = exec_scopes.exit_scope();
+        let expected_output_runner_data = OutputBuiltinState {
+            base: 3,
+            base_offset: 0,
+            pages: HashMap::new(),
+            attributes: HashMap::new(),
+        };
 
-    //     assert_matches!(
-    //         run_hint!(
-    //             vm,
-    //             ids_data.clone(),
-    //             hint_code::EXECUTE_TASK_CALL_TASK,
-    //             &mut exec_scopes
-    //         ),
-    //         Ok(())
-    //     );
-    // }
+        // Asserting that output runner was initialized correctly, and the data is correct.
+        // After exiting the scope, OUTPUT_RUNNER_DATA should be available in the current scope.
+        let data = exec_scopes
+            .get::<Option<OutputBuiltinState>>(vars::OUTPUT_RUNNER_DATA)
+            .expect("OUTPUT_RUNNER_DATA should be available after exiting the scope")
+            .unwrap();
 
-    // /// Creates a fake Program struct to act as a placeholder for the `BOOTLOADER_PROGRAM`
-    // variable. /// These other options have been considered:
-    // /// * a `HasIdentifiers` trait cannot be used as exec_scopes requires to cast to `Box<dyn
-    // Any>`, ///   making casting back to the trait impossible.
-    // /// * using an enum requires defining test-only variants.
-    // fn mock_program_with_identifiers(symbols: HashMap<String, usize>) -> Program {
-    //     let identifiers = symbols
-    //         .into_iter()
-    //         .map(|(name, pc)| {
-    //             (
-    //                 name,
-    //                 Identifier {
-    //                     pc: Some(pc),
-    //                     type_: None,
-    //                     value: None,
-    //                     full_name: None,
-    //                     members: None,
-    //                     cairo_type: None,
-    //                 },
-    //             )
-    //         })
-    //         .collect();
+        assert_eq!(data, expected_output_runner_data);
+    }
 
-    //     let shared_program_data = SharedProgramData {
-    //         identifiers,
-    //         ..Default::default()
-    //     };
-    //     let program = Program {
-    //         shared_program_data: Arc::new(shared_program_data),
-    //         constants: Default::default(),
-    //         builtins: vec![],
-    //     };
+    fn get_simple_bootloader_program() -> Program {
+        let bootloader_program_content = include_bytes!(
+            "../../resources/compiled_programs/bootloaders/simple_bootloader_compiled.json"
+        )
+        .to_vec();
 
-    //     program
-    // }
+        Program::from_bytes(&bootloader_program_content, Some("main"))
+            .expect("Loading simple bootloader program failed unexpectedly")
+    }
 
-    // #[rstest]
-    // fn test_call_cairo_pie_task(fibonacci_pie: CairoPie) {
-    //     let mut vm = vm!();
+    /// This test checks that the call_task hint works correctly for a Cairo PIE task. It sets up
+    /// the VM, to a similar state as in the execute_task function in execute_task.cairo.
+    #[rstest]
+    fn test_call_cairo_pie_task(fibonacci_pie: CairoPie) {
+        let fibonacci_pie_task = Task::Pie(fibonacci_pie.clone());
+        let (
+            mut vm,
+            ids_data,
+            mut exec_scopes,
+            ap_tracking,
+            _expected_program_data_segment_index,
+            _program_header_ptr,
+            _task,
+        ) = prepare_vm_for_load_program_loading_test(fibonacci_pie_task.clone());
 
-    //     // We set the program header pointer at (1, 0) and make it point to the start of segment
-    // #2.     // Allocate space for pre-execution (8 values), which follows the `BuiltinData`
-    // struct in     // the Bootloader Cairo code. Our code only uses the first felt (`output`
-    // field in the     // struct). Finally, we put the mocked output of `select_input_builtins`
-    // in the next     // memory address and increase the AP register accordingly.
-    //     vm.segments = segments![((1, 0), (2, 0)), ((1, 1), (4, 0)), ((1, 9), (4, 42))];
-    //     vm.run_context.ap = 10;
-    //     vm.run_context.fp = 9;
-    //     add_segments!(vm, 3);
+        // Loading the cairo_pie program into the VM memory - emulates the load_program_segment
+        // without computing the program hash. Skipping writing the program hash to output_ptr.
+        // as it is not needed for the test.
 
-    //     let program_header_ptr = Relocatable::from((2, 0));
-    //     let ids_data = non_continuous_ids_data![
-    //         ("program_header", -9),
-    //         (vars::PRE_EXECUTION_BUILTIN_PTRS, -8),
-    //     ];
-    //     let ap_tracking = ApTracking::new();
+        load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        // We set the program header pointer at (1, 0) and make it point to the start of segment#2.
+        // Allocate space for pre-execution (8 values), which follows the `BuiltinData`struct in
+        // the Bootloader Cairo code. Our code only uses the first felt (`output`field in the
+        // struct). Finally, we put the mocked output of `select_input_builtins`in the next
+        // memory address and increase the AP register accordingly.
+        let _ = vm.load_data(
+            Relocatable::from((1, 3)),
+            &[
+                MaybeRelocatable::from((4, 0)), // pre-execution builtins pointer
+            ],
+        );
+        let _ = vm
+            .load_data(
+                Relocatable::from((1, 11)),
+                &[MaybeRelocatable::from((4, 42))], // mocked output of select_input_builtins
+            )
+            .expect("Failed to load data into VM segments");
+        vm.set_ap(12);
+        vm.set_fp(11);
 
-    //     let mut output_builtin = OutputBuiltinRunner::new(true);
-    //     output_builtin.initialize_segments(&mut vm.segments);
-    //     vm.builtin_runners
-    //         .push(BuiltinRunner::Output(output_builtin));
+        let program_header_ptr = Relocatable::from((2, 0));
+        let ids_data = prepare_non_continuous_ids_data_for_test(&[
+            ("program_header", -9),
+            (vars::PRE_EXECUTION_BUILTIN_PTRS, -8),
+        ]);
 
-    //     let task = Task::Pie(fibonacci_pie);
-    //     exec_scopes.insert_value(vars::TASK, task);
-    //     let bootloader_identifiers = HashMap::from(
-    //         [
-    //
-    // ("starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label".
-    // to_string(), 10usize),
-    // ("starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.call_task".
-    // to_string(), 8usize)         ]
-    //     );
-    //     let bootloader_program = mock_program_with_identifiers(bootloader_identifiers);
-    //     exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
-    //     exec_scopes.insert_value(vars::PROGRAM_OBJECT, bootloader_program);
+        let mut output_builtin = OutputBuiltinRunner::new(true);
+        output_builtin.initialize_segments(&mut vm.segments);
+        vm.builtin_runners
+            .push(BuiltinRunner::Output(output_builtin));
 
-    //     // Load the program in memory
-    //     load_program_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Failed to load Cairo PIE task in the VM memory");
+        let task = Task::Pie(fibonacci_pie.clone());
+        exec_scopes.insert_value(vars::TASK, task);
+        let bootloader_program = get_simple_bootloader_program();
+        exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
+        exec_scopes.insert_value(vars::PROGRAM_OBJECT, bootloader_program);
 
-    //     // Execute it
-    //     setup_subtask_for_execution(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
-    // }
+        // Execute the hint
+        let mut hint_processor = BootloaderHintProcessor::new();
+        setup_subtask_for_execution(
+            &mut hint_processor,
+            &mut vm,
+            &mut exec_scopes,
+            &ids_data,
+            &ap_tracking,
+        )
+        .expect("Hint failed unexpectedly");
 
-    // #[rstest]
-    // fn test_append_fact_topologies(fibonacci: Program) {
-    //     let task = Task::Cairo0Program(fibonacci.clone());
+        // Check that the code section on the PIE is loaded correctly into memory
+        let pie_memory = fibonacci_pie.memory;
+        for (offset, value) in pie_memory.0.iter() {
+            let (segment_index, base_offset) = match offset.0 {
+                0 => (2, 5),
+                1 => break, //checking only the code segment, so we break after the first segment
+                _ => panic!("Unexpected segment index: {}", offset.0),
+            };
+            let vm_addr = Relocatable::from((segment_index, base_offset + offset.1));
+            let vm_value = vm
+                .get_maybe(&vm_addr)
+                .expect("Failed to get VM memory value");
+            assert_eq!(&vm_value, value, "Mismatch at offset {}", offset.1);
+        }
 
-    //     let mut vm = vm!();
+        // TODO(idanh): Check that the ExecutionSegment is loaded correctly.
 
-    //     // Allocate space for the pre-execution and return builtin structs (2 x 8 felts).
-    //     // The pre-execution struct starts at (1, 0) and the return struct at (1, 8).
-    //     // We only set the output values to (2, 0) and (2, 10), respectively, to get an output
-    // size     // of 10.
-    //     vm.segments = segments![((1, 0), (2, 0)), ((1, 8), (2, 10)),];
-    //     vm.run_context.fp = 16;
-    //     add_segments!(vm, 1);
+        // Check that the output runner data is set correctly to NONE,
+        // since Cairo PIE tasks do not use the output runner.
+        exec_scopes.exit_scope().expect("Failed to exit scope");
+        let output_runner_data = exec_scopes
+            .get::<Option<OutputBuiltinState>>(vars::OUTPUT_RUNNER_DATA)
+            .expect("OUTPUT_RUNNER_DATA should be available after exiting the scope");
+        assert_eq!(
+            output_runner_data, None,
+            "Output runner data should be None for Cairo PIE tasks"
+        );
+    }
 
-    //     let tree_structure = vec![1, 2, 3, 4];
-    //     let program_output_data = OutputBuiltinAdditionalData {
-    //         base: 0,
-    //         pages: HashMap::from([
-    //             (1, PublicMemoryPage { start: 0, size: 7 }),
-    //             (2, PublicMemoryPage { start: 7, size: 3 }),
-    //         ]),
-    //         attributes: HashMap::from([("gps_fact_topology".to_string(),
-    // tree_structure.clone())]),     };
-    //     let mut output_builtin = OutputBuiltinRunner::new(true);
-    //     output_builtin.set_state(program_output_data.clone());
-    //     output_builtin.initialize_segments(&mut vm.segments);
-    //     vm.builtin_runners
-    //         .push(BuiltinRunner::Output(output_builtin));
+    /// This test checks that the append_fact_topologies hint works correctly.
+    /// It sets up the VM state to before the hint is called, and checks that
+    /// the fact topology is updated correctly after the hint is called.
+    #[rstest]
+    fn test_append_fact_topologies(fibonacci: Program) {
+        let fibonacci_task = Task::Cairo0Program(Cairo0Executable {
+            program: fibonacci.clone(),
+            program_input: None,
+        });
 
-    //     let ids_data = non_continuous_ids_data![
-    //         ("pre_execution_builtin_ptrs", -16),
-    //         ("return_builtin_ptrs", -8),
-    //     ];
+        let mut vm = VirtualMachine::new(false, false);
 
-    //     let ap_tracking = ApTracking::new();
+        // Allocate space for the pre-execution and return builtin structs (2 x 8 felts).
+        // The pre-execution struct starts at (1, 0) and the return struct at (1, 8).
+        // We only set the output values to (2, 0) and (2, 10), respectively, to get an output size
+        // of 10.
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        vm.add_memory_segment();
 
-    //     let mut exec_scopes = ExecutionScopes::new();
+        vm.load_data(Relocatable::from((1, 0)), &[MaybeRelocatable::from((2, 0))])
+            .expect("Failed to load data into VM segments");
+        vm.load_data(
+            Relocatable::from((1, 8)),
+            &[MaybeRelocatable::from((2, 10))],
+        )
+        .expect("Failed to load data into VM segments");
+        vm.set_fp(16);
 
-    //     let output_runner_data = OutputBuiltinAdditionalData {
-    //         base: 0,
-    //         pages: HashMap::new(),
-    //         attributes: HashMap::new(),
-    //     };
-    //     exec_scopes.insert_value(vars::OUTPUT_RUNNER_DATA, Some(output_runner_data.clone()));
-    //     exec_scopes.insert_value(vars::TASK, task);
-    //     exec_scopes.insert_value(vars::FACT_TOPOLOGIES, Vec::<FactTopology>::new());
+        let tree_structure = vec![1, 2, 3, 4];
+        let output_builtin_state = OutputBuiltinState {
+            base: 0,
+            base_offset: 0,
+            pages: HashMap::from([
+                (1, PublicMemoryPage { start: 0, size: 7 }),
+                (2, PublicMemoryPage { start: 7, size: 3 }),
+            ]),
+            attributes: HashMap::from([("gps_fact_topology".to_string(), tree_structure.clone())]),
+        };
 
-    //     append_fact_topologies(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+        let mut output_builtin = OutputBuiltinRunner::new(true);
+        output_builtin.set_state(output_builtin_state.clone());
+        output_builtin.initialize_segments(&mut vm.segments);
+        vm.builtin_runners
+            .push(BuiltinRunner::Output(output_builtin));
 
-    //     // Check that the fact topology matches the data from the output builtin
-    //     let fact_topologies: Vec<FactTopology> = exec_scopes.get(vars::FACT_TOPOLOGIES).unwrap();
-    //     assert_eq!(fact_topologies.len(), 1);
+        let ids_data = prepare_non_continuous_ids_data_for_test(&[
+            ("pre_execution_builtin_ptrs", -16),
+            ("return_builtin_ptrs", -8),
+        ]);
+        let ap_tracking = ApTracking::new();
+        let mut exec_scopes = ExecutionScopes::new();
 
-    //     let fact_topology = &fact_topologies[0];
-    //     assert_eq!(fact_topology.page_sizes, vec![0, 7, 3]);
-    //     assert_eq!(fact_topology.tree_structure, tree_structure);
+        exec_scopes.insert_value(vars::OUTPUT_RUNNER_DATA, Some(output_builtin_state.clone()));
+        exec_scopes.insert_value(vars::TASK, fibonacci_task);
+        exec_scopes.insert_value(vars::FACT_TOPOLOGIES, Vec::<FactTopology>::new());
 
-    //     // Check that the output builtin was updated
-    //     let output_builtin_additional_data =
-    // vm.get_output_builtin().unwrap().get_additional_data();     assert!(matches!(
-    //         output_builtin_additional_data,
-    //         BuiltinAdditionalData::Output(data) if data == output_runner_data,
-    //     ));
-    // }
+        append_fact_topologies(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    // #[rstest]
-    // fn test_write_output_builtins(field_arithmetic_program: Program) {
-    //     let task = Task::Cairo0Program(field_arithmetic_program.clone());
+        // Check that the fact topology matches the data from the output builtin
+        let fact_topologies: Vec<FactTopology> = exec_scopes.get(vars::FACT_TOPOLOGIES).unwrap();
+        assert_eq!(fact_topologies.len(), 1);
+        let fact_topology = &fact_topologies[0];
+        assert_eq!(fact_topology.page_sizes, vec![0, 7, 3]);
+        assert_eq!(fact_topology.tree_structure, tree_structure);
+    }
 
-    //     let mut vm = vm!();
-    //     // Allocate space for all the builtin list structs (3 x 8 felts).
-    //     // The pre-execution struct starts at (1, 0), the used builtins list at (1, 8)
-    //     // and the return struct at (1, 16).
-    //     // Initialize the pre-execution struct to [1, 2, 3, 4, 5, 6, 7, 8].
-    //     // Initialize the used builtins to {range_check: 30, bitwise: 50} as these two
-    //     // are used by the field arithmetic program. Note that the used builtins list
-    //     // does not contain empty elements (i.e. offsets are 8 and 9 instead of 10 and 12).
-    //     vm.segments = segments![
-    //         ((1, 0), (2, 1)),
-    //         ((1, 1), (2, 2)),
-    //         ((1, 2), (2, 3)),
-    //         ((1, 3), (2, 4)),
-    //         ((1, 4), (2, 5)),
-    //         ((1, 5), (2, 6)),
-    //         ((1, 6), (2, 7)),
-    //         ((1, 7), (2, 8)),
-    //         ((1, 8), (2, 30)),
-    //         ((1, 9), (2, 50)),
-    //         ((1, 24), (1, 8)),
-    //     ];
-    //     vm.run_context.fp = 25;
-    //     add_segments!(vm, 1);
+    /// This test checks that the write_return_builtins hint works correctly.
+    /// It sets up the VM state to before the hint is called, and checks that
+    /// the return builtins are written correctly after the hint is called.
+    /// The builtin_usage_program uses the output, pedersen, range_check, bitwise,
+    /// ecdsa, keccak, ec_op, poseidon, hint, and mul_mod builtins.
+    /// The hint writes the used builtins to the return struct, which is
+    /// expected to be at (1, 22) in the VM memory.
+    #[rstest]
+    fn test_write_output_builtins(builtin_usage_program: Program) {
+        let task = Task::Cairo0Program(Cairo0Executable {
+            program: builtin_usage_program.clone(),
+            program_input: None,
+        });
 
-    //     // Note that used_builtins_addr is a pointer to the used builtins list at (1, 8)
-    //     let ids_data = non_continuous_ids_data![
-    //         ("pre_execution_builtin_ptrs", -25),
-    //         ("return_builtin_ptrs", -9),
-    //         ("used_builtins_addr", -1),
-    //     ];
-    //     let ap_tracking = ApTracking::new();
+        let mut vm = VirtualMachine::new(false, false);
+        vm.add_memory_segment(); // Segment 0
+        vm.add_memory_segment(); // Segment 1
+        vm.add_memory_segment(); // Segment 2
 
-    //     let mut exec_scopes = ExecutionScopes::new();
-    //     let n_builtins = field_arithmetic_program.builtins.len();
-    //     exec_scopes.insert_value(vars::N_BUILTINS, n_builtins);
-    //     exec_scopes.insert_value(vars::TASK, task);
+        // Allocate space for all the builtin list structs (3 x 11 felts).
+        // The pre-execution struct starts at (1, 0), the used builtins list at (1, 11)
+        // and the return struct at (1, 22).
+        // Initialize the pre-execution struct to [1, 2, ..., 11].
+        // Initialize the used builtins to {output: 30, pedersen: 31, ..., mul_mod: 40} as these are
+        // used by the builtin_usage program.
+        let segment_data = [
+            ((1, 0), (2, 1)),
+            ((1, 1), (2, 2)),
+            ((1, 2), (2, 3)),
+            ((1, 3), (2, 4)),
+            ((1, 4), (2, 5)),
+            ((1, 5), (2, 6)),
+            ((1, 6), (2, 7)),
+            ((1, 7), (2, 8)),
+            ((1, 8), (2, 9)),
+            ((1, 9), (2, 10)),
+            ((1, 10), (2, 11)),
+            // Used builtins
+            ((1, 11), (2, 30)),
+            ((1, 12), (2, 31)),
+            ((1, 13), (2, 32)),
+            ((1, 14), (2, 33)),
+            ((1, 15), (2, 34)),
+            ((1, 16), (2, 35)),
+            ((1, 17), (2, 36)),
+            ((1, 18), (2, 37)),
+            ((1, 19), (2, 38)),
+            ((1, 20), (2, 39)),
+            ((1, 21), (2, 40)),
+            // Return struct pointer
+            ((1, 33), (1, 11)),
+        ];
+        for (src, dst) in segment_data.iter() {
+            vm.load_data(Relocatable::from(*src), &[MaybeRelocatable::from(*dst)])
+                .expect("Failed to load data into VM segments");
+        }
+        vm.set_fp(34);
+        vm.set_ap(34);
 
-    //     write_return_builtins_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-    //         .expect("Hint failed unexpectedly");
+        let ids_data = prepare_non_continuous_ids_data_for_test(&[
+            ("pre_execution_builtin_ptrs", -34),
+            ("return_builtin_ptrs", -12),
+            ("used_builtins_addr", -1),
+        ]);
+        let ap_tracking = ApTracking::new();
 
-    //     // Check that the return builtins were written correctly
-    //     let return_builtins = vm
-    //         .segments
-    //         .memory
-    //         .get_continuous_range(Relocatable::from((1, 16)), 8)
-    //         .expect("Return builtin was not properly written to memory.");
+        let mut exec_scopes = ExecutionScopes::new();
+        let n_builtins = builtin_usage_program.builtins_len();
+        exec_scopes.insert_value(vars::N_BUILTINS, n_builtins);
+        exec_scopes.insert_value(vars::TASK, task);
 
-    //     let expected_builtins = vec![
-    //         Relocatable::from((2, 1)),
-    //         Relocatable::from((2, 2)),
-    //         Relocatable::from((2, 30)),
-    //         Relocatable::from((2, 4)),
-    //         Relocatable::from((2, 50)),
-    //         Relocatable::from((2, 6)),
-    //         Relocatable::from((2, 7)),
-    //         Relocatable::from((2, 8)),
-    //     ];
-    //     for (expected, actual) in std::iter::zip(expected_builtins, return_builtins) {
-    //         assert_eq!(MaybeRelocatable::RelocatableValue(expected), actual);
-    //     }
+        write_return_builtins_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-    //     // Check that the exec scope changed
-    //     assert_eq!(
-    //         exec_scopes.data.len(),
-    //         2,
-    //         "A new scope should have been declared"
-    //     );
-    //     assert_eq!(
-    //         exec_scopes.data[1].len(),
-    //         1,
-    //         "The new scope should only contain one variable"
-    //     );
-    //     let n_selected_builtins: usize = exec_scopes
-    //         .get(vars::N_SELECTED_BUILTINS)
-    //         .expect("n_selected_builtins should be set");
-    //     assert_eq!(n_selected_builtins, n_builtins);
-    // }
+        // Check that the return builtins were written correctly
+        let return_builtins = vm
+            .segments
+            .memory
+            .get_continuous_range(Relocatable::from((1, 22)), 11)
+            .expect("Return builtin was not properly written to memory.");
+
+        let expected_builtins = vec![
+            Relocatable::from((2, 30)),
+            Relocatable::from((2, 31)),
+            Relocatable::from((2, 32)),
+            Relocatable::from((2, 33)),
+            Relocatable::from((2, 34)),
+            Relocatable::from((2, 35)),
+            Relocatable::from((2, 36)),
+            Relocatable::from((2, 37)),
+            Relocatable::from((2, 38)),
+            Relocatable::from((2, 39)),
+            Relocatable::from((2, 40)),
+        ];
+        for (expected, actual) in std::iter::zip(expected_builtins, return_builtins) {
+            assert_eq!(MaybeRelocatable::RelocatableValue(expected), actual);
+        }
+
+        // Check that the exec scope changed
+        assert_eq!(
+            exec_scopes.data.len(),
+            2,
+            "A new scope should have been declared"
+        );
+        assert_eq!(
+            exec_scopes.data[1].len(),
+            1,
+            "The new scope should only contain one variable"
+        );
+        let n_selected_builtins: usize = exec_scopes
+            .get(vars::N_SELECTED_BUILTINS)
+            .expect("n_selected_builtins should be set");
+        assert_eq!(n_selected_builtins, n_builtins);
+    }
+
+    //TODO(Idanh): Add tests for the untested hints in this file.
 }

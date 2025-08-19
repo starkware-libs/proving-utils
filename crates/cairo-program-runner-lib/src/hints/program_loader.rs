@@ -95,6 +95,7 @@ impl<'vm> ProgramLoader<'vm> {
 
         let builtins = &program.builtins;
         let n_builtins = builtins.len();
+
         let header_size = self.builtins_offset + n_builtins;
 
         // data_length does not include the data_length header field in the calculation.
