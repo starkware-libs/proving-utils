@@ -562,7 +562,7 @@ pub struct FlexibleBuiltinUsageInput {
     pub n_blake2s: usize,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FibonacciInput {
     pub fibonacci_claim_index: usize,
     pub second_element: usize,
