@@ -2,10 +2,13 @@ use cairo_air::utils::ProofFormat;
 use cairo_air::verifier::verify_cairo;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
+use cairo_vm::Felt252;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
+use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
+use cairo_vm::vm::runners::cairo_runner::CairoRunner;
 use clap::Parser;
 #[cfg(test)]
 use mockall::automock;
@@ -31,8 +34,6 @@ use stwo_cairo_serialize::CairoSerialize;
 use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
 use thiserror::Error;
 use tracing::{error, info, warn};
-
-type OutputVec = Vec<[u32; 8]>;
 
 fn parse_usize_ge1(s: &str) -> Result<usize, String> {
     let v: usize = s.parse().map_err(|_| "must be a number".to_string())?;
@@ -119,8 +120,12 @@ enum StwoRunAndProveError {
     Serializing(#[from] sonic_rs::error::Error),
     #[error(transparent)]
     Proving(#[from] ProvingError),
+    #[error(transparent)]
+    VM(#[from] VirtualMachineError),
     #[error("cairo verification failed.")]
     Verification,
+    #[error("Failed to parse output line as Felt decimal.")]
+    OutputParsing,
 }
 
 // Implement From<Box<CairoRunError>> manually
@@ -193,11 +198,9 @@ fn stwo_run_and_prove(
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     info!("Adapting prover input.");
     let prover_input = adapter(&runner);
-    let (successful_proof_attempt, output_vec) =
-        prove_with_retries(prover_input, prove_config, prover)?;
-
+    let successful_proof_attempt = prove_with_retries(prover_input, prove_config, prover)?;
     if let Some(output_path) = program_output {
-        save_output_to_file(output_vec, output_path)?;
+        write_output_to_file(runner, output_path)?;
     }
 
     Ok(successful_proof_attempt)
@@ -211,7 +214,7 @@ fn prove_with_retries(
     prover_input: ProverInput,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
-) -> Result<(usize, OutputVec), StwoRunAndProveError> {
+) -> Result<usize, StwoRunAndProveError> {
     let prover_params = match prove_config.prover_params_json {
         Some(ref path) => sonic_rs::from_str(&read_to_string(path)?)?,
         None => default_prod_prover_parameters(),
@@ -235,12 +238,12 @@ fn prove_with_retries(
             &proof_format,
             prove_config.verify,
         ) {
-            Ok(output_values) => {
+            Ok(()) => {
                 info!(
                     "Proof generated and verified successfully on attempt {}/{}",
                     i, prove_config.n_proof_attempts
                 );
-                return Ok((i, output_values));
+                return Ok(i);
             }
 
             Err(StwoRunAndProveError::Verification) => {
@@ -272,7 +275,7 @@ fn choose_channel_and_prove(
     proof_file_path: PathBuf,
     proof_format: &ProofFormat,
     verify: bool,
-) -> Result<OutputVec, StwoRunAndProveError> {
+) -> Result<(), StwoRunAndProveError> {
     match prover_params.channel_hash {
         ChannelHash::Blake2s => prove::<Blake2sMerkleChannel>(
             prover_params,
@@ -300,7 +303,7 @@ trait ProverTrait {
         proof_file_path: PathBuf,
         proof_format: &ProofFormat,
         verify: bool,
-    ) -> Result<OutputVec, StwoRunAndProveError>;
+    ) -> Result<(), StwoRunAndProveError>;
 }
 
 struct StwoProverEntryPoint;
@@ -313,7 +316,7 @@ impl ProverTrait for StwoProverEntryPoint {
         proof_file_path: PathBuf,
         proof_format: &ProofFormat,
         verify: bool,
-    ) -> Result<OutputVec, StwoRunAndProveError> {
+    ) -> Result<(), StwoRunAndProveError> {
         choose_channel_and_prove(
             prover_params,
             prover_input,
@@ -334,7 +337,7 @@ fn prove<MC: MerkleChannel>(
     proof_file_path: PathBuf,
     proof_format: &ProofFormat,
     verify: bool,
-) -> Result<OutputVec, StwoRunAndProveError>
+) -> Result<(), StwoRunAndProveError>
 where
     SimdBackend: BackendForChannel<MC>,
     MC::H: Serialize,
@@ -361,8 +364,6 @@ where
         }
     }
 
-    let output_addresses_and_values = proof.claim.public_data.public_memory.output.clone();
-
     if verify {
         // We want to map this error to `StwoRunAndProveError::Verification` because we intend to
         // retry the proof generation in case of a verification failure. In the calling function we
@@ -372,23 +373,27 @@ where
             .map_err(|_| StwoRunAndProveError::Verification)?;
     }
 
-    let output_values = output_addresses_and_values
-        .into_iter()
-        .map(|(_, value)| value)
-        .collect();
-
-    Ok(output_values)
+    Ok(())
 }
 
-/// Saves the program output to the specified output path as [u32; 8] values,
-/// that will be converted to [u256] in the Prover service.
-fn save_output_to_file(
-    output_vec: OutputVec,
+/// Write the program output to the specified output path as Felt252 values.
+fn write_output_to_file(
+    mut runner: CairoRunner,
     output_path: PathBuf,
 ) -> Result<(), StwoRunAndProveError> {
     info!("Saving program output to: {:?}", output_path);
-    let serialized_output = sonic_rs::to_string(&output_vec)?;
-    std::fs::write(output_path, serialized_output)?;
+    // TODO(Nitsan): move this function to  cairo_program_runner_lib or a new utils lib,
+    // and call it from here and from cairo_program_runner.
+
+    let mut output_buffer = String::new();
+    runner.vm.write_output(&mut output_buffer)?;
+    let output_lines = output_buffer
+        .lines()
+        .map(|line: &str| {
+            Felt252::from_dec_str(line).map_err(|_| StwoRunAndProveError::OutputParsing)
+        })
+        .collect::<Result<Vec<Felt252>, _>>()?;
+    std::fs::write(output_path, sonic_rs::to_string_pretty(&output_lines)?)?;
     Ok(())
 }
 
@@ -399,7 +404,7 @@ mod tests {
     use std::fs;
     use tempfile::{NamedTempFile, TempDir, TempPath};
 
-    const ARRAY_SUM_EXPECTED_OUTPUT: [u32; 8] = [50, 0, 0, 0, 0, 0, 0, 0];
+    const ARRAY_SUM_EXPECTED_OUTPUT: [Felt252; 1] = [Felt252::from_hex_unchecked("0x32")];
     const RESOURCES_PATH: &str = "resources";
     const PROGRAM_FILE_NAME: &str = "array_sum.json";
     const PROVER_PARAMS_FILE_NAME: &str = "prover_params.json";
@@ -466,7 +471,7 @@ mod tests {
             .returning(move |_, _, proof_file, _, _| {
                 let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
                 fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
-                Ok(vec![ARRAY_SUM_EXPECTED_OUTPUT])
+                Ok(())
             });
 
         let successful_proof_attempt =
@@ -512,7 +517,7 @@ mod tests {
         // for the last attempt.
         let mut results = (0..n_proof_attempts.saturating_sub(1))
             .map(|_| Err(StwoRunAndProveError::Verification))
-            .chain(std::iter::once(Ok(vec![ARRAY_SUM_EXPECTED_OUTPUT])));
+            .chain(std::iter::once(Ok(())));
 
         mock_prover
             .expect_choose_channel_and_prove()
@@ -556,10 +561,10 @@ mod tests {
         // Verifying the proof output.
         let output_content =
             std::fs::read_to_string(output_temp_file).expect("Failed to read output file");
-        let output_vec: OutputVec =
+        let output: Vec<Felt252> =
             sonic_rs::from_str(&output_content).expect("Failed to parse output");
         assert_eq!(
-            output_vec[0], ARRAY_SUM_EXPECTED_OUTPUT,
+            output, ARRAY_SUM_EXPECTED_OUTPUT,
             "Expected output to be {:?}",
             ARRAY_SUM_EXPECTED_OUTPUT
         );
