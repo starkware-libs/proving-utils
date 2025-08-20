@@ -3,7 +3,8 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - nitsan/take_output_from_runner
+      
 jobs:
   artifacts-push:
     runs-on: ubuntu-24.04
