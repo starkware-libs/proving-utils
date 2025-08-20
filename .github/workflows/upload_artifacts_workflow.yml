@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - nitsan/upload_stwo_run_and_prove_to_gcp
+      - nitsan/take_output_from_runner
       
 jobs:
   artifacts-push:
