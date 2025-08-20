@@ -9,8 +9,6 @@ use cairo_vm::types::relocatable::MaybeRelocatable;
 use cairo_vm::types::relocatable::Relocatable;
 use cairo_vm::vm::vm_core::VirtualMachine;
 
-/// Test helper: Create a HashMap of HintReferences for testing.
-/// Output:
 /// {
 ///     0: HintReference::new_simple(-num),
 ///     1: HintReference::new_simple(-num + 1),
@@ -125,4 +123,20 @@ pub fn prepare_vm_for_load_program_loading_test(
         program_header_ptr,
         task,
     )
+}
+
+#[cfg(test)]
+pub mod tests {
+    use cairo_vm::types::program::Program;
+    use rstest::fixture;
+
+    #[fixture]
+    pub fn fibonacci() -> Program {
+        let program_content =
+            include_bytes!("../resources/compiled_programs/test_programs/fibonacci_compiled.json")
+                .to_vec();
+
+        Program::from_bytes(&program_content, Some("main"))
+            .expect("Loading example program failed unexpectedly")
+    }
 }

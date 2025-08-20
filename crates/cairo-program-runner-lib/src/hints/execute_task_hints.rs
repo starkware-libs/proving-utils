@@ -588,6 +588,7 @@ mod tests {
     use super::*;
     use crate::hints::codes::*;
     use crate::hints::types::{Cairo0Executable, Task};
+    use crate::test_utils::tests::fibonacci;
     use crate::test_utils::{get_hint_codes_at_pc, prepare_non_continuous_ids_data_for_test};
     use crate::test_utils::{prepare_ids_data_for_test, prepare_vm_for_load_program_loading_test};
     use cairo_vm::any_box;
@@ -640,17 +641,6 @@ mod tests {
                 offset: 0
             }
         );
-    }
-
-    #[fixture]
-    fn fibonacci() -> Program {
-        let program_content = include_bytes!(
-            "../../resources/compiled_programs/test_programs/fibonacci_compiled.json"
-        )
-        .to_vec();
-
-        Program::from_bytes(&program_content, Some("main"))
-            .expect("Loading example program failed unexpectedly")
     }
 
     #[fixture]
