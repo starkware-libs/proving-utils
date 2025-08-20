@@ -149,6 +149,7 @@ pub fn append_fact_topologies(
     Ok(())
 }
 
+// TODO(idanh): can't find this hint anywhere in the starkware main repo, consider removing it.
 /// Implements
 /// # Validate hash.
 /// from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
@@ -202,6 +203,7 @@ pub const ALL_BUILTINS: [BuiltinName; 11] = [
     BuiltinName::mul_mod,
 ];
 
+// TODO(idanh): This function seems to be unused, consider removing it.
 fn check_cairo_pie_builtin_usage(
     vm: &mut VirtualMachine,
     builtin_name: &BuiltinName,
@@ -509,6 +511,7 @@ pub fn execute_task_exit_scope(
     Ok(HintExtension::default())
 }
 
+// TODO(idanh): can't find this hint anywhere in the starkware main repo, consider removing it.
 /// Implements
 /// # Validate hash.
 /// from starkware.cairo.bootloaders.hash_program import compute_program_hash_chain
@@ -585,8 +588,8 @@ mod tests {
     use super::*;
     use crate::hints::codes::*;
     use crate::hints::types::{Cairo0Executable, Task};
-    use crate::test_utils::prepare_vm_for_load_program_loading_test;
     use crate::test_utils::{get_hint_codes_at_pc, prepare_non_continuous_ids_data_for_test};
+    use crate::test_utils::{prepare_ids_data_for_test, prepare_vm_for_load_program_loading_test};
     use cairo_vm::any_box;
     use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
     use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
@@ -1108,5 +1111,29 @@ mod tests {
         assert_eq!(n_selected_builtins, n_builtins);
     }
 
-    //TODO(Idanh): Add tests for the untested hints in this file.
+    #[rstest(use_prev_hash, case(0), case(1))]
+    fn test_determine_use_prev_hash(use_prev_hash: i32) {
+        // This test checks that the determine_use_prev_hash hint works correctly.
+        // It sets up the VM state to before the hint is called, and checks that
+        // the use_prev_hash variable is set correctly after the hint is called in the VM's memory.
+        let mut vm = VirtualMachine::new(false, false);
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        vm.set_fp(1);
+        vm.set_ap(1);
+        let mut exec_scopes = ExecutionScopes::new();
+        exec_scopes.insert_value(vars::USE_PREV_HASH, use_prev_hash);
+        let ids_data = prepare_ids_data_for_test(&["use_prev_hash"]);
+        let ap_tracking = ApTracking::new();
+        determine_use_prev_hash(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
+
+        // Check that the use_prev_hash variable is set correctly in the execution scope
+        assert_eq!(
+            vm.get_integer(Relocatable::from((1, 0)))
+                .unwrap()
+                .into_owned(),
+            Felt252::from(use_prev_hash)
+        );
+    }
 }
