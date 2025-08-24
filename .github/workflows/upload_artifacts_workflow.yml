@@ -3,8 +3,8 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
-
+      - nitsan/upload_stwo_run_and_prove_to_gcp
+      
 jobs:
   artifacts-push:
     runs-on: ubuntu-24.04
@@ -57,3 +57,10 @@ jobs:
         with:
           path: "target/aarch64-unknown-linux-gnu/release/stwo_vm_runner"
           destination: "stwo_vm_runner_artifacts/${{ env.SHORT_HASH }}/aarch64-release"
+
+      - name: Upload stwo_run_and_prove binary to GCP
+        id: upload_stwo_run_and_prove
+        uses: "google-github-actions/upload-cloud-storage@v2"
+        with:
+          path: "target/release/stwo_run_and_prove"
+          destination: "stwo_run_and_prove_artifacts/${{ env.SHORT_HASH }}/stwo_run_and_prove_release"
