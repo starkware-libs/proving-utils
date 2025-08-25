@@ -492,6 +492,7 @@ mod tests {
     use crate::hints::codes::*;
     use crate::hints::hint_processors::MinimalBootloaderHintProcessor;
     use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
+    use crate::test_utils::prepare_ids_data_for_test;
     use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
     use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
@@ -527,44 +528,6 @@ mod tests {
             },
             packed_outputs: vec![],
         }
-    }
-
-    fn prepare_refrences_for_test(num: i32) -> HashMap<usize, HintReference> {
-        // Create a HashMap of HintReferences for testing.
-        // output should look like:
-        // {
-        //     0: HintReference::new_simple(-num),
-        //     1: HintReference::new_simple(-num + 1),
-        //     ...
-        //     num - 1: HintReference::new_simple(-1),
-        //     num: HintReference::new_simple(0),
-        // }
-        let mut references = HashMap::<usize, HintReference>::new();
-        for i in 0..num {
-            references.insert(i as usize, HintReference::new_simple(i - num));
-        }
-        references
-    }
-
-    fn prepare_ids_data_for_test(
-        names: &[&str],
-    ) -> std::collections::HashMap<String, HintReference> {
-        // Create a HashMap of HintReferences for testing, where each name corresponds to a
-        // HintReference.
-        // The output should look like:
-        // {
-        //     "name1": HintReference::new_simple(-num),
-        //     "name2": HintReference::new_simple(-num + 1),
-        //     ...
-        //     "nameN": HintReference::new_simple(-1),
-        // }
-        // where num is the length of names.
-        let references = prepare_refrences_for_test(names.len() as i32);
-        let mut ids_data = std::collections::HashMap::<String, HintReference>::new();
-        for (i, name) in names.iter().enumerate() {
-            ids_data.insert(name.to_string(), references.get(&i).unwrap().clone());
-        }
-        ids_data
     }
 
     #[rstest]
