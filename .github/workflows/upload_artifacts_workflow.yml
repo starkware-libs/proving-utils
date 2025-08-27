@@ -3,8 +3,8 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
-      
+      - meidar/update_for_bl_unpacking_test
+
 jobs:
   artifacts-push:
     runs-on: ubuntu-24.04
