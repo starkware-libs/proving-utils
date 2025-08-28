@@ -63,3 +63,69 @@ pub fn divide_queries_ind_by_coset_size_to_fp_offset(
     let dest = (vm.get_fp() + 1)?;
     Ok(vm.insert_value(dest, result)?)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::prepare_ids_data_for_test;
+    use cairo_vm::types::relocatable::Relocatable;
+    use cairo_vm::Felt252;
+    use rstest::rstest;
+
+    // This test checks the hint implementation of `divide_queries_ind_by_coset_size_to_fp_offset`.
+    // It takes that the hint correctly divides the query index by the coset size and stores the
+    // result in fp + 1.
+    #[rstest]
+    #[case(42, 7, 6)]
+    #[case(100, 25, 4)]
+    #[case(0, 5, 0)]
+    fn test_divide_queries_ind_by_coset_size_to_fp_offset(
+        #[case] index: u64,
+        #[case] coset_size: u64,
+        #[case] expected: u64,
+    ) {
+        let mut vm = VirtualMachine::new(false, false);
+        let mut ids_data = prepare_ids_data_for_test(&["queries", "params"]);
+        let ap_tracking = ApTracking::default();
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        vm.set_fp(2);
+        vm.set_ap(2);
+
+        // Set queries to point at (2,0) and params to point at (2,3)
+        let _ = vm.segments.load_data(
+            Relocatable::from((1, 0)),
+            &[
+                MaybeRelocatable::from((2, 0)), // queries
+                MaybeRelocatable::from((2, 3)), // params
+            ],
+        );
+        // Fill memory at (2,0) for FriLayerQuery: index, y_value, x_inv_value
+        let _ = vm.segments.load_data(
+            Relocatable::from((2, 0)),
+            &[
+                MaybeRelocatable::from(Felt252::from(index)), // index
+                MaybeRelocatable::from(100),                  // y_value
+                MaybeRelocatable::from(200),                  // x_inv_value
+            ],
+        );
+        // Fill memory at (2,3) for FriLayerComputationParams: coset_size, fri_group, eval_point
+        let _ = vm.segments.load_data(
+            Relocatable::from((2, 3)),
+            &[
+                MaybeRelocatable::from(Felt252::from(coset_size)), // coset_size
+                MaybeRelocatable::from(300),                       /* fri_group (pointer, not
+                                                                    * used here) */
+                MaybeRelocatable::from(400), // eval_point
+            ],
+        );
+        divide_queries_ind_by_coset_size_to_fp_offset(&mut vm, &mut ids_data, &ap_tracking)
+            .expect("Failed to run hint");
+        // Assert result at fp+1 is 42/7 = 6
+        let result = vm
+            .get_integer(Relocatable::from((1, vm.get_fp().offset + 1)))
+            .expect("Failed to get result");
+        assert_eq!(*result.as_ref(), Felt252::from(expected));
+    }
+}
