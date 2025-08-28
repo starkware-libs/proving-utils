@@ -34,7 +34,7 @@ pub struct BootloaderConfig {
 }
 
 pub const BOOTLOADER_CONFIG_SIZE: usize = 3;
-#[derive(Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Default, Clone, PartialEq, Serialize)]
 /// Represents a composite packed output, which consists of a set of outputs,
 /// subtasks (which could be plain or composite themselves), and associated fact topologies of the
 /// plain subtasks.
@@ -154,7 +154,7 @@ impl CompositePackedOutput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum PackedOutput {
     Plain,
     Composite(CompositePackedOutput),
@@ -207,7 +207,7 @@ impl<'de> Deserialize<'de> for PackedOutput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Task {
     Cairo0Program(Cairo0Executable),
@@ -215,13 +215,13 @@ pub enum Task {
     Cairo1Program(Cairo1Executable),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Cairo0Executable {
     pub program: Program,
     pub program_input: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Cairo1Executable {
     pub program: Program,
     pub user_args: Vec<Arg>,
@@ -262,7 +262,7 @@ struct TaskSpecHelper {
     user_args_file: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TaskSpec {
     pub task: Task,
     pub program_hash_function: HashFunc,
@@ -270,7 +270,7 @@ pub struct TaskSpec {
 
 /// A hash function. These can be used e.g. for hashing a program within the bootloader.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum HashFunc {
     Pedersen = 0,
     Poseidon = 1,
@@ -396,7 +396,7 @@ pub struct SimpleBootloaderInput {
     pub tasks: Vec<TaskSpec>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BootloaderInput {
     #[serde(flatten)]
     pub simple_bootloader_input: SimpleBootloaderInput,
@@ -404,7 +404,7 @@ pub struct BootloaderInput {
     pub packed_outputs: Vec<PackedOutput>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ApplicativeBootloaderInput {
     #[serde(flatten)]
     pub bootloader_input: BootloaderInput,

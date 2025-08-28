@@ -253,7 +253,7 @@ mod tests {
         bootloader_version: BootloaderVersion,
     ) {
         let header_felts = vm.get_integer_range(header_address, 4).unwrap();
-        // TODO(Idan): understand why this needs to be 4 for the test to pass (instead of 2???)
+        // program header is of size 4 so we add for to the program data length.
         let expected_data_length = program.data.len() + 4;
         let program_main = program.main;
         let n_builtins = program.builtins.len();
