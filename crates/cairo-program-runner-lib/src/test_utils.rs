@@ -35,9 +35,7 @@ pub fn prepare_refrences_for_test(num: i32) -> std::collections::HashMap<usize, 
 ///     "nameN": HintReference::new_simple(-1),
 /// }
 /// where num is the length of names.
-pub fn prepare_ids_data_for_test(
-    names: &[&str],
-) -> std::collections::HashMap<String, HintReference> {
+pub fn fill_ids_data_for_test(names: &[&str]) -> std::collections::HashMap<String, HintReference> {
     let references = prepare_refrences_for_test(names.len() as i32);
     let mut ids_data = std::collections::HashMap::<String, HintReference>::new();
     for (i, name) in names.iter().enumerate() {
@@ -109,7 +107,7 @@ pub fn prepare_vm_for_load_program_loading_test(
     );
 
     let ids_data =
-        prepare_ids_data_for_test(&["program_segment_ptr", "program_header", "program_data_ptr"]);
+        fill_ids_data_for_test(&["program_segment_ptr", "program_header", "program_data_ptr"]);
     let expected_program_data_segment_index = vm.segments.num_segments();
     let program_header_ptr = Relocatable::from((2, 0));
     let mut exec_scopes = ExecutionScopes::new();

@@ -492,7 +492,7 @@ mod tests {
     use crate::hints::codes::*;
     use crate::hints::hint_processors::MinimalBootloaderHintProcessor;
     use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
-    use crate::test_utils::prepare_ids_data_for_test;
+    use crate::test_utils::fill_ids_data_for_test;
     use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
     use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
@@ -547,7 +547,7 @@ mod tests {
             .push(BuiltinRunner::Output(output_builtin.clone()));
 
         let mut exec_scopes = ExecutionScopes::new();
-        let ids_data = prepare_ids_data_for_test(&["simple_bootloader_output_start"]);
+        let ids_data = fill_ids_data_for_test(&["simple_bootloader_output_start"]);
         let ap_tracking = ApTracking::new();
 
         exec_scopes.insert_value(vars::BOOTLOADER_INPUT, bootloader_input);
@@ -685,7 +685,7 @@ mod tests {
         vm.set_fp(2);
 
         let mut exec_scopes = ExecutionScopes::new();
-        let ids_data = prepare_ids_data_for_test(&["bootloader_config"]);
+        let ids_data = fill_ids_data_for_test(&["bootloader_config"]);
         let ap_tracking = ApTracking::new();
 
         exec_scopes.insert_value(vars::BOOTLOADER_INPUT, bootloader_input);
@@ -833,7 +833,7 @@ mod tests {
             &[MaybeRelocatable::Int(Felt252::from(2))],
         );
 
-        let ids_data = prepare_ids_data_for_test(&["n_subtasks"]);
+        let ids_data = fill_ids_data_for_test(&["n_subtasks"]);
 
         let ap_tracking = ApTracking::default();
 
@@ -1097,7 +1097,7 @@ mod tests {
         vm.set_fp(2);
 
         let ids_data =
-            prepare_ids_data_for_test(&["nested_subtasks_output_len", "nested_subtasks_output"]);
+            fill_ids_data_for_test(&["nested_subtasks_output_len", "nested_subtasks_output"]);
 
         let mut exec_scopes = ExecutionScopes::new();
 
@@ -1169,7 +1169,7 @@ mod tests {
         vm.segments.add();
         vm.set_fp(2);
 
-        let ids_data = prepare_ids_data_for_test(&["program_address"]);
+        let ids_data = fill_ids_data_for_test(&["program_address"]);
         let ap_tracking = ApTracking::new();
 
         let mut ptr = Relocatable {

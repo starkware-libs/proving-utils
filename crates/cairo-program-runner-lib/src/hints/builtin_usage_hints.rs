@@ -214,7 +214,7 @@ pub fn flexible_builtin_usage_from_input(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::prepare_ids_data_for_test;
+    use crate::test_utils::fill_ids_data_for_test;
     use cairo_vm::serde::deserialize_program::OffsetValue;
     use cairo_vm::types::relocatable::MaybeRelocatable;
     use cairo_vm::types::relocatable::Relocatable;
@@ -252,7 +252,7 @@ mod tests {
         // local n_memory_holes;
         // local n_blake2s;
         let mut vm = VirtualMachine::new(false, false);
-        let ids_data = prepare_ids_data_for_test(&[
+        let ids_data = fill_ids_data_for_test(&[
             "n_output",
             "n_pedersen",
             "n_range_check",
@@ -282,7 +282,7 @@ mod tests {
     #[rstest(finalize, case(true), case(false))]
     fn test_builtin_usage_add_other_segment(finalize: bool) {
         let mut vm = VirtualMachine::new(false, false);
-        let ids_data = prepare_ids_data_for_test(&["other_segment"]);
+        let ids_data = fill_ids_data_for_test(&["other_segment"]);
         vm.segments.add();
         vm.segments.add();
         vm.set_fp(1);
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn test_builtin_usage_add_signature() {
         let mut vm = VirtualMachine::new(false, false);
-        let ids_data = prepare_ids_data_for_test(&["ecdsa_ptr"]);
+        let ids_data = fill_ids_data_for_test(&["ecdsa_ptr"]);
         let ap_tracking = ApTracking::default();
         vm.segments.add();
         vm.segments.add();
@@ -395,7 +395,7 @@ mod tests {
     )]
     fn test_builtin_usage_set_pages_and_fact_topology(left_pedersen_hash: usize) {
         let mut vm = VirtualMachine::new(false, false);
-        let ids_data = prepare_ids_data_for_test(&["output_ptr"]);
+        let ids_data = fill_ids_data_for_test(&["output_ptr"]);
         let ap_tracking = ApTracking::default();
         vm.segments.add();
         vm.segments.add();
