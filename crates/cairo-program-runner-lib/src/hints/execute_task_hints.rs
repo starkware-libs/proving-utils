@@ -589,7 +589,7 @@ mod tests {
     use crate::hints::codes::*;
     use crate::hints::types::{Cairo0Executable, Task};
     use crate::test_utils::{get_hint_codes_at_pc, prepare_non_continuous_ids_data_for_test};
-    use crate::test_utils::{prepare_ids_data_for_test, prepare_vm_for_load_program_loading_test};
+    use crate::test_utils::{fill_ids_data_for_test, prepare_vm_for_load_program_loading_test};
     use cairo_vm::any_box;
     use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
     use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
@@ -1124,7 +1124,7 @@ mod tests {
         vm.set_ap(1);
         let mut exec_scopes = ExecutionScopes::new();
         exec_scopes.insert_value(vars::USE_PREV_HASH, use_prev_hash);
-        let ids_data = prepare_ids_data_for_test(&["use_prev_hash"]);
+        let ids_data = fill_ids_data_for_test(&["use_prev_hash"]);
         let ap_tracking = ApTracking::new();
         determine_use_prev_hash(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
             .expect("Hint failed unexpectedly");
