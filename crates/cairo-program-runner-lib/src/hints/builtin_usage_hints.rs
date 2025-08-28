@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    execute_task_hints::field_element_to_felt, fact_topologies::GPS_FACT_TOPOLOGY,
+    execute_task_hints::felt_to_felt252, fact_topologies::GPS_FACT_TOPOLOGY,
     types::FlexibleBuiltinUsageInput, PROGRAM_INPUT,
 };
 use cairo_vm::{
@@ -16,7 +16,7 @@ use cairo_vm::{
     vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
     Felt252,
 };
-use starknet_crypto::{pedersen_hash, FieldElement};
+use starknet_crypto::{pedersen_hash, Felt};
 
 /// Implements hint:
 /// %{
@@ -97,11 +97,8 @@ pub fn builtin_usage_set_pages_and_fact_topology(
 ) -> Result<(), HintError> {
     let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
     let output_ptr_val = vm.get_integer(output_ptr)?.into_owned();
-    let ped_hash_val = pedersen_hash(
-        &FieldElement::from(123_usize),
-        &FieldElement::from(456_usize),
-    );
-    if output_ptr_val != field_element_to_felt(ped_hash_val) {
+    let ped_hash_val = pedersen_hash(&Felt::from(123_usize), &Felt::from(456_usize));
+    if output_ptr_val != felt_to_felt252(ped_hash_val) {
         return Err(HintError::CustomHint(
             format!("Pedersen hash mismatch: expected {ped_hash_val}, got {output_ptr_val}").into(),
         ));
@@ -425,11 +422,8 @@ mod tests {
         vm.builtin_runners = vec![output_builtin_runner.into()];
 
         // Load pedersen hash into output builtin_ptr
-        let ped_hash = pedersen_hash(
-            &FieldElement::from(left_pedersen_hash),
-            &FieldElement::from(456_usize),
-        );
-        let ped_hash_felt = field_element_to_felt(ped_hash);
+        let ped_hash = pedersen_hash(&Felt::from(left_pedersen_hash), &Felt::from(456_usize));
+        let ped_hash_felt = felt_to_felt252(ped_hash);
         let _ = vm
             .load_data(
                 Relocatable::from((2, 0)),

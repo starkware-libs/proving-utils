@@ -21,7 +21,7 @@ use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinSt
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::{any_box, Felt252};
-use starknet_crypto::FieldElement;
+use starknet_crypto::Felt;
 
 use super::types::HashFunc;
 use super::utils::{get_identifier, get_program_from_task, get_program_identifies};
@@ -33,7 +33,7 @@ use crate::hints::program_loader::ProgramLoader;
 use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
 
-pub fn field_element_to_felt(field_element: FieldElement) -> Felt252 {
+pub fn felt_to_felt252(field_element: Felt) -> Felt252 {
     let bytes = field_element.to_bytes_be();
     Felt252::from_bytes_be(&bytes)
 }
@@ -175,7 +175,7 @@ pub fn validate_hash(
         .map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
         })?;
-    let computed_program_hash = field_element_to_felt(computed_program_hash);
+    let computed_program_hash = felt_to_felt252(computed_program_hash);
 
     if program_hash != computed_program_hash {
         return Err(HintError::AssertionFailed(
@@ -543,7 +543,7 @@ pub fn bootloader_validate_hash(
         .map_err(|e| {
             HintError::CustomHint(format!("Could not compute program hash: {e}").into_boxed_str())
         })?;
-    let computed_program_hash = field_element_to_felt(computed_program_hash);
+    let computed_program_hash = felt_to_felt252(computed_program_hash);
     if program_hash != computed_program_hash {
         return Err(HintError::AssertionFailed(
             "Computed hash does not match input"
