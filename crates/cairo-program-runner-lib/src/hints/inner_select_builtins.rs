@@ -59,59 +59,79 @@ pub fn select_builtin(
     Ok(())
 }
 
-// TODO(idanh): Understand and renable this test - some macros are no longer available.
-// #[cfg(test)]
-// mod tests {
-//     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_integer_from_var_name;
-//     use cairo_vm::Felt252;
-//     use rstest::rstest;
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::prepare_ids_data_for_test;
+    use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_integer_from_var_name;
+    use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
+    use cairo_vm::Felt252;
+    use rstest::rstest;
 
-//     use super::*;
+    use super::*;
 
-//     #[rstest]
-//     #[case::should_select_builtin(1usize, true)]
-//     #[case::should_not_select_builtin(1usize, false)]
-//     #[case::no_builtins(0usize, true)]
-//     fn test_select_builtin(#[case] n_builtins: usize, #[case] should_select_builtin: bool) {
-//         let mut vm = vm!();
+    /// Test for select_builtin hint. Checks that select_builtin is set according to the hint
+    /// description. 4 cases:
+    /// - should select a builtin (n_builtins > 0 and encodings match)
+    /// - should not select a builtin (n_builtins > 0 and encodings don't match)
+    /// - no builtins to select (n_builtins = 0 and encodings match)
+    /// - no builtins to select and no match (n_builtins = 0 and encodings don't match)
+    #[rstest]
+    #[case::should_select_builtin(1usize, true)]
+    #[case::should_not_select_builtin(1usize, false)]
+    #[case::no_builtins(0usize, true)]
+    #[case::no_builtins_and_no_match(0usize, false)]
+    fn test_select_builtin(#[case] n_builtins: usize, #[case] should_select_builtin: bool) {
+        let mut vm = VirtualMachine::new(false, false);
 
-//         let builtin_value = 10;
-//         let expected_value = if should_select_builtin {
-//             builtin_value
-//         } else {
-//             builtin_value + 1
-//         };
+        let builtin_value = 10;
+        let expected_value = if should_select_builtin {
+            builtin_value
+        } else {
+            builtin_value + 1
+        };
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        vm.load_data(
+            Relocatable::from((1, 0)),
+            &[
+                MaybeRelocatable::from((2, 0)),
+                MaybeRelocatable::from((2, 1)),
+            ],
+        )
+        .expect("Failed to load data into memory");
+        vm.load_data(
+            Relocatable::from((2, 0)),
+            &[
+                MaybeRelocatable::from(Felt252::from(builtin_value)),
+                MaybeRelocatable::from(Felt252::from(expected_value)),
+            ],
+        )
+        .expect("Failed to load data into memory");
 
-//         vm.segments = segments![
-//             ((1, 0), (2, 0)),
-//             ((1, 1), (2, 1)),
-//             ((2, 0), builtin_value),
-//             ((2, 1), expected_value)
-//         ];
-//         // Allocate space for program_data_ptr
-//         vm.run_context.fp = 3;
-//         add_segments!(vm, 2);
-//         let ids_data = ids_data!["selected_encodings", "all_encodings", "select_builtin"];
-//         let ap_tracking = ApTracking::new();
+        // Allocate space for program_data_ptr
+        vm.set_fp(3);
+        vm.set_ap(3);
+        let ids_data =
+            prepare_ids_data_for_test(&["selected_encodings", "all_encodings", "select_builtin"]);
+        let ap_tracking = ApTracking::new();
 
-//         let mut exec_scopes = ExecutionScopes::new();
-//         exec_scopes.insert_value(vars::N_SELECTED_BUILTINS, n_builtins);
+        let mut exec_scopes = ExecutionScopes::new();
+        exec_scopes.insert_value(vars::N_SELECTED_BUILTINS, n_builtins);
 
-//         select_builtin(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
-//             .expect("Hint failed unexpectedly");
+        select_builtin(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
 
-//         let select_builtin =
-//             get_integer_from_var_name("select_builtin", &vm, &ids_data, &ap_tracking)
-//                 .unwrap()
-//                 .into_owned();
-//         let n_selected_builtins: usize = exec_scopes.get(vars::N_SELECTED_BUILTINS).unwrap();
+        let select_builtin =
+            get_integer_from_var_name("select_builtin", &vm, &ids_data, &ap_tracking).unwrap();
+        let n_selected_builtins: usize = exec_scopes.get(vars::N_SELECTED_BUILTINS).unwrap();
 
-//         if (n_builtins != 0) && should_select_builtin {
-//             assert_eq!(select_builtin, Felt252::from(1));
-//             assert_eq!(n_selected_builtins, n_builtins - 1);
-//         } else {
-//             assert_eq!(select_builtin, Felt252::from(0));
-//             assert_eq!(n_selected_builtins, n_builtins);
-//         }
-//     }
-// }
+        if (n_builtins != 0) && should_select_builtin {
+            assert_eq!(select_builtin, Felt252::from(1));
+            assert_eq!(n_selected_builtins, n_builtins - 1);
+        } else {
+            assert_eq!(select_builtin, Felt252::from(0));
+            assert_eq!(n_selected_builtins, n_builtins);
+        }
+    }
+}
