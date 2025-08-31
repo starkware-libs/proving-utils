@@ -572,7 +572,7 @@ pub struct FibonacciInput {
     pub second_element: usize,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PedersenMerkleInput {
     pub height: usize,
     pub node_index: u128,
