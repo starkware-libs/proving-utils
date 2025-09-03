@@ -153,7 +153,7 @@ pub fn load_bootloader_config(
         .collect();
 
     let supported_verifier_hashes: Vec<Box<dyn Any>> = config
-        .supported_cairo_verifier_program_hash_list
+        .supported_cairo_verifier_program_hashes
         .iter()
         .map(|h| Box::new(MaybeRelocatable::from(h)) as Box<dyn Any>)
         .collect();
@@ -161,9 +161,9 @@ pub fn load_bootloader_config(
     let args: Vec<Box<dyn Any>> = vec![
         maybe_relocatable_box!(config.supported_simple_bootloader_hash_list.len()),
         any_box!(supported_simple_bootloader_hashes),
-        maybe_relocatable_box!(config.supported_cairo_verifier_program_hash_list.len()),
+        maybe_relocatable_box!(config.supported_cairo_verifier_program_hashes.len()),
         any_box!(supported_verifier_hashes),
-        maybe_relocatable_box!(config.supported_applicative_bootloader_program_hash),
+        maybe_relocatable_box!(config.applicative_bootloader_program_hash),
     ];
 
     // Store the args in the VM memory
@@ -318,7 +318,7 @@ pub fn compute_and_configure_fact_topologies(
     let bootloader_input: BootloaderInput = exec_scopes.get(vars::BOOTLOADER_INPUT)?;
     let applicative_bootloader_program_hash = bootloader_input
         .bootloader_config
-        .supported_applicative_bootloader_program_hash;
+        .applicative_bootloader_program_hash;
 
     let plain_fact_topologies = compute_fact_topologies(
         &packed_outputs,
@@ -520,8 +520,8 @@ mod tests {
                     Felt252::from(1234),
                     Felt252::from(5678),
                 ],
-                supported_applicative_bootloader_program_hash: Felt252::from(2222),
-                supported_cairo_verifier_program_hash_list: vec![
+                applicative_bootloader_program_hash: Felt252::from(2222),
+                supported_cairo_verifier_program_hashes: vec![
                     Felt252::from(3333),
                     Felt252::from(4444),
                     Felt252::from(5555),
@@ -748,7 +748,7 @@ mod tests {
         // Assert that the cairo verifier program hashes segment length matches the expected length
         assert!(matches!(
             cairo_verifier_program_hashes_segment_len,
-            x if x == config.supported_cairo_verifier_program_hash_list.len()
+            x if x == config.supported_cairo_verifier_program_hashes.len()
         ));
 
         // Assert that the cairo verifier program hashes segment contains the expected hashes
@@ -762,14 +762,14 @@ mod tests {
             .unwrap();
         for (i, hash) in cairo_verifier_hash_list_segment.iter().enumerate() {
             assert!(
-                matches!(hash, MaybeRelocatable::Int(x) if *x == config.supported_cairo_verifier_program_hash_list[i])
+                matches!(hash, MaybeRelocatable::Int(x) if *x == config.supported_cairo_verifier_program_hashes[i])
             );
         }
 
         // Assert that the applicative bootloader program hash matches the expected value
         assert!(
             matches!(applicative_bootloader_program_hash, MaybeRelocatable::Int(x) if *x ==
-            config.supported_applicative_bootloader_program_hash)
+            config.applicative_bootloader_program_hash)
         );
     }
 
@@ -953,8 +953,8 @@ mod tests {
             },
             bootloader_config: BootloaderConfig {
                 supported_simple_bootloader_hash_list: vec![Felt252::from(1234)],
-                supported_cairo_verifier_program_hash_list: Default::default(),
-                supported_applicative_bootloader_program_hash: Felt252::from(2222),
+                supported_cairo_verifier_program_hashes: Default::default(),
+                applicative_bootloader_program_hash: Felt252::from(2222),
             },
             packed_outputs: packed_outputs.clone(),
         };
