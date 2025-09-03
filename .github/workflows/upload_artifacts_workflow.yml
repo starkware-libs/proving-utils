@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - nitsan/upload_binaries_to_gcp
 
 jobs:
   artifacts-push:
