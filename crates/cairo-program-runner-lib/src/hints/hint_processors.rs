@@ -484,7 +484,7 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
                     &hint_data_dc.ap_tracking,
                 )
             }
-            EXECUTE_TASK_EXIT_SCOPE => return execute_task_exit_scope(self, exec_scopes),
+            EXECUTE_TASK_EXIT_SCOPE => return execute_task_exit_scope(self, exec_scopes, vm),
             _ => {}
         }
 

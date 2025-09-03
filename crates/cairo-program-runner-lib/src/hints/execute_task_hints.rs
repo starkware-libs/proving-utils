@@ -505,9 +505,11 @@ pub fn setup_subtask_for_execution(
 pub fn execute_task_exit_scope(
     hint_processor: &mut BootloaderHintProcessor,
     exec_scopes: &mut ExecutionScopes,
+    vm: &mut VirtualMachine,
 ) -> Result<HintExtension, HintError> {
     exit_scope(exec_scopes)?;
     hint_processor.despawn_subtask();
+    vm.segments.memory.relocate_memory()?;
     Ok(HintExtension::default())
 }
 
