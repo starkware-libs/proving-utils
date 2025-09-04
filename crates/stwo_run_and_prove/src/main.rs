@@ -1,4 +1,3 @@
-use cairo_air::PreProcessedTraceVariant;
 use cairo_air::utils::ProofFormat;
 use cairo_air::verifier::verify_cairo;
 use cairo_program_runner_lib::cairo_run_program;
@@ -22,7 +21,6 @@ use stwo_cairo_prover::prover::{
 };
 
 use stwo_cairo_prover::stwo::core::channel::MerkleChannel;
-use stwo_cairo_prover::stwo::core::pcs::PcsConfig;
 use stwo_cairo_prover::stwo::core::vcs::MerkleHasher;
 use stwo_cairo_prover::stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
 use stwo_cairo_prover::stwo::core::vcs::poseidon252_merkle::Poseidon252MerkleChannel;
@@ -140,12 +138,6 @@ struct ProveConfig {
     prover_params_json: Option<PathBuf>,
 }
 
-struct CairoProverInputs {
-    prover_input: ProverInput,
-    pcs_config: PcsConfig,
-    preprocessed_trace: PreProcessedTraceVariant,
-}
-
 fn main() -> Result<(), StwoRunAndProveError> {
     let args = match Args::try_parse_from(env::args()) {
         Ok(args) => args,
@@ -199,6 +191,7 @@ fn stwo_run_and_prove(
     let program_input = get_program_input(&program_input)?;
     info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
+    info!("Adapting prover input.");
     let prover_input = adapter(&runner);
     let (successful_proof_attempt, output_vec) =
         prove_with_retries(prover_input, prove_config, prover)?;
@@ -219,26 +212,16 @@ fn prove_with_retries(
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
 ) -> Result<(usize, OutputVec), StwoRunAndProveError> {
-    let ProverParameters {
-        channel_hash,
-        pcs_config,
-        preprocessed_trace,
-    } = match prove_config.prover_params_json {
+    let prover_params = match prove_config.prover_params_json {
         Some(ref path) => sonic_rs::from_str(&read_to_string(path)?)?,
         None => default_prod_prover_parameters(),
-    };
-
-    let cairo_prover_inputs = CairoProverInputs {
-        prover_input: prover_input.clone(),
-        pcs_config,
-        preprocessed_trace,
     };
 
     // create the directory if it doesn't exist
     std::fs::create_dir_all(&prove_config.proofs_dir)?;
     let proof_format = prove_config.proof_format;
 
-    for i in 1..=prove_config.n_proof_attempts + 1 {
+    for i in 1..=prove_config.n_proof_attempts {
         info!(
             "Attempting to generate proof {}/{}.",
             i, prove_config.n_proof_attempts
@@ -246,10 +229,10 @@ fn prove_with_retries(
         let proof_file_path = prove_config.proofs_dir.join(format!("proof_{i}"));
 
         match prover.choose_channel_and_prove(
-            &cairo_prover_inputs,
+            prover_params,
+            prover_input.clone(),
             proof_file_path,
             &proof_format,
-            channel_hash,
             prove_config.verify,
         ) {
             Ok(output_values) => {
@@ -282,23 +265,25 @@ fn prove_with_retries(
     panic!("Should not reach here, n_proof_attempts should be at least 1.");
 }
 
-/// Chooses the appropriate channel based on the `channel_hash` and generates a proof.
+/// Chooses the appropriate channel and generates a proof.
 fn choose_channel_and_prove(
-    cairo_prover_inputs: &CairoProverInputs,
+    prover_params: ProverParameters,
+    prover_input: ProverInput,
     proof_file_path: PathBuf,
     proof_format: &ProofFormat,
-    channel_hash: ChannelHash,
     verify: bool,
 ) -> Result<OutputVec, StwoRunAndProveError> {
-    match channel_hash {
+    match prover_params.channel_hash {
         ChannelHash::Blake2s => prove::<Blake2sMerkleChannel>(
-            cairo_prover_inputs,
+            prover_params,
+            prover_input,
             proof_file_path,
             proof_format,
             verify,
         ),
         ChannelHash::Poseidon252 => prove::<Poseidon252MerkleChannel>(
-            cairo_prover_inputs,
+            prover_params,
+            prover_input,
             proof_file_path,
             proof_format,
             verify,
@@ -310,10 +295,10 @@ fn choose_channel_and_prove(
 trait ProverTrait {
     fn choose_channel_and_prove(
         &self,
-        cairo_prover_inputs: &CairoProverInputs,
+        prover_params: ProverParameters,
+        prover_input: ProverInput,
         proof_file_path: PathBuf,
         proof_format: &ProofFormat,
-        channel_hash: ChannelHash,
         verify: bool,
     ) -> Result<OutputVec, StwoRunAndProveError>;
 }
@@ -323,17 +308,17 @@ struct StwoProverEntryPoint;
 impl ProverTrait for StwoProverEntryPoint {
     fn choose_channel_and_prove(
         &self,
-        cairo_prover_inputs: &CairoProverInputs,
+        prover_params: ProverParameters,
+        prover_input: ProverInput,
         proof_file_path: PathBuf,
         proof_format: &ProofFormat,
-        channel_hash: ChannelHash,
         verify: bool,
     ) -> Result<OutputVec, StwoRunAndProveError> {
         choose_channel_and_prove(
-            cairo_prover_inputs,
+            prover_params,
+            prover_input,
             proof_file_path,
             proof_format,
-            channel_hash,
             verify,
         )
     }
@@ -344,7 +329,8 @@ impl ProverTrait for StwoProverEntryPoint {
 /// Verifies the proof if the `verify` flag is set.
 /// Returns the program output.
 fn prove<MC: MerkleChannel>(
-    cairo_prover_inputs: &CairoProverInputs,
+    prover_params: ProverParameters,
+    prover_input: ProverInput,
     proof_file_path: PathBuf,
     proof_format: &ProofFormat,
     verify: bool,
@@ -354,11 +340,7 @@ where
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
-    let proof = prove_cairo::<MC>(
-        cairo_prover_inputs.prover_input.clone(),
-        cairo_prover_inputs.pcs_config,
-        cairo_prover_inputs.preprocessed_trace,
-    )?;
+    let proof = prove_cairo::<MC>(prover_input, prover_params)?;
 
     let mut proof_file = create_file(&proof_file_path)?;
 
@@ -386,7 +368,7 @@ where
         // retry the proof generation in case of a verification failure. In the calling function we
         // assume this specific error type, so if we don't map it, and the error type returned by
         // `verify_cairo` changes, it will break the retry logic.
-        verify_cairo::<MC>(proof, cairo_prover_inputs.preprocessed_trace)
+        verify_cairo::<MC>(proof, prover_params.preprocessed_trace)
             .map_err(|_| StwoRunAndProveError::Verification)?;
     }
 
@@ -481,7 +463,7 @@ mod tests {
         mock_prover
             .expect_choose_channel_and_prove()
             .times(1)
-            .returning(move |_, proof_file, _, _, _| {
+            .returning(move |_, _, proof_file, _, _| {
                 let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
                 fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
                 Ok(vec![ARRAY_SUM_EXPECTED_OUTPUT])
@@ -506,7 +488,7 @@ mod tests {
         mock_prover
             .expect_choose_channel_and_prove()
             .times(n_proof_attempts)
-            .returning(move |_, proof_file, _, _, _| {
+            .returning(move |_, _, proof_file, _, _| {
                 let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
                 fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
                 Err(StwoRunAndProveError::Verification)
@@ -535,7 +517,7 @@ mod tests {
         mock_prover
             .expect_choose_channel_and_prove()
             .times(n_proof_attempts)
-            .returning(move |_, proof_file, _, _, _| {
+            .returning(move |_, _, proof_file, _, _| {
                 let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
                 fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
                 results.next().unwrap()
