@@ -104,18 +104,26 @@ struct Args {
 enum StwoRunAndProveError {
     #[error(transparent)]
     Cli(#[from] clap::Error),
+    #[error("IO error on file '{path:?}': {source}")]
+    PathIO {
+        path: PathBuf,
+        source: std::io::Error,
+    },
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
     VmImport(#[from] VmImportError),
     #[error(transparent)]
     CairoRun(Box<CairoRunError>),
-    #[error(transparent)]
-    Program(#[from] ProgramError),
+    #[error("Program error on file '{path:?}': {source}")]
+    Program { path: PathBuf, source: ProgramError },
     #[error(transparent)]
     Runner(#[from] RunnerError),
-    #[error(transparent)]
-    File(#[from] IoErrorWithPath),
+    #[error("File error on file '{path:?}': {source}")]
+    File {
+        path: PathBuf,
+        source: IoErrorWithPath,
+    },
     #[error(transparent)]
     Serializing(#[from] sonic_rs::error::Error),
     #[error(transparent)]
@@ -134,6 +142,20 @@ impl From<CairoRunError> for StwoRunAndProveError {
         StwoRunAndProveError::CairoRun(Box::new(err))
     }
 }
+
+macro_rules! impl_from_error_with_path {
+    ($error_type:ty, $variant:ident) => {
+        impl From<($error_type, PathBuf)> for StwoRunAndProveError {
+            fn from((source, path): ($error_type, PathBuf)) -> Self {
+                StwoRunAndProveError::$variant { path, source }
+            }
+        }
+    };
+}
+
+impl_from_error_with_path!(std::io::Error, PathIO);
+impl_from_error_with_path!(ProgramError, Program);
+impl_from_error_with_path!(IoErrorWithPath, File);
 
 struct ProveConfig {
     proofs_dir: PathBuf,
@@ -171,7 +193,7 @@ fn main() -> Result<(), StwoRunAndProveError> {
 /// Saves the proof to the specified output dir (may include multiple proofs from repeated
 /// attempts). If `program_output` is provided, saves the program output to that path.
 fn stwo_run_and_prove(
-    program: PathBuf,
+    program_path: PathBuf,
     program_input: Option<PathBuf>,
     program_output: Option<PathBuf>,
     prove_config: ProveConfig,
@@ -192,8 +214,10 @@ fn stwo_run_and_prove(
         false,
     )?;
 
-    let program = get_program(program.as_path())?;
-    let program_input = get_program_input(&program_input)?;
+    let program = get_program(program_path.as_path())
+        .map_err(|e| StwoRunAndProveError::from((e, program_path)))?;
+    let program_input = get_program_input(&program_input)
+        .map_err(|e| StwoRunAndProveError::from((e, program_input.unwrap_or_default())))?;
     info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     info!("Adapting prover input.");
@@ -216,12 +240,15 @@ fn prove_with_retries(
     prover: Box<dyn ProverTrait>,
 ) -> Result<usize, StwoRunAndProveError> {
     let prover_params = match prove_config.prover_params_json {
-        Some(ref path) => sonic_rs::from_str(&read_to_string(path)?)?,
+        Some(ref path) => sonic_rs::from_str(
+            &read_to_string(path).map_err(|e| StwoRunAndProveError::from((e, path.clone())))?,
+        )?,
         None => default_prod_prover_parameters(),
     };
 
-    // create the directory if it doesn't exist
-    std::fs::create_dir_all(&prove_config.proofs_dir)?;
+    // create the directory if it doesn't exist, attach the proofs_dir path on error.
+    std::fs::create_dir_all(&prove_config.proofs_dir)
+        .map_err(|e| StwoRunAndProveError::from((e, prove_config.proofs_dir.clone())))?;
     let proof_format = prove_config.proof_format;
 
     for i in 1..=prove_config.n_proof_attempts {
@@ -344,13 +371,15 @@ where
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
     let proof = prove_cairo::<MC>(prover_input, prover_params)?;
-
-    let mut proof_file = create_file(&proof_file_path)?;
+    let mut proof_file = create_file(&proof_file_path)
+        .map_err(|e| StwoRunAndProveError::from((e, proof_file_path.clone())))?;
 
     match proof_format {
         ProofFormat::Json => {
             let serialized = sonic_rs::to_string_pretty(&proof)?;
-            proof_file.write_all(serialized.as_bytes())?;
+            proof_file
+                .write_all(serialized.as_bytes())
+                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
         }
         ProofFormat::CairoSerde => {
             let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
@@ -360,7 +389,9 @@ where
                 .map(|felt| format!("0x{felt:x}"))
                 .collect();
             let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
-            proof_file.write_all(serialized_hex.as_bytes())?;
+            proof_file
+                .write_all(serialized_hex.as_bytes())
+                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
         }
     }
 
@@ -393,7 +424,8 @@ fn write_output_to_file(
             Felt252::from_dec_str(line).map_err(|_| StwoRunAndProveError::OutputParsing)
         })
         .collect::<Result<Vec<Felt252>, _>>()?;
-    std::fs::write(output_path, sonic_rs::to_string_pretty(&output_lines)?)?;
+    std::fs::write(&output_path, sonic_rs::to_string_pretty(&output_lines)?)
+        .map_err(|e| StwoRunAndProveError::from((e, output_path)))?;
     Ok(())
 }
 
@@ -616,6 +648,3 @@ mod tests {
         );
     }
 }
-
-// TODO(nitsan): Tests -
-// add an inner test to choose_channel_and_prove
