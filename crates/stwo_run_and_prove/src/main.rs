@@ -14,6 +14,7 @@ use clap::Parser;
 use mockall::automock;
 use serde::Serialize;
 use std::env;
+use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
@@ -34,6 +35,10 @@ use stwo_cairo_serialize::CairoSerialize;
 use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
 use thiserror::Error;
 use tracing::{error, info, warn};
+
+static PROOF_PREFIX: &str = "proof_";
+static SUCCESS_SUFFIX: &str = "_success";
+static FAILURE_SUFFIX: &str = "_failure";
 
 fn parse_usize_ge1(s: &str) -> Result<usize, String> {
     let v: usize = s.parse().map_err(|_| "must be a number".to_string())?;
@@ -205,7 +210,7 @@ fn stwo_run_and_prove(
     program_output: Option<PathBuf>,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
-) -> Result<usize, StwoRunAndProveError> {
+) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -228,13 +233,13 @@ fn stwo_run_and_prove(
     info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     info!("Adapting prover input.");
-    let prover_input = adapter(&runner);
-    let successful_proof_attempt = prove_with_retries(prover_input, prove_config, prover)?;
+    let prover_input: ProverInput = adapter(&runner);
+    prove_with_retries(prover_input, prove_config, prover)?;
     if let Some(output_path) = program_output {
         write_output_to_file(runner, output_path)?;
     }
 
-    Ok(successful_proof_attempt)
+    Ok(())
 }
 
 /// Prepares the prover parameters and generates proof given the prover input and parameters.
@@ -245,7 +250,7 @@ fn prove_with_retries(
     prover_input: ProverInput,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
-) -> Result<usize, StwoRunAndProveError> {
+) -> Result<(), StwoRunAndProveError> {
     let prover_params = match prove_config.prover_params_json {
         Some(ref path) => sonic_rs::from_str(
             &read_to_string(path).map_err(|e| StwoRunAndProveError::from((e, path.clone())))?,
@@ -263,12 +268,17 @@ fn prove_with_retries(
             "Attempting to generate proof {}/{}.",
             i, prove_config.n_proof_attempts
         );
-        let proof_file_path = prove_config.proofs_dir.join(format!("proof_{i}"));
+        let proof_file_path = prove_config
+            .proofs_dir
+            .join(format!("{}{}", PROOF_PREFIX, i));
+        let proof_file_name = proof_file_path
+            .file_name()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no file name"))?;
 
         match prover.choose_channel_and_prove(
             prover_params,
             prover_input.clone(),
-            proof_file_path,
+            proof_file_path.clone(),
             &proof_format,
             prove_config.verify,
         ) {
@@ -277,10 +287,22 @@ fn prove_with_retries(
                     "Proof generated and verified successfully on attempt {}/{}",
                     i, prove_config.n_proof_attempts
                 );
-                return Ok(i);
+                let success_path = proof_file_path.with_file_name(format!(
+                    "{}{}",
+                    proof_file_name.to_string_lossy(),
+                    SUCCESS_SUFFIX
+                ));
+                fs::rename(proof_file_path, &success_path)?;
+                return Ok(());
             }
 
             Err(StwoRunAndProveError::Verification) => {
+                let failure_path = proof_file_path.with_file_name(format!(
+                    "{}{}",
+                    proof_file_name.to_string_lossy(),
+                    FAILURE_SUFFIX
+                ));
+                fs::rename(proof_file_path, &failure_path)?;
                 if i < prove_config.n_proof_attempts {
                     warn!(
                         "Proof verification failed on attempt {}/{}. Retrying.",
@@ -420,7 +442,7 @@ fn write_output_to_file(
     output_path: PathBuf,
 ) -> Result<(), StwoRunAndProveError> {
     info!("Saving program output to: {:?}", output_path);
-    // TODO(Nitsan): move this function to  cairo_program_runner_lib or a new utils lib,
+    // TODO(Nitsan): move this function to cairo_program_runner_lib or a new utils lib,
     // and call it from here and from cairo_program_runner.
 
     let mut output_buffer = String::new();
@@ -448,7 +470,6 @@ mod tests {
     const PROGRAM_FILE_NAME: &str = "array_sum.json";
     const PROVER_PARAMS_FILE_NAME: &str = "prover_params.json";
     const EXPECTED_PROOF_FILE_NAME: &str = "array_sum_proof";
-    const FIRST_PROOF_FILE_NAME: &str = "proof_1";
 
     fn get_path(file_name: &str) -> PathBuf {
         let current_path = env::current_dir().expect("failed to get current directory");
@@ -482,7 +503,7 @@ mod tests {
     fn run_stwo_run_and_prove(
         args: Args,
         prover: Box<dyn ProverTrait>,
-    ) -> Result<usize, StwoRunAndProveError> {
+    ) -> Result<(), StwoRunAndProveError> {
         let prove_config = ProveConfig {
             verify: args.verify,
             proofs_dir: args.proofs_dir,
@@ -513,14 +534,7 @@ mod tests {
                 Ok(())
             });
 
-        let successful_proof_attempt =
-            run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
-
-        assert_eq!(
-            successful_proof_attempt, 1,
-            "successful proof attempt should be 1, but got {:?}",
-            successful_proof_attempt
-        );
+        run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
 
         (program_output_tempfile, proofs_tempdir)
     }
@@ -567,15 +581,7 @@ mod tests {
                 results.next().unwrap()
             });
 
-        let successful_proof_attempt =
-            run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
-
-        assert_eq!(
-            successful_proof_attempt, n_proof_attempts,
-            "successful proof attempt should be {:?}, but got {:?}",
-            n_proof_attempts, successful_proof_attempt
-        );
-
+        run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
         (program_output_tempfile, proofs_tempdir)
     }
 
@@ -587,7 +593,7 @@ mod tests {
         let proof_file = proofs_temp_dir
             .path()
             .to_path_buf()
-            .join(FIRST_PROOF_FILE_NAME);
+            .join(format!("{}1{}", PROOF_PREFIX, SUCCESS_SUFFIX));
         let proof_content = std::fs::read_to_string(proof_file).expect("Failed to read proof file");
         let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
         let expected_proof_content = std::fs::read_to_string(expected_proof_file)
@@ -617,11 +623,11 @@ mod tests {
         let proofs_dir = proofs_temp_dir.path().to_path_buf();
 
         (1..=n_proof_attempts).for_each(|i| {
-            let proof_file = proofs_dir.join(format!("proof_{}", i));
+            let proof_file = proofs_dir.join(format!("{}{}{}", PROOF_PREFIX, i, FAILURE_SUFFIX));
             assert!(
                 proof_file.exists(),
                 "Proof file {:?} should exist after running with verifier failures",
-                i,
+                proof_file,
             );
         });
 
@@ -640,11 +646,17 @@ mod tests {
         let proofs_dir = proofs_temp_dir.path().to_path_buf();
 
         (1..=n_proof_attempts).for_each(|i| {
-            let proof_file = proofs_dir.join(format!("proof_{}", i));
+            let proof_file;
+            if i < n_proof_attempts {
+                proof_file = proofs_dir.join(format!("{}{}{}", PROOF_PREFIX, i, FAILURE_SUFFIX) );
+            }
+            else {
+                proof_file = proofs_dir.join(format!("{}{}{}", PROOF_PREFIX, i, SUCCESS_SUFFIX) );
+            }
             assert!(
                 proof_file.exists(),
                 "Proof file {:?} should exist after a run that succeeds on attempt {:?} of proof and verify",
-                i, n_proof_attempts,
+                proof_file, n_proof_attempts,
             );
         });
 
