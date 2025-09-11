@@ -166,12 +166,13 @@ impl<'vm> ProgramLoader<'vm> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::tests::fibonacci;
     use cairo_vm::types::builtin_name::BuiltinName;
     use cairo_vm::types::program::Program;
     use cairo_vm::types::relocatable::Relocatable;
     use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
     use cairo_vm::Felt252;
-    use rstest::{fixture, rstest};
+    use rstest::rstest;
 
     use crate::hints::types::BootloaderVersion;
 
@@ -233,17 +234,6 @@ mod tests {
             &vec!["bitwise", "output", "pedersen"],
             builtin_list_ptr,
         );
-    }
-
-    #[fixture]
-    fn fibonacci() -> Program {
-        let program_content = include_bytes!(
-            "../../resources/compiled_programs/test_programs/fibonacci_compiled.json"
-        )
-        .to_vec();
-
-        Program::from_bytes(&program_content, Some("main"))
-            .expect("Loading example program failed unexpectedly")
     }
 
     fn check_loaded_header(
