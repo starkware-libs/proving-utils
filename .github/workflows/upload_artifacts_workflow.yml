@@ -63,4 +63,4 @@ jobs:
         uses: "google-github-actions/upload-cloud-storage@v2"
         with:
           path: "target/release/stwo_run_and_prove"
-          destination: "stwo_run_and_prove_artifacts/${{ env.SHORT_HASH }}/stwo_run_and_prove_release"
+          destination: "stwo_run_and_prove_artifacts/${{ env.SHORT_HASH }}/release"
