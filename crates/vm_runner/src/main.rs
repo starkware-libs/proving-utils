@@ -73,6 +73,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         relocate_trace: false,
         layout: args.layout,
         proof_mode: true,
+        fill_holes: true,
         secure_run: None,
         disable_trace_padding: true,
         allow_missing_builtins: None,

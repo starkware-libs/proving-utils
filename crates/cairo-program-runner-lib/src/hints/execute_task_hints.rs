@@ -370,6 +370,7 @@ fn process_program_common_logic(
                             &hint.flow_tracking_data.ap_tracking,
                             &hint.flow_tracking_data.reference_ids,
                             references,
+                            &hint.accessible_scopes,
                         )
                         .map_err(|err| {
                             HintError::CustomHint(format!("{err} for hint: {}", hint.code).into())
