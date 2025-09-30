@@ -32,6 +32,11 @@ struct Args {
         help = "Abosolute path to the program's execution resources (output file)."
     )]
     output_execution_resources_path: PathBuf,
+    #[structopt(
+        long = "output_prover_input_path",
+        help = "Abosolute path to the prover input (output file)."
+    )]
+    output_prover_input_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Error)]
@@ -81,6 +86,9 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
     };
     let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
     let prover_input = adapter(&cairo_runner);
+    if let Some(prover_input_path) = args.output_prover_input_path {
+        std::fs::write(prover_input_path, serde_json::to_string(&prover_input)?)?;
+    }
 
     let execution_resources = ExecutionResources::from_prover_input(&prover_input);
     log::info!("Execution resources: {execution_resources:#?}");
