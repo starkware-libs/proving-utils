@@ -34,7 +34,7 @@ pub struct BootloaderConfig {
 }
 
 pub const BOOTLOADER_CONFIG_SIZE: usize = 3;
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Deserialize, Debug, Default, Clone, PartialEq)]
 /// Represents a composite packed output, which consists of a set of outputs,
 /// subtasks (which could be plain or composite themselves), and associated fact topologies of the
 /// plain subtasks.
@@ -154,7 +154,7 @@ impl CompositePackedOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PackedOutput {
     Plain,
     Composite(CompositePackedOutput),
@@ -207,7 +207,7 @@ impl<'de> Deserialize<'de> for PackedOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Task {
     Cairo0Program(Cairo0Executable),
@@ -215,16 +215,24 @@ pub enum Task {
     Cairo1Program(Cairo1Executable),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Cairo0Executable {
     pub program: Program,
     pub program_input: Option<String>,
 }
+
 #[derive(Debug, Clone)]
 pub struct Cairo1Executable {
     pub program: Program,
     pub user_args: Vec<Arg>,
     pub string_to_hint: HashMap<String, Hint>,
+}
+
+impl PartialEq for Cairo1Executable {
+    // This implementation ignores user_args for equality checks.
+    fn eq(&self, other: &Self) -> bool {
+        self.program == other.program && self.string_to_hint == other.string_to_hint
+    }
 }
 
 impl Task {
@@ -254,7 +262,7 @@ struct TaskSpecHelper {
     user_args_file: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TaskSpec {
     pub task: Task,
     pub program_hash_function: HashFunc,
@@ -381,7 +389,7 @@ impl TaskSpec {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct SimpleBootloaderInput {
     pub fact_topologies_path: Option<PathBuf>,
     pub single_page: bool,
@@ -482,8 +490,10 @@ impl RunMode {
                 entrypoint: "main",
                 trace_enabled: true,
                 relocate_mem,
+                relocate_trace: relocate_mem,
                 layout,
                 proof_mode: true,
+                fill_holes: true,
                 secure_run: None,
                 disable_trace_padding,
                 allow_missing_builtins: None,
@@ -496,8 +506,10 @@ impl RunMode {
                 entrypoint: "main",
                 trace_enabled: false,
                 relocate_mem: false,
+                relocate_trace: false,
                 layout,
                 proof_mode: false,
+                fill_holes: false,
                 secure_run: None,
                 disable_trace_padding: false,
                 allow_missing_builtins: Some(allow_missing_builtins),
@@ -524,7 +536,7 @@ pub struct MockCairoVerifierInput {
     pub program_output: Vec<Felt252>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FlexibleBuiltinUsageInput {
     #[serde(default)]
     pub n_output: usize,
@@ -550,9 +562,11 @@ pub struct FlexibleBuiltinUsageInput {
     pub n_mul_mod: usize,
     #[serde(default)]
     pub n_memory_holes: usize,
+    #[serde(default)]
+    pub n_blake2s: usize,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FibonacciInput {
     pub fibonacci_claim_index: usize,
     pub second_element: usize,

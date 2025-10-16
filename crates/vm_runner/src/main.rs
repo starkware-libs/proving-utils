@@ -15,23 +15,28 @@ use stwo_cairo_utils::binary_utils::run_binary;
 use thiserror::Error;
 use tracing::{span, Level};
 
-/// Command line arguments for stwo_vm_runner.
-/// Example command line (use absolute paths):
-///     ```
-///     cargo run -r --bin stwo_vm_runner -- --program path/to/program --program_input
-///     path/to/input --layout <LayoutName> --output_execution_resources_path path/to/output
-///     ```
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(long = "program", help = "Path to the compiled program")]
+    #[clap(long = "program", help = "Absolute path to the compiled program.")]
     program: PathBuf,
-    #[clap(long = "program_input", help = "Path to the program input file.")]
+    #[clap(
+        long = "program_input",
+        help = "Absolute path to the program input file."
+    )]
     program_input: Option<PathBuf>,
-    #[clap(long = "layout")]
+    #[clap(long = "layout", help = "Layout name.")]
     layout: LayoutName,
-    #[structopt(long = "output_execution_resources_path")]
+    #[structopt(
+        long = "output_execution_resources_path",
+        help = "Abosolute path to the program's execution resources (output file)."
+    )]
     output_execution_resources_path: PathBuf,
+    #[structopt(
+        long = "output_prover_input_path",
+        help = "Abosolute path to the prover input (output file)."
+    )]
+    output_prover_input_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Error)]
@@ -57,7 +62,10 @@ fn main() -> ExitCode {
 #[allow(clippy::result_large_err)]
 fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
     let _span = span!(Level::INFO, "run").entered();
-    let args = Args::try_parse_from(args)?;
+    let args = match Args::try_parse_from(args) {
+        Ok(args) => args,
+        Err(err) => err.exit(),
+    };
 
     let program = get_program(args.program.as_path())?;
     let program_input_contents = get_program_input(&args.program_input)?;
@@ -67,18 +75,20 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         // we don't need to relocate memory in the VM because we later call the adapter that does
         // relocation.
         relocate_mem: false,
+        relocate_trace: false,
         layout: args.layout,
         proof_mode: true,
+        fill_holes: true,
         secure_run: None,
         disable_trace_padding: true,
         allow_missing_builtins: None,
         dynamic_layout_params: None,
     };
     let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
-    let mut prover_input_info = cairo_runner
-        .get_prover_input_info()
-        .expect("Unable to get prover input info");
-    let prover_input = adapter(&mut prover_input_info)?;
+    let prover_input = adapter(&cairo_runner);
+    if let Some(prover_input_path) = args.output_prover_input_path {
+        std::fs::write(prover_input_path, serde_json::to_string(&prover_input)?)?;
+    }
 
     let execution_resources = ExecutionResources::from_prover_input(&prover_input);
     log::info!("Execution resources: {execution_resources:#?}");

@@ -52,12 +52,18 @@ struct Args {
     trace_file: Option<PathBuf>,
     #[clap(long = "memory_file", help = "Path to the memory output file.")]
     memory_file: Option<PathBuf>,
-    #[clap(long = "layout", default_value =  LayoutName::plain.to_str(), value_enum)]
+    #[clap(
+        long = "layout",
+        default_value =  LayoutName::plain.to_str(),
+        help = "Layout name.",
+        value_enum
+    )]
     layout: LayoutName,
-    // Required when using with dynamic layout. Ignored otherwise.
     #[clap(
         long = "dynamic_params_file",
-        required_if_eq("layout", LayoutName::dynamic.to_str())
+        required_if_eq("layout", LayoutName::dynamic.to_str()),
+        help = "Path to the dynamic layout parameters file. Required when using dynamic layout, 
+        ignored otherwise."
     )]
     dynamic_params_file: Option<PathBuf>,
     #[clap(

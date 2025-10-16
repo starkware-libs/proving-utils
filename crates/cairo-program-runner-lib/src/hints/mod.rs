@@ -21,7 +21,7 @@ mod simple_bootloader_hints;
 mod simple_output_hints;
 pub mod types;
 mod utils;
-mod vars;
+pub mod vars;
 mod vector_commitment;
 mod verifier_hints;
 mod verifier_utils;

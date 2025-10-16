@@ -267,7 +267,7 @@ pub fn configure_fact_topologies<FT: AsRef<FactTopology>>(
 }
 
 fn check_tree_structure(tree_structure: &[usize]) -> Result<(), TreeStructureError> {
-    if (!tree_structure.len() % 2 == 0) || (tree_structure.len() > 10) {
+    if (!tree_structure.len()).is_multiple_of(2) || (tree_structure.len() > 10) {
         return Err(TreeStructureError::InvalidTreeStructure);
     }
 
@@ -456,19 +456,17 @@ pub fn write_to_fact_topologies_file<FT: AsRef<FactTopology>>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use super::*;
     use crate::hints::types::CompositePackedOutput;
     use rstest::{fixture, rstest};
-
-    use super::*;
+    use std::collections::BTreeMap;
 
     #[fixture]
     fn packed_outputs() -> Vec<PackedOutput> {
         vec![
-            PackedOutput::Plain(vec![]),
-            PackedOutput::Plain(vec![]),
-            PackedOutput::Plain(vec![]),
+            PackedOutput::Plain,
+            PackedOutput::Plain,
+            PackedOutput::Plain,
         ]
     }
 
@@ -495,35 +493,81 @@ mod tests {
         packed_outputs: Vec<PackedOutput>,
         fact_topologies: Vec<FactTopology>,
     ) {
-        let plain_fact_topologies = compute_fact_topologies(&packed_outputs, &fact_topologies)
-            .expect("Failed to compute fact topologies");
+        let applicative_bootloader_program_hash = Felt252::from(1234);
+        let plain_fact_topologies = compute_fact_topologies(
+            &packed_outputs,
+            &fact_topologies,
+            applicative_bootloader_program_hash,
+        )
+        .expect("Failed to compute fact topologies");
         for (topology, plain_topology) in std::iter::zip(&fact_topologies, plain_fact_topologies) {
-            assert_eq!(topology, plain_topology);
+            assert_eq!(*topology, plain_topology);
         }
     }
 
+    // TODO(idanh) Consider editing this test to have realistic scenario.
     #[test]
-    /// Composite outputs are not supported (yet).
     fn test_compute_fact_topologies_composite_output() {
-        let packed_outputs = vec![PackedOutput::Composite(CompositePackedOutput::default())];
+        // Create two plain fact topologies for subtasks
+        let subtask_fact_topologies = vec![
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![5],
+            },
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![7],
+            },
+        ];
+        // CompositePackedOutput with two subtasks and two outputs
+        let composite_packed_output = CompositePackedOutput {
+            outputs: vec![
+                Felt252::from(2),
+                Felt252::from(2),
+                Felt252::from(1234),
+                Felt252::from(2),
+                Felt252::from(1234),
+            ],
+            subtasks: vec![PackedOutput::Plain, PackedOutput::Plain],
+            fact_topologies: subtask_fact_topologies.clone(),
+        };
+        let packed_outputs = vec![PackedOutput::Composite(composite_packed_output)];
         let fact_topologies = vec![FactTopology {
-            tree_structure: vec![],
+            tree_structure: vec![], // Not used for composite, but required by API
             page_sizes: vec![],
         }];
-        let result = compute_fact_topologies(&packed_outputs, &fact_topologies);
-        assert!(matches!(
-            result,
-            Err(FactTopologyError::CompositePackedOutputNotSupported(_))
-        ));
+        let applicative_bootloader_program_hash = Felt252::from(1234);
+        let result = compute_fact_topologies(
+            &packed_outputs,
+            &fact_topologies,
+            applicative_bootloader_program_hash,
+        )
+        .expect("Composite packed output should be supported and return subtask fact topologies");
+
+        let expected_subtask_fact_topologies = vec![
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![1],
+            },
+            FactTopology {
+                tree_structure: vec![1, 0],
+                page_sizes: vec![3],
+            },
+        ];
+        assert_eq!(result, expected_subtask_fact_topologies);
     }
 
     #[test]
     /// Both arguments to `compute_fact_topologies` must have the same length.
     fn test_compute_fact_topologies_arg_len_mismatch() {
-        let packed_outputs = vec![PackedOutput::Plain(vec![])];
+        let packed_outputs = vec![PackedOutput::Plain];
         let fact_topologies = vec![];
-
-        let result = compute_fact_topologies(&packed_outputs, &fact_topologies);
+        let applicative_bootloader_program_hash = Felt252::from(1234);
+        let result = compute_fact_topologies(
+            &packed_outputs,
+            &fact_topologies,
+            applicative_bootloader_program_hash,
+        );
         assert!(
             matches!(result, Err(FactTopologyError::WrongNumberOfFactTopologies(n_outputs, n_topologies)) if n_outputs == packed_outputs.len() && n_topologies == fact_topologies.len())
         )
@@ -543,7 +587,7 @@ mod tests {
         };
 
         let result = add_consecutive_output_pages(
-            &fact_topology,
+            &fact_topology.page_sizes,
             &mut output_builtin,
             page_id,
             output_start,
@@ -554,7 +598,7 @@ mod tests {
         let output_builtin_state = output_builtin.get_state();
         assert_eq!(
             output_builtin_state.pages,
-            HashMap::from([
+            BTreeMap::from([
                 (1, PublicMemoryPage { start: 10, size: 1 }),
                 (2, PublicMemoryPage { start: 11, size: 2 }),
                 (3, PublicMemoryPage { start: 13, size: 1 })
@@ -585,7 +629,7 @@ mod tests {
         let output_builtin_state = output_builtin.get_state();
         assert_eq!(
             output_builtin_state.pages,
-            HashMap::from([
+            BTreeMap::from([
                 (1, PublicMemoryPage { start: 12, size: 1 }),
                 (2, PublicMemoryPage { start: 15, size: 1 }),
                 (3, PublicMemoryPage { start: 16, size: 2 }),
@@ -599,8 +643,8 @@ mod tests {
         let expected_tree_structure = vec![7, 12, 4, 0];
 
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::new(),
-            attributes: HashMap::from([(
+            pages: BTreeMap::new(),
+            attributes: BTreeMap::from([(
                 GPS_FACT_TOPOLOGY.to_string(),
                 expected_tree_structure.clone(),
             )]),
@@ -614,8 +658,8 @@ mod tests {
     #[test]
     fn test_get_tree_structure_default() {
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::new(),
-            attributes: HashMap::new(),
+            pages: BTreeMap::new(),
+            attributes: BTreeMap::new(),
         };
 
         let tree_structure = get_tree_structure_from_output_data(&output_builtin_data)
@@ -629,8 +673,8 @@ mod tests {
     #[case::value_too_large(vec![0, 1073741825])] // 1073741825 = 2^30 + 1
     fn test_get_tree_structure_invalid_tree(#[case] tree_structure: Vec<usize>) {
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::new(),
-            attributes: HashMap::from([(GPS_FACT_TOPOLOGY.to_string(), tree_structure.clone())]),
+            pages: BTreeMap::new(),
+            attributes: BTreeMap::from([(GPS_FACT_TOPOLOGY.to_string(), tree_structure.clone())]),
         };
 
         let result = get_tree_structure_from_output_data(&output_builtin_data);
@@ -643,8 +687,8 @@ mod tests {
     #[test]
     fn test_get_tree_structure_default_with_pages() {
         let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: HashMap::from([(1, PublicMemoryPage { start: 0, size: 10 })]),
-            attributes: HashMap::new(),
+            pages: BTreeMap::from([(1, PublicMemoryPage { start: 0, size: 10 })]),
+            attributes: BTreeMap::new(),
         };
 
         let result = get_tree_structure_from_output_data(&output_builtin_data);
@@ -657,7 +701,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_from_pages() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (2, PublicMemoryPage { start: 7, size: 3 }),
         ]);
@@ -670,7 +714,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_missing() {
         let output_size = 10usize;
-        let page_sizes = get_page_sizes_from_pages(output_size, &HashMap::new())
+        let page_sizes = get_page_sizes_from_pages(output_size, &BTreeMap::new())
             .expect("Could not compute page sizes");
         assert_eq!(page_sizes, vec![output_size]);
     }
@@ -678,7 +722,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_unexpected_page_id() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (3, PublicMemoryPage { start: 7, size: 3 }),
         ]);
@@ -690,7 +734,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_invalid_page_start() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 12, size: 7 }),
             (2, PublicMemoryPage { start: 19, size: 3 }),
         ]);
@@ -702,7 +746,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_unexpected_page_start() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (2, PublicMemoryPage { start: 8, size: 3 }),
         ]);
@@ -714,7 +758,7 @@ mod tests {
     #[test]
     fn test_get_page_sizes_output_not_fully_covered() {
         let output_size = 10usize;
-        let pages = HashMap::from([
+        let pages = BTreeMap::from([
             (1, PublicMemoryPage { start: 0, size: 7 }),
             (2, PublicMemoryPage { start: 7, size: 2 }),
         ]);

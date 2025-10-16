@@ -156,7 +156,7 @@ pub fn extract_segment(maybe_relocatable: MaybeRelocatable) -> Result<isize, Rel
     }
 }
 
-/// Builds a hashmap of address -> value from the `CairoPieMemory` vector.
+/// Builds a HashMap of address -> value from the `CairoPieMemory` vector.
 ///
 /// Makes it more convenient to access values in the Cairo PIE memory.
 fn build_cairo_pie_memory_map(memory: &CairoPieMemory) -> HashMap<Relocatable, &MaybeRelocatable> {
@@ -203,7 +203,7 @@ pub fn build_cairo_pie_relocation_table(
         offset: 0,
     };
 
-    // Create a hashmap of the program memory for easier searching.
+    // Create a HashMap of the program memory for easier searching.
     // If this turns out to be too expensive, consider building it directly
     // when building the CairoPie object.
     let memory_map = build_cairo_pie_memory_map(&cairo_pie.memory);
@@ -231,7 +231,7 @@ pub fn build_cairo_pie_relocation_table(
 
 fn extend_additional_data(
     builtin: &mut SignatureBuiltinRunner,
-    data: &HashMap<Relocatable, (Felt252, Felt252)>,
+    data: &std::collections::BTreeMap<Relocatable, (Felt252, Felt252)>,
     relocation_table: &RelocationTable,
 ) -> Result<(), SignatureRelocationError> {
     for (addr, signature) in data {
@@ -341,19 +341,21 @@ mod tests {
     #[test]
     fn test_relocate_address() {
         let mut relocation_table = RelocationTable::new();
-        let relocation = Relocatable::from((2, 5));
+        let relocation = MaybeRelocatable::from((2, 5));
         relocation_table.insert(1, relocation.clone()).unwrap();
 
         let address = Relocatable::from((1, 27));
-        let expected_address = Relocatable::from((2, 32));
+        let expected_address = MaybeRelocatable::from((2, 32));
         assert_eq!(
             relocation_table.relocate_address(address),
-            Ok(expected_address)
+            Ok(expected_address.clone())
         );
 
         let value = MaybeRelocatable::RelocatableValue(address);
-        let expected_value = MaybeRelocatable::RelocatableValue(expected_address);
-        assert_eq!(relocation_table.relocate_value(value), Ok(expected_value));
+        assert_eq!(
+            relocation_table.relocate_value(value),
+            Ok(expected_address.clone())
+        );
     }
 
     #[test]
@@ -370,12 +372,12 @@ mod tests {
     #[test]
     fn test_relocation_table_write_twice() {
         let segment_index = 1;
-        let relocation = Relocatable::from((2, 0));
+        let relocation = MaybeRelocatable::from((2, 0));
 
         let mut relocation_table = RelocationTable::new();
         relocation_table.insert(segment_index, relocation).unwrap();
 
-        let new_relocation = Relocatable::from((3, 0));
+        let new_relocation = MaybeRelocatable::from((3, 0));
 
         let result = relocation_table.insert(segment_index, new_relocation);
         assert_matches!(
