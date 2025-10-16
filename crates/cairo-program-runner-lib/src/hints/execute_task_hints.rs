@@ -378,10 +378,7 @@ fn process_program_common_logic(
                         })
                 })
                 .collect::<Result<Vec<_>, HintError>>()?;
-            hint_extension.insert(adjusted_pc, cairo_vm::hint_processor::hint_processor_definition::ExtensionData { 
-                hints: compiled_hints,
-                constants: HashMap::new(),
-            });
+            hint_extension.insert(adjusted_pc, compiled_hints);
             Ok::<(), HintError>(())
         })?;
 
