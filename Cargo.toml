@@ -12,7 +12,7 @@ cairo-lang-executable = { git = "https://github.com/m-kus/cairo", rev = "e209f45
 cairo-lang-runner = { git = "https://github.com/m-kus/cairo", rev = "e209f4557c535ddb4d2c76b2c6b14d004af99467" }
 cairo-lang-casm = { git = "https://github.com/m-kus/cairo", rev = "e209f4557c535ddb4d2c76b2c6b14d004af99467" }
 cairo-lang-execute-utils = { git = "https://github.com/m-kus/cairo", rev = "e209f4557c535ddb4d2c76b2c6b14d004af99467" }
-cairo-vm = { git = "https://github.com/m-kus/cairo-vm", rev = "9b3f90b308c7487bc8eb7d341951d1925d83e88c", features = ["extensive_hints", "mod_builtin", "clap"] }
+cairo-vm = { git = "https://github.com/m-kus/cairo-vm", rev = "9b3f90b308c7487bc8eb7d341951d1925d83e88c" }
 
 [workspace.dependencies]
 bincode = { version = "2.0.1", features = [
@@ -33,11 +33,11 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 starknet-crypto = "=0.8.1"
 starknet-types-core = "=0.2.0"
-stwo_cairo_utils = { git = "https://github.com/maciejka/stwo-cairo", rev = "3b258e18a0f9a19e8a3fe573b0b3d89d92dd93ce" }
-stwo-cairo-adapter = { git = "https://github.com/maciejka/stwo-cairo", rev = "3b258e18a0f9a19e8a3fe573b0b3d89d92dd93ce" }
-stwo_cairo_prover = { git = "https://github.com/maciejka/stwo-cairo", rev = "3b258e18a0f9a19e8a3fe573b0b3d89d92dd93ce" }
-stwo-cairo-serialize = { git = "https://github.com/maciejka/stwo-cairo", rev = "3b258e18a0f9a19e8a3fe573b0b3d89d92dd93ce" }
-cairo-air = { git = "https://github.com/maciejka/stwo-cairo", rev = "3b258e18a0f9a19e8a3fe573b0b3d89d92dd93ce" }
+stwo_cairo_utils = { git = "https://github.com/maciejka/stwo-cairo", rev = "d2793e9f19f575c13f6bc37c36f9b229797456e1" }
+stwo-cairo-adapter = { git = "https://github.com/maciejka/stwo-cairo", rev = "d2793e9f19f575c13f6bc37c36f9b229797456e1" }
+stwo_cairo_prover = { git = "https://github.com/maciejka/stwo-cairo", rev = "d2793e9f19f575c13f6bc37c36f9b229797456e1" }
+stwo-cairo-serialize = { git = "https://github.com/maciejka/stwo-cairo", rev = "d2793e9f19f575c13f6bc37c36f9b229797456e1" }
+cairo-air = { git = "https://github.com/maciejka/stwo-cairo", rev = "d2793e9f19f575c13f6bc37c36f9b229797456e1" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
@@ -46,3 +46,4 @@ sonic-rs = "0.3.17"
 starknet-ff = "0.3.7"
 mockall = "0.13.1"
 rstest = "0.21"
+anyhow = "1"

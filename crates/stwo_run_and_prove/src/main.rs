@@ -1,4 +1,4 @@
-use cairo_air::utils::ProofFormat;
+use cairo_air::utils::{serialize_proof_to_file, ProofFormat};
 use cairo_air::verifier::verify_cairo;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
@@ -15,13 +15,12 @@ use mockall::automock;
 use serde::Serialize;
 use std::env;
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
-use stwo_cairo_adapter::adapter::adapter;
-use stwo_cairo_adapter::vm_import::VmImportError;
+use stwo_cairo_adapter::adapter::adapt;
+// use stwo_cairo_adapter::vm_import::VmImportError;
 use stwo_cairo_prover::prover::{
-    ChannelHash, ProverParameters, default_prod_prover_parameters, prove_cairo,
+    ChannelHash, ProverParameters, prove_cairo,
 };
 
 use stwo_cairo_prover::stwo::core::channel::MerkleChannel;
@@ -32,7 +31,7 @@ use stwo_cairo_prover::stwo::prover::ProvingError;
 use stwo_cairo_prover::stwo::prover::backend::BackendForChannel;
 use stwo_cairo_prover::stwo::prover::backend::simd::SimdBackend;
 use stwo_cairo_serialize::CairoSerialize;
-use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
+use stwo_cairo_utils::file_utils::{IoErrorWithPath, read_to_string};
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -107,6 +106,8 @@ struct Args {
 
 #[derive(Debug, Error)]
 enum StwoRunAndProveError {
+    #[error("Missing prover parameters.")]
+    MissingProverParams,
     #[error(transparent)]
     Cli(#[from] clap::Error),
     #[error("IO error on file '{path:?}': {source}")]
@@ -116,8 +117,8 @@ enum StwoRunAndProveError {
     },
     #[error(transparent)]
     IO(#[from] std::io::Error),
-    #[error(transparent)]
-    VmImport(#[from] VmImportError),
+    // #[error(transparent)]
+    // VmImport(#[from] VmImportError),
     #[error(transparent)]
     CairoRun(Box<CairoRunError>),
     #[error("Program error on file '{path:?}': {source}")]
@@ -139,6 +140,8 @@ enum StwoRunAndProveError {
     Verification,
     #[error("Failed to parse output line as Felt decimal.")]
     OutputParsing,
+    #[error(transparent)]
+    Adapt(#[from] anyhow::Error),
 }
 
 // Implement From<Box<CairoRunError>> manually
@@ -230,7 +233,7 @@ fn stwo_run_and_prove(
     info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     info!("Adapting prover input.");
-    let prover_input = adapter(&runner);
+    let prover_input = adapt(&runner)?;
     prove_with_retries(prover_input, prove_config, prover)?;
     if let Some(output_path) = program_output {
         write_output_to_file(runner, output_path)?;
@@ -252,7 +255,7 @@ fn prove_with_retries(
         Some(ref path) => sonic_rs::from_str(
             &read_to_string(path).map_err(|e| StwoRunAndProveError::from((e, path.clone())))?,
         )?,
-        None => default_prod_prover_parameters(),
+        None => return Err(StwoRunAndProveError::MissingProverParams),
     };
 
     // create the directory if it doesn't exist, attach the proofs_dir path on error.
@@ -394,30 +397,43 @@ where
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
-    let proof = prove_cairo::<MC>(prover_input, prover_params)?;
-    let mut proof_file = create_file(&proof_file_path)
-        .map_err(|e| StwoRunAndProveError::from((e, proof_file_path.clone())))?;
+    let proof = prove_cairo::<MC>(
+        prover_input, 
+        prover_params.pcs_config,
+        prover_params.preprocessed_trace)?;
 
-    match proof_format {
-        ProofFormat::Json => {
-            let serialized = sonic_rs::to_string_pretty(&proof)?;
-            proof_file
-                .write_all(serialized.as_bytes())
-                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
-        }
-        ProofFormat::CairoSerde => {
-            let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
-            CairoSerialize::serialize(&proof, &mut serialized);
-            let hex_strings: Vec<String> = serialized
-                .into_iter()
-                .map(|felt| format!("0x{felt:x}"))
-                .collect();
-            let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
-            proof_file
-                .write_all(serialized_hex.as_bytes())
-                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
-        }
-    }
+    serialize_proof_to_file::<MC::H>(&proof, proof_file_path.as_path(), proof_format.clone())?;
+
+    // TODO(Nitsan): remove this once we have a proper proof serialization.
+    // let mut proof_file = create_file(&proof_file_path)
+    //     .map_err(|e| StwoRunAndProveError::from((e, proof_file_path.clone())))?;
+    //
+    // match proof_format {
+    //     ProofFormat::Json => {
+    //         let serialized = sonic_rs::to_string_pretty(&proof)?;
+    //         proof_file
+    //             .write_all(serialized.as_bytes())
+    //             .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
+    //     }
+    //     ProofFormat::CairoSerde => {
+    //         let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
+    //         CairoSerialize::serialize(&proof, &mut serialized);
+    //         let hex_strings: Vec<String> = serialized
+    //             .into_iter()
+    //             .map(|felt| format!("0x{felt:x}"))
+    //             .collect();
+    //         let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
+    //         proof_file
+    //             .write_all(serialized_hex.as_bytes())
+    //             .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
+    //     }
+    //     ProofFormat::Binary => {
+    //         let serialized = BinarySerialize::serialize(&proof)?;
+    //         proof_file
+    //             .write_all(&serialized)
+    //             .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
+    //     }
+    // }
 
     if verify {
         // We want to map this error to `StwoRunAndProveError::Verification` because we intend to
