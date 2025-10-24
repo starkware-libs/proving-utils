@@ -58,6 +58,13 @@ struct Args {
         help = "Absolute path to the program input file."
     )]
     program_input: Option<PathBuf>,
+    #[clap(
+        long = "layout",
+        default_value = LayoutName::all_cairo_stwo.to_str(),
+        help = "Layout name.",
+        value_enum
+    )]
+    layout: LayoutName,
     // The path to the JSON file containing the prover parameters (optional).
     // The expected file format is:
     //     {
@@ -175,6 +182,7 @@ struct ProveConfig {
     verify: bool,
     n_proof_attempts: usize,
     prover_params_json: Option<PathBuf>,
+    layout: LayoutName,
 }
 
 fn main() -> Result<(), StwoRunAndProveError> {
@@ -188,6 +196,7 @@ fn main() -> Result<(), StwoRunAndProveError> {
         proof_format: args.proof_format,
         n_proof_attempts: args.n_proof_attempts,
         prover_params_json: args.prover_params_json,
+        layout: args.layout,
     };
 
     let stwo_prover = Box::new(StwoProverEntryPoint);
@@ -214,7 +223,7 @@ fn stwo_run_and_prove(
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
-        LayoutName::all_cairo_stwo,
+        prove_config.layout,
         true,
         // in stwo when proof_mode==true, trace padding is redundant work
         true,
@@ -475,6 +484,7 @@ mod tests {
     use rstest::rstest;
     use std::fs;
     use tempfile::{NamedTempFile, TempDir, TempPath};
+    use cairo_vm::types::layout_name::LayoutName;
 
     const ARRAY_SUM_EXPECTED_OUTPUT: [Felt252; 1] = [Felt252::from_hex_unchecked("0x32")];
     const RESOURCES_PATH: &str = "resources";
@@ -506,6 +516,7 @@ mod tests {
             proof_format: ProofFormat::CairoSerde,
             n_proof_attempts,
             verify: true,
+            layout: LayoutName::all_cairo_stwo,
         };
 
         (args, program_output_tempfile, proofs_tempdir)
@@ -521,6 +532,7 @@ mod tests {
             proof_format: args.proof_format,
             n_proof_attempts: args.n_proof_attempts,
             prover_params_json: args.prover_params_json,
+            layout: args.layout,
         };
 
         stwo_run_and_prove(
