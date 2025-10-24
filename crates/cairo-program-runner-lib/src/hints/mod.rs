@@ -16,6 +16,7 @@ mod pedersen_merkle_hints;
 mod program_hash;
 mod program_loader;
 mod select_builtins;
+mod sha256_hints;
 mod simple_bootloader_hints;
 mod simple_output_hints;
 pub mod types;

@@ -50,6 +50,7 @@ use super::builtin_usage_hints::{
 use super::concat_aggregator_hints::{
     concat_aggregator_get_handle_task_output, concat_aggregator_parse_task,
 };
+
 use super::fibonacci_hints::{fibonacci_load_claim_idx, fibonacci_load_second_element};
 use super::fri_layer::divide_queries_ind_by_coset_size_to_fp_offset;
 use super::mock_cairo_verifier_hints::{
@@ -60,6 +61,7 @@ use super::pedersen_merkle_hints::{
     pedersen_merkle_idx_parity_to_ap, pedersen_merkle_load_input, pedersen_merkle_update,
     pedersen_merkle_verify_auth_path_len,
 };
+use super::sha256_hints::{sha2_finalize, sha256_debug};
 use super::simple_bootloader_hints::{
     simple_bootloader_simulate_ec_op, simple_bootloader_simulate_ecdsa,
     simple_bootloader_simulate_keccak, simulate_ec_op_assert_false,
@@ -250,6 +252,8 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             SIMULATE_ECDSA_FILL_MEM_WITH_FELT_96_BIT_LIMBS => {
                 simulate_ecdsa_fill_mem_with_felt_96_bit_limbs(vm, ids_data, ap_tracking)
             }
+            SHA256_FINALIZE => sha2_finalize(vm, ids_data, ap_tracking),
+            SHA256_DEBUG => sha256_debug(vm, ids_data, ap_tracking),
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),
@@ -347,6 +351,8 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
             PEDERSEN_MERKLE_UPDATE_RIGHT => {
                 pedersen_merkle_update(vm, exec_scopes, ids_data, ap_tracking, false)
             }
+            SHA256_FINALIZE => sha2_finalize(vm, ids_data, ap_tracking),
+            SHA256_DEBUG => sha256_debug(vm, ids_data, ap_tracking),
             unknown_hint_code => Err(HintError::UnknownHint(
                 unknown_hint_code.to_string().into_boxed_str(),
             )),

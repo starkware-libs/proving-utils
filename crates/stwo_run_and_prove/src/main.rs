@@ -1,4 +1,4 @@
-use cairo_air::utils::ProofFormat;
+use cairo_air::utils::{serialize_proof_to_file, ProofFormat};
 use cairo_air::verifier::verify_cairo;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
@@ -15,13 +15,12 @@ use mockall::automock;
 use serde::Serialize;
 use std::env;
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
-use stwo_cairo_adapter::adapter::adapter;
-use stwo_cairo_adapter::vm_import::VmImportError;
+use stwo_cairo_adapter::adapter::adapt;
+// use stwo_cairo_adapter::vm_import::VmImportError;
 use stwo_cairo_prover::prover::{
-    ChannelHash, ProverParameters, default_prod_prover_parameters, prove_cairo,
+    ChannelHash, ProverParameters, prove_cairo,
 };
 
 use stwo_cairo_prover::stwo::core::channel::MerkleChannel;
@@ -32,7 +31,7 @@ use stwo_cairo_prover::stwo::prover::ProvingError;
 use stwo_cairo_prover::stwo::prover::backend::BackendForChannel;
 use stwo_cairo_prover::stwo::prover::backend::simd::SimdBackend;
 use stwo_cairo_serialize::CairoSerialize;
-use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
+use stwo_cairo_utils::file_utils::{IoErrorWithPath, read_to_string};
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -59,6 +58,13 @@ struct Args {
         help = "Absolute path to the program input file."
     )]
     program_input: Option<PathBuf>,
+    #[clap(
+        long = "layout",
+        default_value = LayoutName::all_cairo_stwo.to_str(),
+        help = "Layout name.",
+        value_enum
+    )]
+    layout: LayoutName,
     // The path to the JSON file containing the prover parameters (optional).
     // The expected file format is:
     //     {
@@ -107,6 +113,8 @@ struct Args {
 
 #[derive(Debug, Error)]
 enum StwoRunAndProveError {
+    #[error("Missing prover parameters.")]
+    MissingProverParams,
     #[error(transparent)]
     Cli(#[from] clap::Error),
     #[error("IO error on file '{path:?}': {source}")]
@@ -116,8 +124,8 @@ enum StwoRunAndProveError {
     },
     #[error(transparent)]
     IO(#[from] std::io::Error),
-    #[error(transparent)]
-    VmImport(#[from] VmImportError),
+    // #[error(transparent)]
+    // VmImport(#[from] VmImportError),
     #[error(transparent)]
     CairoRun(Box<CairoRunError>),
     #[error("Program error on file '{path:?}': {source}")]
@@ -139,6 +147,8 @@ enum StwoRunAndProveError {
     Verification,
     #[error("Failed to parse output line as Felt decimal.")]
     OutputParsing,
+    #[error(transparent)]
+    Adapt(#[from] anyhow::Error),
 }
 
 // Implement From<Box<CairoRunError>> manually
@@ -172,6 +182,7 @@ struct ProveConfig {
     verify: bool,
     n_proof_attempts: usize,
     prover_params_json: Option<PathBuf>,
+    layout: LayoutName,
 }
 
 fn main() -> Result<(), StwoRunAndProveError> {
@@ -185,6 +196,7 @@ fn main() -> Result<(), StwoRunAndProveError> {
         proof_format: args.proof_format,
         n_proof_attempts: args.n_proof_attempts,
         prover_params_json: args.prover_params_json,
+        layout: args.layout,
     };
 
     let stwo_prover = Box::new(StwoProverEntryPoint);
@@ -211,7 +223,7 @@ fn stwo_run_and_prove(
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
-        LayoutName::all_cairo_stwo,
+        prove_config.layout,
         true,
         // in stwo when proof_mode==true, trace padding is redundant work
         true,
@@ -230,7 +242,10 @@ fn stwo_run_and_prove(
     info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     info!("Adapting prover input.");
-    let prover_input = adapter(&runner);
+    let prover_input = adapt(&runner)?;
+
+    println!("builtin_segments: {:?}", prover_input.builtin_segments);
+
     prove_with_retries(prover_input, prove_config, prover)?;
     if let Some(output_path) = program_output {
         write_output_to_file(runner, output_path)?;
@@ -252,7 +267,7 @@ fn prove_with_retries(
         Some(ref path) => sonic_rs::from_str(
             &read_to_string(path).map_err(|e| StwoRunAndProveError::from((e, path.clone())))?,
         )?,
-        None => default_prod_prover_parameters(),
+        None => return Err(StwoRunAndProveError::MissingProverParams),
     };
 
     // create the directory if it doesn't exist, attach the proofs_dir path on error.
@@ -394,30 +409,43 @@ where
     MC::H: Serialize,
     <MC::H as MerkleHasher>::Hash: CairoSerialize,
 {
-    let proof = prove_cairo::<MC>(prover_input, prover_params)?;
-    let mut proof_file = create_file(&proof_file_path)
-        .map_err(|e| StwoRunAndProveError::from((e, proof_file_path.clone())))?;
+    let proof = prove_cairo::<MC>(
+        prover_input, 
+        prover_params.pcs_config,
+        prover_params.preprocessed_trace)?;
 
-    match proof_format {
-        ProofFormat::Json => {
-            let serialized = sonic_rs::to_string_pretty(&proof)?;
-            proof_file
-                .write_all(serialized.as_bytes())
-                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
-        }
-        ProofFormat::CairoSerde => {
-            let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
-            CairoSerialize::serialize(&proof, &mut serialized);
-            let hex_strings: Vec<String> = serialized
-                .into_iter()
-                .map(|felt| format!("0x{felt:x}"))
-                .collect();
-            let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
-            proof_file
-                .write_all(serialized_hex.as_bytes())
-                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
-        }
-    }
+    serialize_proof_to_file::<MC::H>(&proof, proof_file_path.as_path(), proof_format.clone())?;
+
+    // TODO(Nitsan): remove this once we have a proper proof serialization.
+    // let mut proof_file = create_file(&proof_file_path)
+    //     .map_err(|e| StwoRunAndProveError::from((e, proof_file_path.clone())))?;
+    //
+    // match proof_format {
+    //     ProofFormat::Json => {
+    //         let serialized = sonic_rs::to_string_pretty(&proof)?;
+    //         proof_file
+    //             .write_all(serialized.as_bytes())
+    //             .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
+    //     }
+    //     ProofFormat::CairoSerde => {
+    //         let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
+    //         CairoSerialize::serialize(&proof, &mut serialized);
+    //         let hex_strings: Vec<String> = serialized
+    //             .into_iter()
+    //             .map(|felt| format!("0x{felt:x}"))
+    //             .collect();
+    //         let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
+    //         proof_file
+    //             .write_all(serialized_hex.as_bytes())
+    //             .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
+    //     }
+    //     ProofFormat::Binary => {
+    //         let serialized = BinarySerialize::serialize(&proof)?;
+    //         proof_file
+    //             .write_all(&serialized)
+    //             .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
+    //     }
+    // }
 
     if verify {
         // We want to map this error to `StwoRunAndProveError::Verification` because we intend to
@@ -459,6 +487,7 @@ mod tests {
     use rstest::rstest;
     use std::fs;
     use tempfile::{NamedTempFile, TempDir, TempPath};
+    use cairo_vm::types::layout_name::LayoutName;
 
     const ARRAY_SUM_EXPECTED_OUTPUT: [Felt252; 1] = [Felt252::from_hex_unchecked("0x32")];
     const RESOURCES_PATH: &str = "resources";
@@ -490,6 +519,7 @@ mod tests {
             proof_format: ProofFormat::CairoSerde,
             n_proof_attempts,
             verify: true,
+            layout: LayoutName::all_cairo_stwo,
         };
 
         (args, program_output_tempfile, proofs_tempdir)
@@ -505,6 +535,7 @@ mod tests {
             proof_format: args.proof_format,
             n_proof_attempts: args.n_proof_attempts,
             prover_params_json: args.prover_params_json,
+            layout: args.layout,
         };
 
         stwo_run_and_prove(

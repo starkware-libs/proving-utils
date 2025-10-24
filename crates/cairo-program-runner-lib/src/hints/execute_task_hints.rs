@@ -189,8 +189,9 @@ pub fn validate_hash(
 }
 
 /// List of all builtins in the order used by the bootloader.
-pub const ALL_BUILTINS: [BuiltinName; 11] = [
+pub const ALL_BUILTINS: [BuiltinName; 12] = [
     BuiltinName::output,
+    BuiltinName::system,
     BuiltinName::pedersen,
     BuiltinName::range_check,
     BuiltinName::ecdsa,
