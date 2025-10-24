@@ -243,6 +243,9 @@ fn stwo_run_and_prove(
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     info!("Adapting prover input.");
     let prover_input = adapt(&runner)?;
+
+    println!("builtin_segments: {:?}", prover_input.builtin_segments);
+
     prove_with_retries(prover_input, prove_config, prover)?;
     if let Some(output_path) = program_output {
         write_output_to_file(runner, output_path)?;
