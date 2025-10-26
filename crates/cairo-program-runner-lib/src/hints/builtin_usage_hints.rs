@@ -131,6 +131,7 @@ pub fn builtin_usage_set_pages_and_fact_topology(
 ///     ids.n_range_check96 = program_input.get("n_range_check96", 0)
 ///     ids.n_add_mod = program_input.get("n_add_mod", 0)
 ///     ids.n_mul_mod = program_input.get("n_mul_mod", 0)
+///     ids.n_qm31 = program_input.get("n_qm31", 0)
 ///     ids.n_memory_holes = program_input.get("n_memory_holes", 0)
 ///     ids.n_blake2s = program_input.get("n_blake2s", 0)
 /// %}
@@ -196,6 +197,7 @@ pub fn flexible_builtin_usage_from_input(
         ids_data,
         ap_tracking,
     )?;
+    insert_value_from_var_name("n_qm31", usage_input.n_qm31, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name(
         "n_memory_holes",
         usage_input.n_memory_holes,
@@ -249,6 +251,7 @@ mod tests {
         // local n_range_check96;
         // local n_add_mod;
         // local n_mul_mod;
+        // local n_qm31;
         // local n_memory_holes;
         // local n_blake2s;
         let mut vm = VirtualMachine::new(false, false);
@@ -264,14 +267,15 @@ mod tests {
             "n_range_check96",
             "n_add_mod",
             "n_mul_mod",
+            "n_qm31",
             "n_memory_holes",
             "n_blake2s",
         ]);
         let mut exec_scopes = ExecutionScopes::new();
         exec_scopes.insert_value(PROGRAM_INPUT, serde_json::to_string(input).unwrap());
         let ap_tracking = ApTracking::default();
-        vm.set_fp(13);
-        vm.set_ap(13);
+        vm.set_fp(14);
+        vm.set_ap(14);
         vm.segments.add();
         vm.segments.add();
         (vm, exec_scopes, ids_data, ap_tracking)
@@ -475,8 +479,9 @@ mod tests {
             n_range_check96: 9,
             n_add_mod: 10,
             n_mul_mod: 11,
-            n_memory_holes: 12,
-            n_blake2s: 13,
+            n_qm31: 12,
+            n_memory_holes: 13,
+            n_blake2s: 14,
         };
         let (mut vm, mut exec_scopes, ids_data, ap_tracking) =
             prepare_vm_for_flexible_builtin_usage_test(&input);
@@ -498,6 +503,7 @@ mod tests {
             "n_range_check96",
             "n_add_mod",
             "n_mul_mod",
+            "n_qm31",
             "n_memory_holes",
             "n_blake2s",
         ];
@@ -513,6 +519,7 @@ mod tests {
             input.n_range_check96,
             input.n_add_mod,
             input.n_mul_mod,
+            input.n_qm31,
             input.n_memory_holes,
             input.n_blake2s,
         ];

@@ -561,6 +561,8 @@ pub struct FlexibleBuiltinUsageInput {
     #[serde(default)]
     pub n_mul_mod: usize,
     #[serde(default)]
+    pub n_qm31: usize,
+    #[serde(default)]
     pub n_memory_holes: usize,
     #[serde(default)]
     pub n_blake2s: usize,
