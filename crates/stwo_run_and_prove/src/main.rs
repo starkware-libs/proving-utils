@@ -13,10 +13,10 @@ use clap::Parser;
 #[cfg(test)]
 use mockall::automock;
 use serde::Serialize;
-use std::env;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::ExitCode;
 use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapter;
 use stwo_cairo_adapter::vm_import::VmImportError;
@@ -32,9 +32,10 @@ use stwo_cairo_prover::stwo::prover::ProvingError;
 use stwo_cairo_prover::stwo::prover::backend::BackendForChannel;
 use stwo_cairo_prover::stwo::prover::backend::simd::SimdBackend;
 use stwo_cairo_serialize::CairoSerialize;
+use stwo_cairo_utils::binary_utils::run_binary;
 use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
 use thiserror::Error;
-use tracing::{error, info, warn};
+use tracing::{Level, error, info, span, warn};
 
 static PROOF_PREFIX: &str = "proof_";
 static SUCCESS_SUFFIX: &str = "_success";
@@ -71,7 +72,7 @@ struct Args {
     //                 "n_queries": 70
     //             }
     //         },
-    //         "preprocessed_trace": "canonical_without_pedersen"
+    //         "preprocessed_trace": "canonical"
     //     }
     //
     // Default parameters are chosen to ensure 96 bits of security.
@@ -174,11 +175,15 @@ struct ProveConfig {
     prover_params_json: Option<PathBuf>,
 }
 
-fn main() -> Result<(), StwoRunAndProveError> {
-    let args = match Args::try_parse_from(env::args()) {
-        Ok(args) => args,
-        Err(err) => err.exit(),
-    };
+fn main() -> ExitCode {
+    run_binary(run, "stwo_run_and_prove")
+}
+
+fn run(args: impl Iterator<Item = String>) -> Result<(), StwoRunAndProveError> {
+    let _span = span!(Level::INFO, "stwo run and prove").entered();
+    log::info!("log::info!"); // TODO: remove
+    info!("info!"); // TODO: remove
+    let args = Args::try_parse_from(args)?;
     let prove_config = ProveConfig {
         verify: args.verify,
         proofs_dir: args.proofs_dir,
