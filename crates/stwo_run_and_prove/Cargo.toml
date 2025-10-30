@@ -8,6 +8,7 @@ cairo-vm.workspace = true
 clap.workspace = true
 thiserror.workspace = true
 cairo-program-runner-lib.workspace = true
+log.workspace = true
 stwo-cairo-adapter.workspace = true
 stwo_cairo_prover.workspace = true
 stwo_cairo_utils.workspace = true
