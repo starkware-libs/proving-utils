@@ -20,10 +20,10 @@ jobs:
       - name: Install cross
         run: cargo install cross
 
-      - name: Build all binaries (native and ARM)
+      - name: Build all binaries (generic and znver5)
         run: |
           cargo build --release
-          RUSTFLAGS="-C target-cpu=neoverse-v2 -C opt-level=3 -C codegen-units=1 -C target-feature=+sve" cross build --release --target=aarch64-unknown-linux-gnu
+          RUSTFLAGS="-C target-cpu=znver5 -C opt-level=3 -C codegen-units=1" cross build --release
 
       - name: Authenticate with GCS
         uses: "google-github-actions/auth@v2"
@@ -44,23 +44,16 @@ jobs:
           path: "target/release/stwo_vm_runner"
           destination: "stwo_vm_runner_artifacts/${{ env.SHORT_HASH }}/release"
 
-      - name: Upload cairo_program_runner ARM binary to GCP
-        id: upload_cairo_program_runner_arm
-        uses: "google-github-actions/upload-cloud-storage@v2"
-        with:
-          path: "target/aarch64-unknown-linux-gnu/release/cairo_program_runner"
-          destination: "cairo_program_runner_artifacts/${{ env.SHORT_HASH }}/aarch64-release"
-
-      - name: Upload stwo_vm_runner ARM binary to GCP
-        id: upload_stwo_vm_runner_arm
-        uses: "google-github-actions/upload-cloud-storage@v2"
-        with:
-          path: "target/aarch64-unknown-linux-gnu/release/stwo_vm_runner"
-          destination: "stwo_vm_runner_artifacts/${{ env.SHORT_HASH }}/aarch64-release"
-
       - name: Upload stwo_run_and_prove binary to GCP
         id: upload_stwo_run_and_prove
         uses: "google-github-actions/upload-cloud-storage@v2"
         with:
           path: "target/release/stwo_run_and_prove"
           destination: "stwo_run_and_prove_artifacts/${{ env.SHORT_HASH }}/release"
+
+      - name: Upload stwo_run_and_prove_znver5 binary to GCP
+        id: upload_stwo_run_and_prove_znver5
+        uses: "google-github-actions/upload-cloud-storage@v2"
+        with:
+          path: "target/x86_64-unknown-linux-gnu/release/stwo_run_and_prove"
+          destination: "stwo_run_and_prove_znver5_artifacts/${{ env.SHORT_HASH }}/release"
