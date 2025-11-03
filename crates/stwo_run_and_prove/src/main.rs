@@ -1,5 +1,5 @@
+use anyhow::Result;
 use cairo_air::utils::ProofFormat;
-use cairo_air::verifier::verify_cairo;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
 use cairo_vm::Felt252;
@@ -12,30 +12,17 @@ use cairo_vm::vm::runners::cairo_runner::CairoRunner;
 use clap::Parser;
 #[cfg(test)]
 use mockall::automock;
-use serde::Serialize;
 #[cfg(test)]
 use std::env;
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use stwo_cairo_adapter::ProverInput;
-use stwo_cairo_adapter::adapter::adapter;
-use stwo_cairo_adapter::vm_import::VmImportError;
-use stwo_cairo_prover::prover::{
-    ChannelHash, ProverParameters, default_prod_prover_parameters, prove_cairo,
-};
-
-use stwo_cairo_prover::stwo::core::channel::MerkleChannel;
-use stwo_cairo_prover::stwo::core::vcs::MerkleHasher;
-use stwo_cairo_prover::stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
-use stwo_cairo_prover::stwo::core::vcs::poseidon252_merkle::Poseidon252MerkleChannel;
+use stwo_cairo_adapter::adapter::adapt;
+use stwo_cairo_prover::prover::create_and_serialize_proof;
 use stwo_cairo_prover::stwo::prover::ProvingError;
-use stwo_cairo_prover::stwo::prover::backend::BackendForChannel;
-use stwo_cairo_prover::stwo::prover::backend::simd::SimdBackend;
-use stwo_cairo_serialize::CairoSerialize;
 use stwo_cairo_utils::binary_utils::run_binary;
-use stwo_cairo_utils::file_utils::{IoErrorWithPath, create_file, read_to_string};
+use stwo_cairo_utils::file_utils::IoErrorWithPath;
 use thiserror::Error;
 use tracing::{Level, error, info, span, warn};
 
@@ -120,8 +107,6 @@ enum StwoRunAndProveError {
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
-    VmImport(#[from] VmImportError),
-    #[error(transparent)]
     CairoRun(Box<CairoRunError>),
     #[error("Program error on file '{path:?}': {source}")]
     Program { path: PathBuf, source: ProgramError },
@@ -138,10 +123,10 @@ enum StwoRunAndProveError {
     Proving(#[from] ProvingError),
     #[error(transparent)]
     VM(#[from] VirtualMachineError),
-    #[error("cairo verification failed.")]
-    Verification,
     #[error("Failed to parse output line as Felt decimal.")]
     OutputParsing,
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 // Implement From<Box<CairoRunError>> manually
@@ -235,7 +220,7 @@ fn stwo_run_and_prove(
     info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     info!("Adapting prover input.");
-    let prover_input = adapter(&runner);
+    let prover_input = adapt(&runner)?;
     prove_with_retries(prover_input, prove_config, prover)?;
     if let Some(output_path) = program_output {
         write_output_to_file(runner, output_path)?;
@@ -246,20 +231,14 @@ fn stwo_run_and_prove(
 
 /// Prepares the prover parameters and generates proof given the prover input and parameters.
 /// Verifies the proof in case the respective flag is set.
-/// In case the proof verification fails, it retries up to `n_proof_attempts` times.
-/// Returns the program utput.
+/// In case the proving fails or the proof verification fails, it retries up to `n_proof_attempts`
+/// times.
+/// Returns the program output.
 fn prove_with_retries(
     prover_input: ProverInput,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
 ) -> Result<(), StwoRunAndProveError> {
-    let prover_params = match prove_config.prover_params_json {
-        Some(ref path) => sonic_rs::from_str(
-            &read_to_string(path).map_err(|e| StwoRunAndProveError::from((e, path.clone())))?,
-        )?,
-        None => default_prod_prover_parameters(),
-    };
-
     // create the directory if it doesn't exist, attach the proofs_dir path on error.
     std::fs::create_dir_all(&prove_config.proofs_dir)
         .map_err(|e| StwoRunAndProveError::from((e, prove_config.proofs_dir.clone())))?;
@@ -275,12 +254,12 @@ fn prove_with_retries(
             .file_name()
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no file name"))?;
 
-        match prover.choose_channel_and_prove(
-            prover_params,
+        match prover.create_and_serialize_proof(
             prover_input.clone(),
-            proof_file_path.clone(),
-            &proof_format,
             prove_config.verify,
+            proof_file_path.clone(),
+            proof_format.clone(),
+            prove_config.prover_params_json.clone(),
         ) {
             Ok(()) => {
                 info!(
@@ -296,144 +275,67 @@ fn prove_with_retries(
                 return Ok(());
             }
 
-            Err(StwoRunAndProveError::Verification) => {
-                let failure_path = proof_file_path.with_file_name(format!(
-                    "{}{}",
-                    proof_file_name.to_string_lossy(),
-                    FAILURE_SUFFIX
-                ));
-                fs::rename(proof_file_path, &failure_path)?;
+            Err(e) => {
+                if proof_file_path.exists() {
+                    let failure_path = proof_file_path.with_file_name(format!(
+                        "{}{}",
+                        proof_file_name.to_string_lossy(),
+                        FAILURE_SUFFIX
+                    ));
+                    fs::rename(proof_file_path, &failure_path)?;
+                }
                 if i < prove_config.n_proof_attempts {
                     warn!(
-                        "Proof verification failed on attempt {}/{}. Retrying.",
+                        "Proving failed on attempt {}/{}. Retrying.",
                         i, prove_config.n_proof_attempts
                     );
                     continue;
                 }
                 error!(
-                    "Proof verification failed on last attempt - {}/{}.",
+                    "Proving failed on last attempt - {}/{}.",
                     i, prove_config.n_proof_attempts
                 );
-                return Err(StwoRunAndProveError::Verification);
+                return Err(e);
             }
-
-            Err(e) => return Err(e),
         }
     }
 
     panic!("Should not reach here, n_proof_attempts should be at least 1.");
 }
 
-/// Chooses the appropriate channel and generates a proof.
-fn choose_channel_and_prove(
-    prover_params: ProverParameters,
-    prover_input: ProverInput,
-    proof_file_path: PathBuf,
-    proof_format: &ProofFormat,
-    verify: bool,
-) -> Result<(), StwoRunAndProveError> {
-    match prover_params.channel_hash {
-        ChannelHash::Blake2s => prove::<Blake2sMerkleChannel>(
-            prover_params,
-            prover_input,
-            proof_file_path,
-            proof_format,
-            verify,
-        ),
-        ChannelHash::Poseidon252 => prove::<Poseidon252MerkleChannel>(
-            prover_params,
-            prover_input,
-            proof_file_path,
-            proof_format,
-            verify,
-        ),
-    }
-}
-
 #[cfg_attr(test, automock)]
 trait ProverTrait {
-    fn choose_channel_and_prove(
+    fn create_and_serialize_proof(
         &self,
-        prover_params: ProverParameters,
-        prover_input: ProverInput,
-        proof_file_path: PathBuf,
-        proof_format: &ProofFormat,
+        input: ProverInput,
         verify: bool,
+        proof_path: PathBuf,
+        proof_format: ProofFormat,
+        proof_params_json: Option<PathBuf>,
     ) -> Result<(), StwoRunAndProveError>;
 }
 
 struct StwoProverEntryPoint;
 
 impl ProverTrait for StwoProverEntryPoint {
-    fn choose_channel_and_prove(
+    fn create_and_serialize_proof(
         &self,
-        prover_params: ProverParameters,
         prover_input: ProverInput,
-        proof_file_path: PathBuf,
-        proof_format: &ProofFormat,
         verify: bool,
+        proof_path: PathBuf,
+        proof_format: ProofFormat,
+        proof_params_json: Option<PathBuf>,
     ) -> Result<(), StwoRunAndProveError> {
-        choose_channel_and_prove(
-            prover_params,
+        create_and_serialize_proof(
             prover_input,
-            proof_file_path,
-            proof_format,
             verify,
-        )
+            proof_path,
+            proof_format,
+            proof_params_json,
+        )?;
+
+        Ok(())
     }
-}
-
-/// Generates a proof for the given prover input and parameters, using the specified Merkle channel.
-/// Serializes the proof as cairo-serde or JSON and write to the proof path.
-/// Verifies the proof if the `verify` flag is set.
-/// Returns the program output.
-fn prove<MC: MerkleChannel>(
-    prover_params: ProverParameters,
-    prover_input: ProverInput,
-    proof_file_path: PathBuf,
-    proof_format: &ProofFormat,
-    verify: bool,
-) -> Result<(), StwoRunAndProveError>
-where
-    SimdBackend: BackendForChannel<MC>,
-    MC::H: Serialize,
-    <MC::H as MerkleHasher>::Hash: CairoSerialize,
-{
-    let proof = prove_cairo::<MC>(prover_input, prover_params)?;
-    let mut proof_file = create_file(&proof_file_path)
-        .map_err(|e| StwoRunAndProveError::from((e, proof_file_path.clone())))?;
-
-    match proof_format {
-        ProofFormat::Json => {
-            let serialized = sonic_rs::to_string_pretty(&proof)?;
-            proof_file
-                .write_all(serialized.as_bytes())
-                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
-        }
-        ProofFormat::CairoSerde => {
-            let mut serialized: Vec<starknet_ff::FieldElement> = Vec::new();
-            CairoSerialize::serialize(&proof, &mut serialized);
-            let hex_strings: Vec<String> = serialized
-                .into_iter()
-                .map(|felt| format!("0x{felt:x}"))
-                .collect();
-            let serialized_hex = sonic_rs::to_string_pretty(&hex_strings)?;
-            proof_file
-                .write_all(serialized_hex.as_bytes())
-                .map_err(|e| StwoRunAndProveError::from((e, proof_file_path)))?;
-        }
-    }
-
-    if verify {
-        // We want to map this error to `StwoRunAndProveError::Verification` because we intend to
-        // retry the proof generation in case of a verification failure. In the calling function we
-        // assume this specific error type, so if we don't map it, and the error type returned by
-        // `verify_cairo` changes, it will break the retry logic.
-        verify_cairo::<MC>(proof, prover_params.preprocessed_trace)
-            .map_err(|_| StwoRunAndProveError::Verification)?;
-    }
-
-    Ok(())
 }
 
 /// Write the program output to the specified output path as Felt252 values.
@@ -526,7 +428,7 @@ mod tests {
 
         let mut mock_prover = Box::new(MockProverTrait::new());
         mock_prover
-            .expect_choose_channel_and_prove()
+            .expect_create_and_serialize_proof()
             .times(1)
             .returning(move |_, _, proof_file, _, _| {
                 let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
@@ -539,46 +441,69 @@ mod tests {
         (program_output_tempfile, proofs_tempdir)
     }
 
-    fn run_with_verification_error_mock_prover(n_proof_attempts: usize) -> (TempPath, TempDir) {
+    fn run_with_failed_mock_prover(
+        n_proof_attempts: usize,
+        is_verification_failure: bool,
+    ) -> (TempPath, TempDir) {
         let (args, program_output_tempfile, proofs_tempdir) = prepare_args(n_proof_attempts);
 
         let mut mock_prover = Box::new(MockProverTrait::new());
         mock_prover
-            .expect_choose_channel_and_prove()
+            .expect_create_and_serialize_proof()
             .times(n_proof_attempts)
             .returning(move |_, _, proof_file, _, _| {
-                let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
-                fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
-                Err(StwoRunAndProveError::Verification)
+                if is_verification_failure {
+                    let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+                    fs::copy(&expected_proof_file, &proof_file)
+                        .expect("Failed to copy proof file.");
+                }
+                Err(StwoRunAndProveError::Anyhow(anyhow::anyhow!(
+                    "mocked anyhow error"
+                )))
             });
 
         let result = run_stwo_run_and_prove(args, mock_prover);
         assert!(
-            matches!(result, Err(StwoRunAndProveError::Verification)),
-            "run and prove should return StwoRunAndProveError::Verification error but got: {:?}",
+            matches!(result, Err(StwoRunAndProveError::Anyhow(_))),
+            "run and prove should return Err(StwoRunAndProveError::Anyhow), but got: {:?}",
             result,
         );
 
         (program_output_tempfile, proofs_tempdir)
     }
 
-    fn run_with_mock_prover_succeeds_on_retry(n_proof_attempts: usize) -> (TempPath, TempDir) {
+    fn run_with_mock_prover_succeeds_on_retry(
+        n_proof_attempts: usize,
+        is_verification_failure: bool,
+    ) -> (TempPath, TempDir) {
         let (args, program_output_tempfile, proofs_tempdir) = prepare_args(n_proof_attempts);
         let mut mock_prover = Box::new(MockProverTrait::new());
 
         // Create iterator that return errors for the first n-1 attempts, and a successful result
         // for the last attempt.
         let mut results = (0..n_proof_attempts.saturating_sub(1))
-            .map(|_| Err(StwoRunAndProveError::Verification))
+            .map(|_| {
+                Err(StwoRunAndProveError::Anyhow(anyhow::anyhow!(
+                    "mocked anyhow error"
+                )))
+            })
             .chain(std::iter::once(Ok(())));
 
         mock_prover
-            .expect_choose_channel_and_prove()
+            .expect_create_and_serialize_proof()
             .times(n_proof_attempts)
             .returning(move |_, _, proof_file, _, _| {
-                let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
-                fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
-                results.next().unwrap()
+                let res: Result<(), StwoRunAndProveError> =
+                    results.next().expect("results exhausted");
+                if matches!(res, Ok(()))
+                    || (matches!(res, Err(StwoRunAndProveError::Anyhow(_)))
+                        && is_verification_failure)
+                {
+                    let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
+                    fs::copy(&expected_proof_file, &proof_file)
+                        .expect("Failed to copy proof file.");
+                }
+                res
             });
 
         run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
@@ -616,10 +541,10 @@ mod tests {
     }
 
     #[test]
-    fn test_stwo_run_and_prove_all_retries_fail() {
+    fn test_stwo_run_and_prove_all_retries_fail_on_verification() {
         let n_proof_attempts = 3;
         let (output_temp_file, proofs_temp_dir) =
-            run_with_verification_error_mock_prover(n_proof_attempts);
+            run_with_failed_mock_prover(n_proof_attempts, true);
         let proofs_dir = proofs_temp_dir.path().to_path_buf();
 
         (1..=n_proof_attempts).for_each(|i| {
@@ -637,12 +562,36 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_stwo_run_and_prove_all_retries_fail_on_proving() {
+        let n_proof_attempts = 3;
+        let (output_temp_file, proofs_temp_dir) =
+            run_with_failed_mock_prover(n_proof_attempts, false);
+        let proofs_dir = proofs_temp_dir.path().to_path_buf();
+
+        (1..=n_proof_attempts).for_each(|i| {
+            let proof_file = proofs_dir.join(format!("{PROOF_PREFIX}{i}{FAILURE_SUFFIX}"));
+            assert!(
+                !proof_file.exists(),
+                "Proof file {:?} should not exist after running with proving failures",
+                proof_file,
+            );
+        });
+
+        assert!(
+            is_file_empty(&output_temp_file.to_path_buf()).unwrap(),
+            "Output file should be empty after running with proving failures",
+        );
+    }
+
     #[rstest]
     #[case::two_tries(2)]
     #[case::three_tries(3)]
-    fn test_stwo_run_and_prove_succeeds_on_retry(#[case] n_proof_attempts: usize) {
+    fn test_stwo_run_and_prove_succeeds_on_retry_after_verification_failures(
+        #[case] n_proof_attempts: usize,
+    ) {
         let (output_temp_file, proofs_temp_dir) =
-            run_with_mock_prover_succeeds_on_retry(n_proof_attempts);
+            run_with_mock_prover_succeeds_on_retry(n_proof_attempts, true);
         let proofs_dir = proofs_temp_dir.path().to_path_buf();
 
         (1..=n_proof_attempts).for_each(|i| {
@@ -654,6 +603,41 @@ mod tests {
                 proof_file, n_proof_attempts,
             );
         });
+
+        assert!(
+            !is_file_empty(&output_temp_file.to_path_buf()).unwrap(),
+            "Output file should not be empty after a run that succeeds on attempt {:?} of proof and verify",
+            n_proof_attempts,
+        );
+    }
+
+    #[rstest]
+    #[case::two_tries(2)]
+    #[case::three_tries(3)]
+    fn test_stwo_run_and_prove_succeeds_on_retry_after_proving_failures(
+        #[case] n_proof_attempts: usize,
+    ) {
+        let (output_temp_file, proofs_temp_dir) =
+            run_with_mock_prover_succeeds_on_retry(n_proof_attempts, false);
+        let proofs_dir = proofs_temp_dir.path().to_path_buf();
+
+        (1..=n_proof_attempts - 1).for_each(|i| {
+            let failed_proof_file = proofs_dir.join(format!("{PROOF_PREFIX}{i}{FAILURE_SUFFIX}"));
+            assert!(
+                !failed_proof_file.exists(),
+                "Proof file {:?} should exist after a run that got proving errors, and succeeded on attempt {:?} of proof and verify",
+                failed_proof_file, n_proof_attempts,
+            );
+        });
+
+        let success_proof_file =
+            proofs_dir.join(format!("{PROOF_PREFIX}{n_proof_attempts}{SUCCESS_SUFFIX}"));
+        assert!(
+            success_proof_file.exists(),
+            "Proof file {:?} should exist after a run that succeeds on attempt {:?} of proof and verify",
+            success_proof_file,
+            n_proof_attempts,
+        );
 
         assert!(
             !is_file_empty(&output_temp_file.to_path_buf()).unwrap(),

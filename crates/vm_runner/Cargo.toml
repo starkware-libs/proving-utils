@@ -14,3 +14,4 @@ thiserror.workspace = true
 tracing.workspace = true
 cairo-program-runner-lib.workspace = true
 cairo-vm.workspace = true
+anyhow.workspace = true

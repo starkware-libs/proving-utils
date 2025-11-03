@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -8,8 +9,7 @@ use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
-use stwo_cairo_adapter::adapter::adapter;
-use stwo_cairo_adapter::vm_import::VmImportError;
+use stwo_cairo_adapter::adapter::adapt;
 use stwo_cairo_adapter::{ExecutionResources, ProverInput};
 use stwo_cairo_utils::binary_utils::run_binary;
 use thiserror::Error;
@@ -47,12 +47,12 @@ enum Error {
     IO(#[from] std::io::Error),
     #[error("Serialization failed: {0}")]
     Serde(#[from] serde_json::Error),
-    #[error("VM import failed: {0}")]
-    VmImport(#[from] VmImportError),
     #[error("ProgramRunner error: {0}")]
     ProgramRunner(#[from] ProgramError),
     #[error("Failed executing the program: {0}")]
     Runner(#[from] CairoRunError),
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 fn main() -> ExitCode {
@@ -85,7 +85,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         dynamic_layout_params: None,
     };
     let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
-    let prover_input = adapter(&cairo_runner);
+    let prover_input = adapt(&cairo_runner)?;
     if let Some(prover_input_path) = args.output_prover_input_path {
         std::fs::write(prover_input_path, serde_json::to_string(&prover_input)?)?;
     }
