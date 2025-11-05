@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/align_adapter_and_sharp_format
 
 jobs:
   artifacts-push:
