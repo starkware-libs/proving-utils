@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - nitsan/update_versions
 
 jobs:
   artifacts-push:
