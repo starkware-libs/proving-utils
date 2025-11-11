@@ -39,6 +39,7 @@ fn parse_usize_ge1(s: &str) -> Result<usize, String> {
     }
 }
 
+/// This binary runs a cairo program and generates a Stwo proof for it.
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -49,22 +50,6 @@ struct Args {
         help = "Absolute path to the program input file."
     )]
     program_input: Option<PathBuf>,
-    // The path to the JSON file containing the prover parameters (optional).
-    // The expected file format is:
-    //     {
-    //         "channel_hash":"blake2s",
-    //         "pcs_config": {
-    //             "pow_bits": 26,
-    //             "fri_config": {
-    //                 "log_last_layer_degree_bound": 0,
-    //                 "log_blowup_factor": 1,
-    //                 "n_queries": 70
-    //             }
-    //         },
-    //         "preprocessed_trace": "canonical"
-    //     }
-    //
-    // Default parameters are chosen to ensure 96 bits of security.
     #[clap(
         long = "prover_params_json",
         help = "Absolute path to the JSON file containing the prover parameters."
@@ -166,9 +151,9 @@ fn main() -> ExitCode {
     run_binary(run, "stwo_run_and_prove")
 }
 
-fn run(args: impl Iterator<Item = String>) -> Result<(), StwoRunAndProveError> {
+fn run() -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "run").entered();
-    let args = Args::try_parse_from(args)?;
+    let args = Args::parse();
     let prove_config = ProveConfig {
         verify: args.verify,
         proofs_dir: args.proofs_dir,
