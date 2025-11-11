@@ -67,12 +67,9 @@ fn main() -> ExitCode {
 }
 
 #[allow(clippy::result_large_err)]
-fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
+fn run() -> Result<ProverInput, Error> {
     let _span = span!(Level::INFO, "run").entered();
-    let args = match Args::try_parse_from(args) {
-        Ok(args) => args,
-        Err(err) => err.exit(),
-    };
+    let args = Args::parse();
 
     let program = get_program(args.program.as_path())?;
     let program_input_contents = get_program_input(&args.program_input)?;
