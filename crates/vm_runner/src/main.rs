@@ -20,23 +20,30 @@ use tracing::{span, Level};
 struct Args {
     #[clap(long = "program", help = "Absolute path to the compiled program.")]
     program: PathBuf,
+
     #[clap(
         long = "program_input",
         help = "Absolute path to the program input file."
     )]
     program_input: Option<PathBuf>,
+
     #[clap(long = "layout", help = "Layout name.")]
     layout: LayoutName,
-    #[structopt(
+
+    #[clap(
         long = "output_execution_resources_path",
         help = "Abosolute path to the program's execution resources (output file)."
     )]
     output_execution_resources_path: PathBuf,
-    #[structopt(
+
+    #[clap(
         long = "output_prover_input_path",
         help = "Abosolute path to the prover input (output file)."
     )]
     output_prover_input_path: Option<PathBuf>,
+
+    #[clap(long = "secure_run", help = "Enable secure_run mode in the Cairo VM.")]
+    secure_run: bool,
 }
 
 #[derive(Debug, Error)]
@@ -69,6 +76,7 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
 
     let program = get_program(args.program.as_path())?;
     let program_input_contents = get_program_input(&args.program_input)?;
+
     let cairo_run_config = cairo_run::CairoRunConfig {
         entrypoint: "main",
         trace_enabled: true,
@@ -79,13 +87,15 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         layout: args.layout,
         proof_mode: true,
         fill_holes: true,
-        secure_run: None,
+        secure_run: args.secure_run.then_some(true),
         disable_trace_padding: true,
         allow_missing_builtins: None,
         dynamic_layout_params: None,
     };
+
     let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
     let prover_input = adapt(&cairo_runner)?;
+
     if let Some(prover_input_path) = args.output_prover_input_path {
         std::fs::write(prover_input_path, serde_json::to_string(&prover_input)?)?;
     }
@@ -96,5 +106,6 @@ fn run(args: impl Iterator<Item = String>) -> Result<ProverInput, Error> {
         args.output_execution_resources_path,
         serde_json::to_string(&execution_resources)?,
     )?;
+
     Ok(prover_input)
 }
