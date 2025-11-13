@@ -217,9 +217,7 @@ fn stwo_run_and_prove(
         .map_err(|e| StwoRunAndProveError::from((e, program_path)))?;
     let program_input = get_program_input(&program_input)
         .map_err(|e| StwoRunAndProveError::from((e, program_input.unwrap_or_default())))?;
-    info!("Running cairo run program.");
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
-    info!("Adapting prover input.");
     let prover_input = adapt(&runner)?;
     prove_with_retries(prover_input, prove_config, prover)?;
     if let Some(output_path) = program_output {
@@ -239,16 +237,20 @@ fn prove_with_retries(
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
 ) -> Result<(), StwoRunAndProveError> {
+    let _span = span!(Level::INFO, "prove_with_retries").entered();
     // create the directory if it doesn't exist, attach the proofs_dir path on error.
     std::fs::create_dir_all(&prove_config.proofs_dir)
         .map_err(|e| StwoRunAndProveError::from((e, prove_config.proofs_dir.clone())))?;
     let proof_format = prove_config.proof_format;
 
     for i in 1..=prove_config.n_proof_attempts {
-        info!(
-            "Attempting to generate proof {}/{}.",
-            i, prove_config.n_proof_attempts
-        );
+        let _attempt_span = span!(
+            Level::INFO,
+            "prove_attempt",
+            attempt = i,
+            out_of = prove_config.n_proof_attempts
+        )
+        .entered();
         let proof_file_path = prove_config.proofs_dir.join(format!("{PROOF_PREFIX}{i}"));
         let proof_file_name = proof_file_path
             .file_name()
