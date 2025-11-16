@@ -365,8 +365,10 @@ fn write_output_to_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ctor::ctor;
     use rstest::rstest;
     use std::fs;
+    use stwo_cairo_utils::logging_utils::init_logging;
     use tempfile::{NamedTempFile, TempDir, TempPath};
 
     const ARRAY_SUM_EXPECTED_OUTPUT: [Felt252; 1] = [Felt252::from_hex_unchecked("0x32")];
@@ -374,6 +376,11 @@ mod tests {
     const PROGRAM_FILE_NAME: &str = "array_sum.json";
     const PROVER_PARAMS_FILE_NAME: &str = "prover_params.json";
     const EXPECTED_PROOF_FILE_NAME: &str = "array_sum_proof";
+
+    #[ctor]
+    fn init_logging_once() {
+        init_logging(log::LevelFilter::Info);
+    }
 
     fn get_path(file_name: &str) -> PathBuf {
         let current_path = env::current_dir().expect("failed to get current directory");
