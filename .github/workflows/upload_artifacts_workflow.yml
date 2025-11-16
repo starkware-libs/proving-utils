@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/compile_with_lto
 
 jobs:
   artifacts-push:
@@ -23,7 +23,7 @@ jobs:
       - name: Build all binaries (generic and znver5)
         run: |
           cargo build --release
-          RUSTFLAGS="-C target-cpu=znver5 -C opt-level=3 -C codegen-units=1" cross build --release
+          RUSTFLAGS="-C target-cpu=znver5 -C opt-level=3 -C codegen-units=1 -C lto=fat -C embed-bitcode" cross build --release --bin stwo_run_and_prove
 
       - name: Authenticate with GCS
         uses: "google-github-actions/auth@v2"
