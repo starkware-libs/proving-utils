@@ -212,11 +212,10 @@ fn stwo_run_and_prove(
     Ok(())
 }
 
-/// Prepares the prover parameters and generates proof given the prover input and parameters.
+/// Prepares the prover parameters and generates a proof given the prover input and parameters.
 /// Verifies the proof in case the respective flag is set.
 /// In case the proving fails or the proof verification fails, it retries up to `n_proof_attempts`
 /// times.
-/// Returns the program output.
 fn prove_with_retries(
     prover_input: ProverInput,
     prove_config: ProveConfig,
@@ -226,51 +225,11 @@ fn prove_with_retries(
     // create the directory if it doesn't exist, attach the proofs_dir path on error.
     std::fs::create_dir_all(&prove_config.proofs_dir)
         .map_err(|e| StwoRunAndProveError::from((e, prove_config.proofs_dir.clone())))?;
-    let proof_format = prove_config.proof_format;
 
     for i in 1..=prove_config.n_proof_attempts {
-        let _attempt_span = span!(
-            Level::INFO,
-            "prove_attempt",
-            attempt = i,
-            out_of = prove_config.n_proof_attempts
-        )
-        .entered();
-        let proof_file_path = prove_config.proofs_dir.join(format!("{PROOF_PREFIX}{i}"));
-        let proof_file_name = proof_file_path
-            .file_name()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no file name"))?;
-
-        match prover.create_and_serialize_proof(
-            prover_input.clone(),
-            prove_config.verify,
-            proof_file_path.clone(),
-            proof_format.clone(),
-            prove_config.prover_params_json.clone(),
-        ) {
-            Ok(()) => {
-                info!(
-                    "Proof generated and verified successfully on attempt {}/{}",
-                    i, prove_config.n_proof_attempts
-                );
-                let success_path = proof_file_path.with_file_name(format!(
-                    "{}{}",
-                    proof_file_name.to_string_lossy(),
-                    SUCCESS_SUFFIX
-                ));
-                fs::rename(proof_file_path, &success_path)?;
-                return Ok(());
-            }
-
+        match single_proving_attempt(i, &prover_input, &prove_config, prover.as_ref()) {
+            Ok(()) => return Ok(()),
             Err(e) => {
-                if proof_file_path.exists() {
-                    let failure_path = proof_file_path.with_file_name(format!(
-                        "{}{}",
-                        proof_file_name.to_string_lossy(),
-                        FAILURE_SUFFIX
-                    ));
-                    fs::rename(proof_file_path, &failure_path)?;
-                }
                 if i < prove_config.n_proof_attempts {
                     warn!(
                         "Proving failed on attempt {}/{}. Retrying.",
@@ -288,6 +247,62 @@ fn prove_with_retries(
     }
 
     panic!("Should not reach here, n_proof_attempts should be at least 1.");
+}
+
+/// Single attempt to generate and verify a proof.
+fn single_proving_attempt(
+    attempt_number: usize,
+    prover_input: &ProverInput,
+    prove_config: &ProveConfig,
+    prover: &dyn ProverTrait,
+) -> Result<(), StwoRunAndProveError> {
+    let _attempt_span = span!(
+        Level::INFO,
+        "prove_attempt",
+        attempt = attempt_number,
+        out_of = prove_config.n_proof_attempts
+    )
+    .entered();
+    let proof_file_path = prove_config
+        .proofs_dir
+        .join(format!("{PROOF_PREFIX}{attempt_number}"));
+    let proof_file_name = proof_file_path
+        .file_name()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no file name"))?;
+
+    match prover.create_and_serialize_proof(
+        prover_input.clone(),
+        prove_config.verify,
+        proof_file_path.clone(),
+        prove_config.proof_format.clone(),
+        prove_config.prover_params_json.clone(),
+    ) {
+        Ok(()) => {
+            info!(
+                "Proof generated and verified successfully on attempt {}/{}",
+                attempt_number, prove_config.n_proof_attempts
+            );
+            let success_path = proof_file_path.with_file_name(format!(
+                "{}{}",
+                proof_file_name.to_string_lossy(),
+                SUCCESS_SUFFIX
+            ));
+            fs::rename(proof_file_path, &success_path)?;
+            Ok(())
+        }
+
+        Err(e) => {
+            if proof_file_path.exists() {
+                let failure_path = proof_file_path.with_file_name(format!(
+                    "{}{}",
+                    proof_file_name.to_string_lossy(),
+                    FAILURE_SUFFIX
+                ));
+                fs::rename(proof_file_path, &failure_path)?;
+            }
+            Err(e)
+        }
+    }
 }
 
 #[cfg_attr(test, automock)]
