@@ -654,4 +654,25 @@ mod tests {
             n_proof_attempts,
         );
     }
+
+    #[test]
+    fn test_proof_files_suffixes() {
+        // DO NOT CHANGE THESE VALUES UNLESS THEY WERE CHANGED IN ALL THE PLACES THAT CALL THIS
+        // BINARY
+        let expected_success_suffix: &str = "_success";
+        let expected_failure_suffix: &str = "_failure";
+
+        assert_eq!(
+            SUCCESS_SUFFIX, expected_success_suffix,
+            "The SUCCESS_SUFFIX constant value has changed. This change will break all the places
+            that call this binary. Such a change should not happen often, so please make sure it's
+            absolutely necessary, and update all the places that call this binary accordingly."
+        );
+        assert_eq!(
+            FAILURE_SUFFIX, expected_failure_suffix,
+            "The FAILURE_SUFFIX constant value has changed. This change will break all the places
+            that call this binary. Such a change should not happen often, so please make sure it's
+            absolutely necessary, and update all the places that call this binary accordingly."
+        );
+    }
 }
