@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/optimal_generic_compile
 
 jobs:
   artifacts-push:
@@ -22,7 +22,7 @@ jobs:
 
       - name: Build all binaries (generic and znver5)
         run: |
-          cargo build --release
+          RUSTFLAGS="-C opt-level=3 -C codegen-units=1" cargo build --release
           RUSTFLAGS="-C target-cpu=znver5 -C opt-level=3 -C codegen-units=1" cross build --release
 
       - name: Authenticate with GCS
