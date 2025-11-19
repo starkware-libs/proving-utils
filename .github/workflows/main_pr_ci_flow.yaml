@@ -1,0 +1,47 @@
+name: Main-CI-PR-Flow
+
+on:
+  merge_group:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+
+# On PR events, cancel existing CI runs on this same PR for this workflow.
+# Also, create different concurrency groups for different pushed commits, on push events.
+concurrency:
+  group: >
+    ${{ github.workflow }}-
+    ${{ github.ref }}-
+    ${{ github.event_name == 'pull_request' && 'PR' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  merge-gatekeeper:
+    runs-on: ubuntu-24.04
+    # Restrict permissions of the GITHUB_TOKEN.
+    # Docs: https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+    permissions:
+      checks: read
+      statuses: read
+    steps:
+      - name: Run Merge Gatekeeper on pull request
+        if: github.event_name == 'pull_request'
+        uses: upsidr/merge-gatekeeper@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          timeout: 3600
+          interval: 30
+          ignored: code-review/reviewable
+
+      - name: Run Merge Gatekeeper on Merge Queue || push
+        if: github.event_name == 'merge_group' || github.event_name == 'push'
+        uses: upsidr/merge-gatekeeper@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{github.ref}}
+          timeout: 1800
+          interval: 30
+          ignored: "code-review/reviewable"
