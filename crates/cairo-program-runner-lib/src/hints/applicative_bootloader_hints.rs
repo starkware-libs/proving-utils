@@ -325,3 +325,123 @@ pub fn finalize_fact_topologies_and_pages(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::hints::fact_topologies::FactTopology;
+    use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
+    use crate::hints::types::{Cairo0Executable, Task, TaskSpec};
+    use crate::hints::vars;
+    use crate::test_utils::prepare_ids_data_for_test;
+    use crate::types::HashFunc;
+    use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::insert_value_from_var_name;
+    use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+    use cairo_vm::serde::deserialize_program::ApTracking;
+    use cairo_vm::types::exec_scope::ExecutionScopes;
+    use cairo_vm::types::program::Program;
+    use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
+    use cairo_vm::vm::errors::hint_errors::HintError;
+    use cairo_vm::vm::runners::builtin_runner::BuiltinRunner;
+    use cairo_vm::vm::vm_core::VirtualMachine;
+    use cairo_vm::Felt252;
+    use num_traits::ToPrimitive;
+    use rstest::{fixture, rstest};
+    use std::collections::HashMap;
+
+    #[fixture]
+    fn concat_aggregator() -> Program {
+        let program_content = include_bytes!(
+            "../../resources/compiled_programs/test_programs/concat_aggregator_compiled.json"
+        )
+        .to_vec();
+
+        Program::from_bytes(&program_content, Some("main"))
+            .expect("Loading example program failed unexpectedly")
+    }
+
+    #[fixture]
+    fn applicative_bootloader_input() -> String {
+        let aggregator_program_exec = Cairo0Executable {
+            program: concat_aggregator(),
+            program_input: None,
+        };
+        let task = Task::Cairo0Program(aggregator_program_exec);
+        let bootloader_input = crate::hints::types::BootloaderInput {
+            simple_bootloader_input: crate::hints::types::SimpleBootloaderInput {
+                tasks: vec![TaskSpec {
+                    task: task.clone(),
+                    program_hash_function: HashFunc::Poseidon,
+                }],
+                fact_topologies_path: None,
+                single_page: true,
+            },
+            bootloader_config: BootloaderConfig {
+                supported_simple_bootloader_hash_list: vec![
+                    Felt252::from(1234),
+                    Felt252::from(5678),
+                ],
+                supported_applicative_bootloader_program_hash: Felt252::from(2222),
+                supported_cairo_verifier_program_hash_list: vec![
+                    Felt252::from(3333),
+                    Felt252::from(4444),
+                    Felt252::from(5555),
+                ],
+            },
+            packed_outputs: vec![],
+        };
+        let applicative_bootloader_input = crate::hints::types::ApplicativeBootloaderInput {
+            aggregator_task: TaskSpec {
+                task: task.clone(),
+                program_hash_function: HashFunc::Poseidon,
+            },
+            bootloader_input,
+        };
+
+        serde_json::to_string(&applicative_bootloader_input).unwrap()
+    }
+
+    #[test]
+    fn test_prepare_aggregator_simple_bootloader_output_segment() {
+        let mut vm = VirtualMachine::new(false, false);
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        let mut exec_scopes = ExecutionScopes::new();
+        let mut ids_data = prepare_ids_data_for_test(&["aggregator_output_ptr"]);
+        let ap_tracking = ApTracking::default();
+        vm.set_fp(1);
+        vm.set_ap(1);
+
+        exec_scopes.insert_value(vars::PROGRAM_INPUT, applicative_bootloader_input());
+
+        prepare_aggregator_simple_bootloader_output_segment(
+            &mut vm,
+            &mut exec_scopes,
+            &mut ids_data,
+            &ap_tracking,
+        )
+        .expect("Failed to run hint");
+
+        // Assert that a new segment was added for the aggregator output.
+        assert_eq!(vm.segments.num_segments(), 3);
+        let aggregator_output_ptr: Relocatable =
+            vm.get_relocatable(Relocatable::from((1, 0))).unwrap();
+        assert_eq!(aggregator_output_ptr, Relocatable::from((2, 0)));
+
+        // Assert that the applicative bootloader input and simple bootloader input are correctly
+        // set in exec_scopes.
+        let expected_applicative_bootloader_input = applicative_bootloader_input();
+
+        let _applicative_bootloader_input: ApplicativeBootloaderInput = exec_scopes
+            .get(vars::APPLICATIVE_BOOTLOADER_INPUT)
+            .expect("Failed to get applicative_bootloader_input");
+        let _simple_bootloader_input: SimpleBootloaderInput = exec_scopes
+            .get(vars::SIMPLE_BOOTLOADER_INPUT)
+            .expect("Failed to get simple_bootloader_input");
+        assert_eq!(
+            serialize_applicative_bootloader_input(&_applicative_bootloader_input),
+            expected_applicative_bootloader_input
+        );
+    }
+}
