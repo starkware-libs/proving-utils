@@ -939,6 +939,7 @@ mod tests {
     fn test_save_packed_outputs() {
         // Tests that save_packed_outputs correctly saves the packed outputs from the bootloader
         // input into the execution scopes.
+        // test
         let packed_outputs = vec![
             PackedOutput::Plain,
             PackedOutput::Plain,
