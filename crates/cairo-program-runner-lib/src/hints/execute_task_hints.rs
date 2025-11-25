@@ -371,6 +371,7 @@ fn process_program_common_logic(
                             &hint.flow_tracking_data.reference_ids,
                             references,
                             &hint.accessible_scopes,
+                            program.constants.clone(),
                         )
                         .map_err(|err| {
                             HintError::CustomHint(format!("{err} for hint: {}", hint.code).into())
@@ -406,7 +407,6 @@ pub fn setup_subtask_for_execution(
 
     let mut hint_extension = HintExtension::default();
 
-    let subtask_cairo0_constants: Option<HashMap<String, Felt252>>;
     let subtask_cairo1_hint_processor: Option<CairoHintProcessor>;
     match &task {
         Task::Cairo0Program(cairo0_executable) => {
@@ -421,8 +421,6 @@ pub fn setup_subtask_for_execution(
                 hint_processor,
                 &mut hint_extension,
             )?;
-
-            subtask_cairo0_constants = Some(cairo0_executable.program.constants.clone());
             // This task doesn’t require a cairo1 hint processor.
             subtask_cairo1_hint_processor = None;
         }
@@ -450,8 +448,7 @@ pub fn setup_subtask_for_execution(
                 ret_pc,
             )
             .map_err(Into::<HintError>::into)?;
-            // No subtask constants and cairo1 hint processor are used.
-            subtask_cairo0_constants = None;
+            // No cairo1 hint processor is used.
             subtask_cairo1_hint_processor = None;
         }
         Task::Cairo1Program(cairo1_executable) => {
@@ -473,11 +470,9 @@ pub fn setup_subtask_for_execution(
                 subtask_cairo1_hint_processor.as_ref().unwrap(),
                 &mut hint_extension,
             )?;
-            // Push None since no subtask constants are used.
-            subtask_cairo0_constants = None;
         }
     }
-    hint_processor.spawn_subtask(subtask_cairo0_constants, subtask_cairo1_hint_processor);
+    hint_processor.spawn_subtask(subtask_cairo1_hint_processor);
 
     // output_runner_data = prepare_output_runner(
     //     task=task,
@@ -775,12 +770,7 @@ mod tests {
         let mut hint_processor = BootloaderHintProcessor::new();
 
         let hint_extension = hint_processor
-            .execute_hint_extensive(
-                &mut vm,
-                &mut exec_scopes,
-                &any_box!(hint_data),
-                &HashMap::new(),
-            )
+            .execute_hint_extensive(&mut vm, &mut exec_scopes, &any_box!(hint_data))
             .expect("Hint failed unexpectedly");
 
         // Fibonnacci code should be loaded after the header whose size is 5 as checked in

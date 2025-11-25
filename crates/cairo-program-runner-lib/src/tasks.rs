@@ -77,7 +77,7 @@ pub fn create_cairo1_program_task(
         .map(|n| BigInt::from_str(&n.to_string()).unwrap())
         .collect();
 
-    executable
+    let entrypoint = executable
         .entrypoints
         .iter()
         .find(|e| matches!(e.kind, EntryPointKind::Bootloader))
@@ -87,8 +87,7 @@ pub fn create_cairo1_program_task(
                 EntryPointKind::Bootloader
             ))
         })?;
-    let standalone = false;
-    let (program, string_to_hint) = program_and_hints_from_executable(&executable, standalone)
+    let (program, string_to_hint) = program_and_hints_from_executable(&executable, entrypoint)
         .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse executable: {e:?}")))?;
     let user_args = user_args_from_flags(user_args_file.as_ref(), &user_args_list)
         .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse user args: {e:?}")))?;
