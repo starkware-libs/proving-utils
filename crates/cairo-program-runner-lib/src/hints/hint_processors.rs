@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use cairo_lang_runner::CairoHintProcessor;
@@ -11,8 +10,6 @@ use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::runners::cairo_runner::ResourceTracker;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use cairo_vm::Felt252;
-use starknet_types_core::felt::Felt;
 
 use crate::hints::bootloader_hints::{
     assert_is_composite_packed_output, assert_program_address,
@@ -92,7 +89,6 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
         vm: &mut VirtualMachine,
         exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
-        constants: &HashMap<String, Felt252>,
     ) -> Result<(), HintError> {
         let hint_data = hint_data
             .downcast_ref::<HintProcessorData>()
@@ -100,6 +96,7 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
 
         let ids_data = &hint_data.ids_data;
         let ap_tracking = &hint_data.ap_tracking;
+        let constants = &hint_data.constants;
 
         match hint_data.code.as_str() {
             BOOTLOADER_RESTORE_BOOTLOADER_OUTPUT => restore_bootloader_output(vm, exec_scopes),
@@ -274,7 +271,6 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
         vm: &mut VirtualMachine,
         exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
-        _constants: &HashMap<String, Felt252>,
     ) -> Result<(), HintError> {
         let hint_data = hint_data
             .downcast_ref::<HintProcessorData>()
@@ -363,7 +359,6 @@ pub struct BootloaderHintProcessor<'a> {
     builtin_hint_processor: BuiltinHintProcessor,
     test_programs_hint_processor: MinimalTestProgramsHintProcessor,
     pub subtask_cairo1_hint_processor_stack: Vec<Option<CairoHintProcessor<'a>>>,
-    pub subtask_cairo0_constants_stack: Vec<Option<HashMap<String, Felt252>>>,
 }
 
 impl Default for BootloaderHintProcessor<'_> {
@@ -379,7 +374,6 @@ impl<'a> BootloaderHintProcessor<'a> {
             builtin_hint_processor: BuiltinHintProcessor::new_empty(),
             subtask_cairo1_hint_processor_stack: Vec::new(),
             test_programs_hint_processor: MinimalTestProgramsHintProcessor::new(),
-            subtask_cairo0_constants_stack: Vec::new(),
         }
     }
 
@@ -390,20 +384,14 @@ impl<'a> BootloaderHintProcessor<'a> {
     }
 
     /// Push new subtask state onto the stacks.
-    /// Pass an optional constants map and an optional Cairo hint processor.
-    pub fn spawn_subtask(
-        &mut self,
-        constants: Option<HashMap<String, Felt252>>,
-        cairo_hint_processor: Option<CairoHintProcessor<'a>>,
-    ) {
-        self.subtask_cairo0_constants_stack.push(constants);
+    /// Pass an an optional Cairo hint processor.
+    pub fn spawn_subtask(&mut self, cairo_hint_processor: Option<CairoHintProcessor<'a>>) {
         self.subtask_cairo1_hint_processor_stack
             .push(cairo_hint_processor);
     }
 
     /// Pop the current subtask state off the stacks.
     pub fn despawn_subtask(&mut self) {
-        self.subtask_cairo0_constants_stack.pop();
         self.subtask_cairo1_hint_processor_stack.pop();
     }
 }
@@ -414,7 +402,6 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
         _vm: &mut VirtualMachine,
         _exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
-        _constants: &HashMap<String, Felt>,
     ) -> Result<(), HintError> {
         // This method will never be called, but must be defined for `HintProcessorLogic`.
 
@@ -428,30 +415,14 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
         vm: &mut VirtualMachine,
         exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
-        constants: &HashMap<String, Felt>,
     ) -> Result<HintExtension, HintError> {
-        // Cascade through the internal hint processors until we find the hint implementation.
-        let curr_consts = if self.subtask_cairo0_constants_stack.is_empty() {
-            constants
-        } else {
-            self.subtask_cairo0_constants_stack
-                .last()
-                .and_then(|opt| opt.as_ref())
-                .unwrap_or(constants)
-        };
-
         // In case the subtask_cairo_hint_processor is a Some variant, we try matching the hint
         // using it first, for efficiency, since it is assumed to only be Some if we're inside
         // an execution of a cairo1 program subtask.
         if let Some(Some(subtask_cairo_hint_processor)) =
             self.subtask_cairo1_hint_processor_stack.last_mut()
         {
-            match subtask_cairo_hint_processor.execute_hint_extensive(
-                vm,
-                exec_scopes,
-                hint_data,
-                curr_consts,
-            ) {
+            match subtask_cairo_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
                 Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
                 result => {
                     return result;
@@ -459,12 +430,10 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             }
         }
 
-        match self.bootloader_hint_processor.execute_hint_extensive(
-            vm,
-            exec_scopes,
-            hint_data,
-            curr_consts,
-        ) {
+        match self
+            .bootloader_hint_processor
+            .execute_hint_extensive(vm, exec_scopes, hint_data)
+        {
             Err(HintError::UnknownHint(_)) => {}
             result => {
                 return result;
@@ -488,24 +457,18 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             _ => {}
         }
 
-        match self.builtin_hint_processor.execute_hint_extensive(
-            vm,
-            exec_scopes,
-            hint_data,
-            curr_consts,
-        ) {
+        match self
+            .builtin_hint_processor
+            .execute_hint_extensive(vm, exec_scopes, hint_data)
+        {
             Err(HintError::UnknownHint(_)) => {}
             result => {
                 return result;
             }
         }
 
-        self.test_programs_hint_processor.execute_hint_extensive(
-            vm,
-            exec_scopes,
-            hint_data,
-            curr_consts,
-        )
+        self.test_programs_hint_processor
+            .execute_hint_extensive(vm, exec_scopes, hint_data)
     }
 }
 

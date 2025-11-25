@@ -614,11 +614,8 @@ mod tests {
             offset: 10,
         };
 
-        let result =
-            configure_fact_topologies(&fact_topologies, &mut output_start, &mut output_builtin)
-                .expect("Configuring fact topologies failed unexpectedly");
-
-        assert_eq!(result, ());
+        configure_fact_topologies(&fact_topologies, &mut output_start, &mut output_builtin)
+            .expect("Configuring fact topologies failed unexpectedly");
 
         // We expect the offset to 2 + sum(page_sizes) for each fact topology
         let expected_offset: usize = fact_topologies.iter().flat_map(|ft| &ft.page_sizes).sum();
