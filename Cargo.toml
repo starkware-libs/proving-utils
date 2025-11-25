@@ -9,16 +9,18 @@ resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-bincode = { version = "2.0.1", features = [
-    "serde",
-] }
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "25651700af2669ffe8063de1252ce5719fd79883" }
+bincode = { version = "2.0.1", features = ["serde"] }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "745ed4b5adc96a6f1f7e7c1b3fd69644dce320a7" }
 cairo-lang-executable = "=2.12.4-dev.1"
 cairo-lang-runner = "=2.12.4-dev.1"
 cairo-lang-casm = "=2.12.4-dev.1"
 cairo-lang-execute-utils = "=2.12.4-dev.1"
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib" }
-cairo-vm = { version = "=3.0.0-rc.3", features = ["extensive_hints", "mod_builtin", "clap"] }
+cairo-vm = { version = "=3.0.0-rc.3", features = [
+    "extensive_hints",
+    "mod_builtin",
+    "clap",
+] }
 clap = { version = "4.3.10", features = ["derive"] }
 ctor = "0.2"
 env_logger = "0.11.3"
@@ -32,14 +34,13 @@ sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
 starknet-types-core = "=0.2.0"
-stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "25651700af2669ffe8063de1252ce5719fd79883" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "25651700af2669ffe8063de1252ce5719fd79883" }
-stwo_cairo_prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "25651700af2669ffe8063de1252ce5719fd79883" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "25651700af2669ffe8063de1252ce5719fd79883" }
+stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "745ed4b5adc96a6f1f7e7c1b3fd69644dce320a7" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "745ed4b5adc96a6f1f7e7c1b3fd69644dce320a7" }
+stwo_cairo_prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "745ed4b5adc96a6f1f7e7c1b3fd69644dce320a7" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "745ed4b5adc96a6f1f7e7c1b3fd69644dce320a7" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
 tracing = "0.1.40"
 mockall = "0.13.1"
 rstest = "0.21"
-
