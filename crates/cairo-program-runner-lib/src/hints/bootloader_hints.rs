@@ -919,12 +919,7 @@ mod tests {
             HintProcessorData::new_default(String::from(BOOTLOADER_SAVE_OUTPUT_POINTER), ids_data);
         let mut hint_processor = MinimalBootloaderHintProcessor::new();
         assert!(matches!(
-            hint_processor.execute_hint(
-                &mut vm,
-                &mut exec_scopes,
-                &any_box!(hint_data),
-                &HashMap::new(),
-            ),
+            hint_processor.execute_hint(&mut vm, &mut exec_scopes, &any_box!(hint_data),),
             Ok(())
         ));
 
@@ -970,12 +965,7 @@ mod tests {
         );
         let mut hint_processor = MinimalBootloaderHintProcessor::new();
         assert!(matches!(
-            hint_processor.execute_hint(
-                &mut vm,
-                &mut exec_scopes,
-                &any_box!(hint_data),
-                &HashMap::new(),
-            ),
+            hint_processor.execute_hint(&mut vm, &mut exec_scopes, &any_box!(hint_data),),
             Ok(())
         ));
 
@@ -1073,12 +1063,7 @@ mod tests {
         );
         let mut hint_processor = MinimalBootloaderHintProcessor::new();
         assert!(matches!(
-            hint_processor.execute_hint(
-                &mut vm,
-                &mut exec_scopes,
-                &any_box!(hint_data),
-                &HashMap::new(),
-            ),
+            hint_processor.execute_hint(&mut vm, &mut exec_scopes, &any_box!(hint_data),),
             Ok(())
         ));
 
@@ -1118,12 +1103,7 @@ mod tests {
         let mut hint_processor = MinimalBootloaderHintProcessor::new();
 
         assert!(matches!(
-            hint_processor.execute_hint(
-                &mut vm,
-                &mut exec_scopes,
-                &any_box!(hint_data),
-                &HashMap::new(),
-            ),
+            hint_processor.execute_hint(&mut vm, &mut exec_scopes, &any_box!(hint_data),),
             Ok(())
         ));
 
@@ -1201,12 +1181,7 @@ mod tests {
         );
         let mut hint_processor = MinimalBootloaderHintProcessor::new();
 
-        let result = hint_processor.execute_hint(
-            &mut vm,
-            &mut exec_scopes,
-            &any_box!(hint_data),
-            &HashMap::new(),
-        );
+        let result = hint_processor.execute_hint(&mut vm, &mut exec_scopes, &any_box!(hint_data));
 
         match result {
             Ok(_) => assert!(!expect_fail),
