@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/more_optimization_flags
 
 jobs:
   artifacts-push:
@@ -22,7 +22,7 @@ jobs:
 
       - name: Build all generic binaries
         run: |
-          cargo build --release
+          RUSTFLAGS="-C opt-level=3 -C codegen-units=1" cargo build --release
 
       - name: Authenticate with GCS
         uses: "google-github-actions/auth@v2"
