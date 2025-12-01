@@ -4,6 +4,8 @@ members = [
     "crates/cairo-program-runner-lib",
     "crates/stwo_run_and_prove",
     "crates/vm_runner",
+    "crates/concat-aggregator",
+    "crates/cairo-compile-utils",
 ]
 resolver = "2"
 
