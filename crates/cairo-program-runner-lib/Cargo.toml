@@ -3,6 +3,13 @@ name = "cairo-program-runner-lib"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "benchmark_runner"
+path = "scripts/benchmark_runner.rs"
+
+[[bin]]
+name = "benchmark_run_and_prove"
+path = "scripts/benchmark_run_and_prove.rs"
 
 [dependencies]
 bincode.workspace = true
