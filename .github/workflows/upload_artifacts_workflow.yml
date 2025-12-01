@@ -22,7 +22,7 @@ jobs:
 
       - name: Build all generic binaries
         run: |
-          cargo build --release
+          RUSTFLAGS="-C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cargo build --release
 
       - name: Authenticate with GCS
         uses: "google-github-actions/auth@v2"
@@ -52,7 +52,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for znver5 architecture
         run: |
-          RUSTFLAGS="-C target-cpu=znver5 -C opt-level=3 -C codegen-units=1" cross build --release --bin stwo_run_and_prove
+          RUSTFLAGS="-C target-cpu=znver5 -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_znver5 binary to GCP
         id: upload_stwo_run_and_prove_znver5
@@ -63,7 +63,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for znver3 architecture
         run: |
-          RUSTFLAGS="-C target-cpu=znver3 -C opt-level=3 -C codegen-units=1" cross build --release --bin stwo_run_and_prove
+          RUSTFLAGS="-C target-cpu=znver3 -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_znver3 binary to GCP
         id: upload_stwo_run_and_prove_znver3
@@ -74,7 +74,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for emeraldrapids architecture
         run: |
-          RUSTFLAGS="-C target-cpu=emeraldrapids -C opt-level=3 -C codegen-units=1" cross build --release --bin stwo_run_and_prove
+          RUSTFLAGS="-C target-cpu=emeraldrapids -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_emeraldrapids binary to GCP
         id: upload_stwo_run_and_prove_emeraldrapids
@@ -85,7 +85,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for sapphirerapids architecture
         run: |
-          RUSTFLAGS="-C target-cpu=sapphirerapids -C opt-level=3 -C codegen-units=1" cross build --release --bin stwo_run_and_prove
+          RUSTFLAGS="-C target-cpu=sapphirerapids -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_sapphirerapids binary to GCP
         id: upload_stwo_run_and_prove_sapphirerapids
