@@ -12,11 +12,18 @@ use cairo_vm::vm::runners::cairo_runner::CairoRunner;
 use clap::Parser;
 #[cfg(test)]
 use mockall::automock;
-#[cfg(test)]
-use std::env;
+use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Read;
+#[cfg(not(test))]
+use std::io::Write;
+#[cfg(not(test))]
+use std::path::Path;
 use std::path::PathBuf;
+use std::process;
 use std::process::ExitCode;
+#[cfg(not(test))]
+use std::process::{Command, Stdio};
 use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapt;
 use stwo_cairo_prover::prover::create_and_serialize_proof;
@@ -29,6 +36,8 @@ use tracing::{Level, error, info, span, warn};
 static PROOF_PREFIX: &str = "proof_";
 static SUCCESS_SUFFIX: &str = "_success";
 static FAILURE_SUFFIX: &str = "_failure";
+static EXIT_OK: i32 = 0;
+static EXIT_ERROR: i32 = 1;
 
 fn parse_usize_ge1(s: &str) -> Result<usize, String> {
     let v: usize = s.parse().map_err(|_| "must be a number".to_string())?;
@@ -139,6 +148,7 @@ impl From<(IoErrorWithPath, PathBuf)> for StwoRunAndProveError {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 struct ProveConfig {
     proofs_dir: PathBuf,
     proof_format: ProofFormat,
@@ -147,7 +157,20 @@ struct ProveConfig {
     prover_params_json: Option<PathBuf>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct ChildJob {
+    prover_input: ProverInput,
+    prove_config: ProveConfig,
+    proof_path: PathBuf,
+}
+
 fn main() -> ExitCode {
+    let argv: Vec<String> = std::env::args().collect();
+    // Child mode
+    if argv.contains(&"--child-mode".to_string()) {
+        run_child_once();
+    }
+    // Main mode
     run_binary(run, "stwo_run_and_prove")
 }
 
@@ -254,7 +277,7 @@ fn single_proving_attempt(
     attempt_number: usize,
     prover_input: &ProverInput,
     prove_config: &ProveConfig,
-    prover: &dyn ProverTrait,
+    _prover: &dyn ProverTrait,
 ) -> Result<(), StwoRunAndProveError> {
     let _attempt_span = span!(
         Level::INFO,
@@ -266,17 +289,32 @@ fn single_proving_attempt(
     let proof_file_path = prove_config
         .proofs_dir
         .join(format!("{PROOF_PREFIX}{attempt_number}"));
+
+    let result: Result<(), StwoRunAndProveError> = {
+        #[cfg(test)]
+        {
+            // In tests: use the mocks.  # TODO (Nitsan): Check if it's necessary.
+            _prover.create_and_serialize_proof(
+                prover_input.clone(),
+                prove_config.verify,
+                proof_file_path.clone(),
+                prove_config.proof_format.clone(),
+                prove_config.prover_params_json.clone(),
+            )
+        }
+
+        #[cfg(not(test))]
+        {
+            // In production: spawn the child process.
+            run_child_attempt(prover_input, prove_config, &proof_file_path)
+        }
+    };
+
     let proof_file_name = proof_file_path
         .file_name()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no file name"))?;
 
-    match prover.create_and_serialize_proof(
-        prover_input.clone(),
-        prove_config.verify,
-        proof_file_path.clone(),
-        prove_config.proof_format.clone(),
-        prove_config.prover_params_json.clone(),
-    ) {
+    match result {
         Ok(()) => {
             info!(
                 "Proof generated and verified successfully on attempt {}/{}",
@@ -287,10 +325,9 @@ fn single_proving_attempt(
                 proof_file_name.to_string_lossy(),
                 SUCCESS_SUFFIX
             ));
-            fs::rename(proof_file_path, &success_path)?;
+            fs::rename(&proof_file_path, &success_path)?;
             Ok(())
         }
-
         Err(e) => {
             if proof_file_path.exists() {
                 let failure_path = proof_file_path.with_file_name(format!(
@@ -298,11 +335,75 @@ fn single_proving_attempt(
                     proof_file_name.to_string_lossy(),
                     FAILURE_SUFFIX
                 ));
-                fs::rename(proof_file_path, &failure_path)?;
+                let _ = fs::rename(&proof_file_path, &failure_path);
             }
             Err(e)
         }
     }
+}
+
+/// TODO(Nitsan): Add documantation
+#[cfg(not(test))]
+fn run_child_attempt(
+    prover_input: &ProverInput,
+    prove_config: &ProveConfig,
+    proof_file_path: &Path,
+) -> Result<(), StwoRunAndProveError> {
+    // Build the job inputs
+    let job = ChildJob {
+        prover_input: prover_input.clone(),
+        prove_config: prove_config.clone(),
+        proof_path: proof_file_path.to_path_buf(),
+    };
+
+    let job_json = sonic_rs::to_string(&job)?;
+    let exe = std::env::current_exe()?;
+
+    let mut child = Command::new(exe)
+        .arg("--child-mode")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| StwoRunAndProveError::from((e, prove_config.proofs_dir.clone())))?;
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(job_json.as_bytes())?;
+
+    let status = child.wait()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(StwoRunAndProveError::Anyhow(anyhow::anyhow!(
+            "child proving process failed with status {:?}",
+            status.code(),
+        )))
+    }
+}
+
+/// TODO(Nitsan): Add documantation
+fn run_child_once() -> ! {
+    let mut json = String::new();
+    std::io::stdin().read_to_string(&mut json).unwrap();
+
+    let ChildJob {
+        prover_input,
+        prove_config,
+        proof_path,
+    } = sonic_rs::from_str(&json).unwrap();
+
+    let prover = StwoProverEntryPoint;
+    let res = prover.create_and_serialize_proof(
+        prover_input,
+        prove_config.verify,
+        proof_path,
+        prove_config.proof_format,
+        prove_config.prover_params_json,
+    );
+
+    process::exit(if res.is_ok() { EXIT_OK } else { EXIT_ERROR });
 }
 
 #[cfg_attr(test, automock)]
@@ -367,6 +468,7 @@ mod tests {
     use super::*;
     use ctor::ctor;
     use rstest::rstest;
+    use std::env::current_dir;
     use std::fs;
     use stwo_cairo_utils::logging_utils::init_logging;
     use tempfile::{NamedTempFile, TempDir, TempPath};
@@ -383,7 +485,7 @@ mod tests {
     }
 
     fn get_path(file_name: &str) -> PathBuf {
-        let current_path = env::current_dir().expect("failed to get current directory");
+        let current_path = current_dir().expect("failed to get current directory");
         current_path.join(RESOURCES_PATH).join(file_name)
     }
 
