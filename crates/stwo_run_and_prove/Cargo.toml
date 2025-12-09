@@ -12,6 +12,7 @@ clap.workspace = true
 env_logger.workspace = true
 log.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 sonic-rs.workspace = true
 starknet-ff.workspace = true
 stwo_cairo_prover.workspace = true
@@ -22,6 +23,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+assert-json-diff.workspace = true
 ctor.workspace = true
 mockall.workspace = true
 rstest.workspace = true

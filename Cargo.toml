@@ -9,6 +9,7 @@ resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
+assert-json-diff = "2.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "6b45dd698a31d76c43f1e400cdb7ed8c23f97157" }
 cairo-lang-executable = "=2.14.1-dev.0"
