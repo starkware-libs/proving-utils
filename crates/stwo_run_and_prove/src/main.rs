@@ -26,6 +26,8 @@ use stwo_cairo_utils::file_utils::IoErrorWithPath;
 use thiserror::Error;
 use tracing::{Level, error, info, span};
 
+static PROVER_INPUT_FILE_NAME: &str = "prover_input.json";
+
 /// This binary runs a cairo program and generates a Stwo proof for it.
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -56,6 +58,17 @@ struct Args {
         help = "Optional absolute path for the program output."
     )]
     program_output: Option<PathBuf>,
+    #[clap(
+        long = "save_debug_data",
+        help = "Should save the CairoRunner and ProverInput to files."
+    )]
+    save_debug_data: bool,
+    #[clap(
+        long = "debug_data_dir",
+        help = "Absolute path to the output directory where the ProverInput will be saved in the
+        case of a proving error, or when the save_debug_data flag is enabled."
+    )]
+    debug_data_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Error)]
@@ -145,18 +158,24 @@ fn run() -> Result<(), StwoRunAndProveError> {
         args.program_output,
         prove_config,
         stwo_prover,
+        args.debug_data_dir,
+        args.save_debug_data,
     )?;
     Ok(())
 }
 
 /// Runs the program and generates a proof for it, then saves the proof to the given path.
-/// If `program_output` is provided, saves the program output to that path.
+/// If `debug_data_dir` is provided, and there is a proving error or the `save_debug_data` flag is
+/// enabled, saves the debug data to that path.
+/// If `program_output` is provided, the program output to that path.
 fn stwo_run_and_prove(
     program_path: PathBuf,
     program_input: Option<PathBuf>,
     program_output: Option<PathBuf>,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
+    debug_data_dir: Option<PathBuf>,
+    save_debug_data: bool,
 ) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
@@ -179,12 +198,28 @@ fn stwo_run_and_prove(
         .map_err(|e| StwoRunAndProveError::from((e, program_input.unwrap_or_default())))?;
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let prover_input = adapt(&runner)?;
-    prove(prover_input, prove_config, prover)?;
-    if let Some(output_path) = program_output {
+    let result = prove(prover_input.clone(), prove_config, prover);
+
+    if let Some(data_dir) = debug_data_dir
+        && (result.is_err() || save_debug_data)
+    {
+        // create the directory if it doesn't exist.
+        std::fs::create_dir_all(&data_dir)?;
+        let prover_input_path = data_dir.join(PROVER_INPUT_FILE_NAME);
+        std::fs::write(
+            &prover_input_path,
+            sonic_rs::to_string_pretty(&prover_input)?,
+        )
+        .map_err(|e| StwoRunAndProveError::from((e, data_dir)))?;
+    }
+
+    if let Some(output_path) = program_output
+        && result.is_ok()
+    {
         write_output_to_file(runner, output_path)?;
     }
 
-    Ok(())
+    result
 }
 
 /// Prepares the prover parameters and generates a proof given the prover input and parameters.
@@ -295,14 +330,17 @@ fn is_file_missing_or_empty(path: &PathBuf) -> std::io::Result<bool> {
 mod tests {
     use super::*;
     use ctor::ctor;
+    use serde_json::Value;
+    use std::cmp::Ordering;
     use stwo_cairo_utils::logging_utils::init_logging;
-    use tempfile::{NamedTempFile, TempPath};
+    use tempfile::{NamedTempFile, TempDir, TempPath};
 
     const ARRAY_SUM_EXPECTED_OUTPUT: [Felt252; 1] = [Felt252::from_hex_unchecked("0x32")];
     const RESOURCES_PATH: &str = "resources";
     const PROGRAM_FILE_NAME: &str = "array_sum.json";
     const PROVER_PARAMS_FILE_NAME: &str = "prover_params.json";
     const EXPECTED_PROOF_FILE_NAME: &str = "array_sum_proof";
+    const EXPECTED_PROVER_INPUT_FILE_NAME: &str = "prover_input.json";
 
     #[ctor]
     fn init_logging_once() {
@@ -314,13 +352,15 @@ mod tests {
         current_path.join(RESOURCES_PATH).join(file_name)
     }
 
-    fn prepare_args() -> (Args, TempPath, TempPath) {
+    fn prepare_args() -> (Args, TempPath, TempPath, TempDir) {
         let program_output_tempfile = NamedTempFile::new()
             .expect("Failed to create temp file for program output")
             .into_temp_path();
         let proof_tempfile = NamedTempFile::new()
             .expect("Failed to create temp file for proof")
             .into_temp_path();
+        let debug_data_tempdir =
+            TempDir::new().expect("Failed to create temp directory for debug data");
         let args = Args {
             program: get_path(PROGRAM_FILE_NAME),
             program_input: None,
@@ -328,10 +368,17 @@ mod tests {
             prover_params_json: Some(get_path(PROVER_PARAMS_FILE_NAME)),
             proof_path: proof_tempfile.to_path_buf(),
             proof_format: ProofFormat::CairoSerde,
+            save_debug_data: false,
+            debug_data_dir: Some(debug_data_tempdir.path().to_path_buf()),
             verify: true,
         };
 
-        (args, program_output_tempfile, proof_tempfile)
+        (
+            args,
+            program_output_tempfile,
+            proof_tempfile,
+            debug_data_tempdir,
+        )
     }
 
     fn run_stwo_run_and_prove(
@@ -351,11 +398,13 @@ mod tests {
             args.program_output,
             prove_config,
             prover,
+            args.debug_data_dir,
+            args.save_debug_data,
         )
     }
 
-    fn run_with_successful_mock_prover() -> (TempPath, TempPath) {
-        let (args, program_output_tempfile, proof_tempfile) = prepare_args();
+    fn run_with_successful_mock_prover() -> (TempPath, TempPath, TempDir) {
+        let (args, program_output_tempfile, proof_tempfile, debug_data_tempdir) = prepare_args();
 
         let mut mock_prover = Box::new(MockProverTrait::new());
         mock_prover
@@ -369,11 +418,11 @@ mod tests {
 
         run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
 
-        (program_output_tempfile, proof_tempfile)
+        (program_output_tempfile, proof_tempfile, debug_data_tempdir)
     }
 
-    fn run_with_failed_mock_prover() -> (TempPath, TempPath) {
-        let (args, program_output_tempfile, proof_tempfile) = prepare_args();
+    fn run_with_failed_mock_prover() -> (TempPath, TempPath, TempDir) {
+        let (args, program_output_tempfile, proof_tempfile, debug_data_tempdir) = prepare_args();
 
         let mut mock_prover = Box::new(MockProverTrait::new());
         mock_prover
@@ -391,12 +440,41 @@ mod tests {
             "run and prove should return Err(StwoRunAndProveError::Anyhow), but got: {result:?}",
         );
 
-        (program_output_tempfile, proof_tempfile)
+        (program_output_tempfile, proof_tempfile, debug_data_tempdir)
+    }
+
+    /// Sorts all-numeric arrays in the Json.
+    fn normalize_json(value: &mut Value) {
+        match value {
+            Value::Object(map) => {
+                // Recurse into all values of the object
+                for v in map.values_mut() {
+                    normalize_json(v);
+                }
+            }
+            Value::Array(arr) => {
+                // If this array is all numbers, sort it
+                if arr.iter().all(|v| v.is_number()) {
+                    arr.sort_by(|a, b| {
+                        let a = a.as_f64().unwrap();
+                        let b = b.as_f64().unwrap();
+                        a.partial_cmp(&b).unwrap_or(Ordering::Equal)
+                    });
+                }
+                // Recurse into each element (in case they are objects/arrays)
+                for v in arr.iter_mut() {
+                    normalize_json(v);
+                }
+            }
+            _ => {
+                // Primitives (String, Number, Bool, Null) – nothing to do
+            }
+        }
     }
 
     #[test]
     fn test_stwo_run_and_prove() {
-        let (output_tempfile, proof_tempfile) = run_with_successful_mock_prover();
+        let (output_tempfile, proof_tempfile, _) = run_with_successful_mock_prover();
 
         // Verifying the proof content.
         let proof_content =
@@ -422,7 +500,7 @@ mod tests {
 
     #[test]
     fn test_stwo_run_and_prove_proving_failure() {
-        let (output_tempfile, proof_tempfile) = run_with_failed_mock_prover();
+        let (output_tempfile, proof_tempfile, debug_data_tempdir) = run_with_failed_mock_prover();
 
         assert!(
             is_file_empty(&proof_tempfile.to_path_buf()).unwrap(),
@@ -431,6 +509,41 @@ mod tests {
         assert!(
             is_file_empty(&output_tempfile.to_path_buf()).unwrap(),
             "Output file should be empty after running with proving failure",
+        );
+
+        // Verifying the prover input content.
+        let prover_input_file = debug_data_tempdir.path().join(PROVER_INPUT_FILE_NAME);
+        let prover_input_content =
+            std::fs::read(prover_input_file).expect("Failed to read prover input file");
+        let mut prover_input_json: serde_json::Value =
+            serde_json::from_slice(&prover_input_content)
+                .expect("Failed to parse prover input JSON");
+        normalize_json(&mut prover_input_json);
+
+        let expected_prover_input_file = get_path(EXPECTED_PROVER_INPUT_FILE_NAME);
+        let expected_prover_input_content = std::fs::read(expected_prover_input_file)
+            .expect("Failed to read expected prover input file");
+        let mut expected_paover_input_json: Value =
+            serde_json::from_slice(&expected_prover_input_content)
+                .expect("Failed to parse expected prover input JSON");
+        normalize_json(&mut expected_paover_input_json);
+
+        assert_eq!(
+            prover_input_json, expected_paover_input_json,
+            "Prover input JSON does not match expected prover input JSON."
+        );
+    }
+
+    #[test]
+    fn test_debug_data_file_name() {
+        // DO NOT CHANGE THIS VALUE UNLESS IT WAS CHANGED IN ALL THE PLACES THAT CALL THIS BINARY
+        let expected_prover_input_file_name: &str = "prover_input.json";
+
+        assert_eq!(
+            PROVER_INPUT_FILE_NAME, expected_prover_input_file_name,
+            "The PROVER_INPUT_FILE_NAME constant value has changed. This change will break all the
+            places that call this binary. Such a change should not happen often, so please make sure
+            it's absolutely necessary, and update all the places that call this binary accordingly."
         );
     }
 }
