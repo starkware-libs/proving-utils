@@ -17,12 +17,9 @@ jobs:
         run: |
           echo "SHORT_HASH=${COMMIT_SHA:0:7}" >> $GITHUB_ENV
 
-      - name: Install cross
-        run: cargo install cross
-
       - name: Build all generic binaries
         run: |
-          RUSTFLAGS="-C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cargo build --release
+          cargo build --release
 
       - name: Authenticate with GCS
         uses: "google-github-actions/auth@v2"
@@ -52,7 +49,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for znver5 architecture
         run: |
-          RUSTFLAGS="-C target-cpu=znver5 -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=znver5" cargo build --release --target x86_64-unknown-linux-gnu --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_znver5 binary to GCP
         id: upload_stwo_run_and_prove_znver5
@@ -63,7 +60,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for znver3 architecture
         run: |
-          RUSTFLAGS="-C target-cpu=znver3 -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=znver3" cargo build --release --target x86_64-unknown-linux-gnu --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_znver3 binary to GCP
         id: upload_stwo_run_and_prove_znver3
@@ -74,7 +71,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for emeraldrapids architecture
         run: |
-          RUSTFLAGS="-C target-cpu=emeraldrapids -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=emeraldrapids" cargo build --release --target x86_64-unknown-linux-gnu --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_emeraldrapids binary to GCP
         id: upload_stwo_run_and_prove_emeraldrapids
@@ -85,7 +82,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for sapphirerapids architecture
         run: |
-          RUSTFLAGS="-C target-cpu=sapphirerapids -C opt-level=3 -C codegen-units=1 -C embed-bitcode -C lto=fat -Zdylib-lto" cross build --release --bin stwo_run_and_prove
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=sapphirerapids" cargo build --release --target x86_64-unknown-linux-gnu --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_sapphirerapids binary to GCP
         id: upload_stwo_run_and_prove_sapphirerapids
@@ -93,3 +90,14 @@ jobs:
         with:
           path: "target/x86_64-unknown-linux-gnu/release/stwo_run_and_prove"
           destination: "stwo_run_and_prove_sapphirerapids_artifacts/${{ env.SHORT_HASH }}/release"
+
+      - name: Build stwo_run_and_prove for graniterapids architecture
+        run: |
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=graniterapids" cargo build --release --target x86_64-unknown-linux-gnu --bin stwo_run_and_prove
+
+      - name: Upload stwo_run_and_prove_graniterapids binary to GCP
+        id: upload_stwo_run_and_prove_graniterapids
+        uses: "google-github-actions/upload-cloud-storage@v2"
+        with:
+          path: "target/x86_64-unknown-linux-gnu/release/stwo_run_and_prove"
+          destination: "stwo_run_and_prove_graniterapids_artifacts/${{ env.SHORT_HASH }}/release"
