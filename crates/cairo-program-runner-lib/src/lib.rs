@@ -37,6 +37,8 @@ pub fn cairo_run_program(
     program_input_contents: Option<String>,
     cairo_run_config: CairoRunConfig,
 ) -> Result<CairoRunner, CairoRunError> {
+    let _span = span!(Level::INFO, "cairo_run_program").entered();
+
     let mut hint_processor = BootloaderHintProcessor::new();
 
     let mut exec_scopes = ExecutionScopes::new();

@@ -2,13 +2,13 @@ use anyhow::Result;
 use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
-use cairo_vm::Felt252;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
 use cairo_vm::vm::runners::cairo_runner::CairoRunner;
+use cairo_vm::Felt252;
 use clap::Parser;
 #[cfg(test)]
 use mockall::automock;
@@ -17,14 +17,14 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapt;
+use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_prover::prover::create_and_serialize_proof;
 use stwo_cairo_prover::stwo::prover::ProvingError;
 use stwo_cairo_utils::binary_utils::run_binary;
 use stwo_cairo_utils::file_utils::IoErrorWithPath;
 use thiserror::Error;
-use tracing::{Level, error, info, span, warn};
+use tracing::{error, info, span, warn, Level};
 
 static PROOF_PREFIX: &str = "proof_";
 static SUCCESS_SUFFIX: &str = "_success";
@@ -183,6 +183,7 @@ fn stwo_run_and_prove(
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
 ) -> Result<(), StwoRunAndProveError> {
+    let _span = span!(Level::INFO, "stwo_run_and_prove").entered();
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
