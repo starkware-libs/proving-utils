@@ -5,6 +5,7 @@ use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_pro
 use cairo_vm::Felt252;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
+use cairo_vm::types::program::Program;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
@@ -134,7 +135,8 @@ fn run() -> Result<(), StwoRunAndProveError> {
     Ok(())
 }
 
-/// Runs the program and generates a proof for it, then saves the proof to the given path.
+/// Runs the program and prover_input from a file path and generates a proof for it, then saves the
+/// proof to the given path.
 /// If `debug_data_dir` is provided, and there is a proving error or the `save_debug_data` flag is
 /// enabled, saves the debug data to that path.
 /// If `program_output` is provided, the program output to that path.
@@ -148,6 +150,33 @@ fn stwo_run_and_prove(
     save_debug_data: bool,
 ) -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "stwo_run_and_prove").entered();
+    let program = get_program(program_path.as_path())
+        .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
+    let program_input = get_program_input(&program_input)
+        .map_err(|e| StwoRunAndProveError::PathIO(e, program_input.unwrap_or_default()))?;
+
+    stwo_run_and_prove_in_memory(
+        program,
+        program_input,
+        program_output,
+        prove_config,
+        prover,
+        debug_data_dir,
+        save_debug_data,
+    )
+}
+
+/// Runs the program and generates a proof for it using deserialized objects directly.
+/// If `program_output` is provided, saves the program output to that path.
+fn stwo_run_and_prove_in_memory(
+    program: Program,
+    program_input: Option<String>,
+    program_output: Option<PathBuf>,
+    prove_config: ProveConfig,
+    prover: Box<dyn ProverTrait>,
+    debug_data_dir: Option<PathBuf>,
+    save_debug_data: bool,
+) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -163,10 +192,6 @@ fn stwo_run_and_prove(
         false,
     )?;
 
-    let program = get_program(program_path.as_path())
-        .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
-    let program_input = get_program_input(&program_input)
-        .map_err(|e| StwoRunAndProveError::PathIO(e, program_input.unwrap_or_default()))?;
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let prover_input = adapt(&runner)?;
     let result = prove(prover_input.clone(), prove_config, prover);
