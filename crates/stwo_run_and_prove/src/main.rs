@@ -5,6 +5,7 @@ use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_pro
 use cairo_vm::Felt252;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
+use cairo_vm::types::program::Program;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
@@ -158,6 +159,24 @@ fn stwo_run_and_prove(
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
 ) -> Result<(), StwoRunAndProveError> {
+    let program = get_program(program_path.as_path())
+        .map_err(|e| StwoRunAndProveError::from((e, program_path)))?;
+    let program_input = get_program_input(&program_input)
+        .map_err(|e| StwoRunAndProveError::from((e, program_input.unwrap_or_default())))?;
+
+    stwo_run_and_prove_inner(program, program_input, program_output, prove_config, prover)
+}
+
+/// Runs the program and generates a proof for it using deserialized objects directly.
+/// Takes a `Program` and optional program input string instead of file paths.
+/// If `program_output` is provided, saves the program output to that path.
+fn stwo_run_and_prove_inner(
+    program: Program,
+    program_input: Option<String>,
+    program_output: Option<PathBuf>,
+    prove_config: ProveConfig,
+    prover: Box<dyn ProverTrait>,
+) -> Result<(), StwoRunAndProveError> {
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -173,10 +192,6 @@ fn stwo_run_and_prove(
         false,
     )?;
 
-    let program = get_program(program_path.as_path())
-        .map_err(|e| StwoRunAndProveError::from((e, program_path)))?;
-    let program_input = get_program_input(&program_input)
-        .map_err(|e| StwoRunAndProveError::from((e, program_input.unwrap_or_default())))?;
     let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let prover_input = adapt(&runner)?;
     prove(prover_input, prove_config, prover)?;
