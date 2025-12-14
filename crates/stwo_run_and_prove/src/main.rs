@@ -147,6 +147,7 @@ fn stwo_run_and_prove(
     debug_data_dir: Option<PathBuf>,
     save_debug_data: bool,
 ) -> Result<(), StwoRunAndProveError> {
+    let _span = span!(Level::INFO, "stwo_run_and_prove").entered();
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -476,7 +477,7 @@ mod tests {
         assert!(
             file_exists(&debug_data_tempdir.path().join(PROVER_INPUT_FILE_NAME)),
             "Prover input file was not created in the debug data directory, or was created with an
-            incorrect name, after running with a proving failure. NOTE: Changing the file name may 
+            incorrect name, after running with a proving failure. NOTE: Changing the file name may
             break external dependencies.",
         );
 
