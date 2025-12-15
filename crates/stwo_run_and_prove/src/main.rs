@@ -92,7 +92,7 @@ enum StwoRunAndProveError {
     Anyhow(#[from] anyhow::Error),
 }
 
-// Implement From<Box<CairoRunError>> manually
+// Implement From<Box<CairoRunError>> manually.
 impl From<CairoRunError> for StwoRunAndProveError {
     fn from(err: CairoRunError) -> Self {
         StwoRunAndProveError::CairoRun(Box::new(err))
