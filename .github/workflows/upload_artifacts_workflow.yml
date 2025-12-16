@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - or/bump_version_bitwise_mem_optimization
+      - or/test_mem_optimization_using_arc
 
 jobs:
   artifacts-push:
