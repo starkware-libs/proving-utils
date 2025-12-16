@@ -26,3 +26,8 @@ ctor.workspace = true
 mockall.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
+
+[profile.release]
+debug = true           # enables debuginfo, same as -g
+strip = false          # keep symbols
+opt-level = 3

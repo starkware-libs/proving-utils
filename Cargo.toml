@@ -10,7 +10,7 @@ resolver = "2"
 [workspace.dependencies]
 anyhow = "1.0.98"
 bincode = { version = "2.0.1", features = ["serde"] }
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "6b45dd698a31d76c43f1e400cdb7ed8c23f97157" }
+cairo-air = { path = "../stwo-cairo/stwo_cairo_prover/crates/cairo-air" }
 cairo-lang-executable = "=2.14.1-dev.0"
 cairo-lang-runner = "=2.14.1-dev.0"
 cairo-lang-casm = "=2.14.1-dev.0"
@@ -34,13 +34,21 @@ sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
 starknet-types-core = "=0.2.4"
-stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "6b45dd698a31d76c43f1e400cdb7ed8c23f97157" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "6b45dd698a31d76c43f1e400cdb7ed8c23f97157" }
-stwo_cairo_prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "6b45dd698a31d76c43f1e400cdb7ed8c23f97157" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "6b45dd698a31d76c43f1e400cdb7ed8c23f97157" }
+stwo_cairo_utils = {path = "../stwo-cairo/stwo_cairo_prover/crates/utils"}
+stwo-cairo-adapter = {path = "../stwo-cairo/stwo_cairo_prover/crates/adapter" }
+stwo_cairo_prover = {path = "../stwo-cairo/stwo_cairo_prover/crates/prover" }
+stwo-cairo-serialize = {path = "../stwo-cairo/stwo_cairo_prover/crates/cairo-serialize" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
 tracing = "0.1.40"
 mockall = "0.13.1"
 rstest = "0.21"
+
+[profile.release]
+debug = true           # enables debuginfo, same as -g
+strip = false          # keep symbols
+opt-level = 3
+[profile.samply]
+inherits = "release"
+debug = true
