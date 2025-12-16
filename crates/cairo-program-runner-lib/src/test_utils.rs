@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::hints::types::Task;
 use crate::hints::vars;
 use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
@@ -83,7 +85,7 @@ pub fn get_hint_codes_at_pc(hint_extension: &HintExtension, pc: Relocatable) -> 
 /// The `task` is inserted into the execution scopes. `load_program_hint` should succeed after this
 /// function.
 pub fn prepare_vm_for_load_program_loading_test(
-    task: Task,
+    task: Rc<Task>,
 ) -> (
     VirtualMachine,
     std::collections::HashMap<String, HintReference>,
@@ -91,7 +93,7 @@ pub fn prepare_vm_for_load_program_loading_test(
     ApTracking,
     usize,       // expected_program_data_segment_index
     Relocatable, // program_header_ptr
-    Task,
+    Rc<Task>,
 ) {
     let mut vm = VirtualMachine::new(false, false);
     vm.set_fp(3);
