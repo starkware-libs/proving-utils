@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use cairo_lang_casm::hints::Hint;
@@ -264,7 +265,9 @@ struct TaskSpecHelper {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TaskSpec {
-    pub task: Task,
+    /// Task wrapped in Rc to avoid expensive clones when reading it from execution scopes.
+    /// CairoPie tasks can be several GB in size.
+    pub task: Rc<Task>,
     pub program_hash_function: HashFunc,
 }
 
@@ -372,7 +375,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
         };
 
         Ok(TaskSpec {
-            task,
+            task: Rc::new(task),
             program_hash_function: HashFunc::try_from(helper.program_hash_function)
                 .map_err(|e| D::Error::custom(format!("Invalid program hash function: {e:?}")))?,
         })
@@ -380,11 +383,11 @@ impl<'de> Deserialize<'de> for TaskSpec {
 }
 
 impl TaskSpec {
-    /// Retrieves a reference to the `Task` within the `TaskSpec`.
+    /// Retrieves a reference to the `Rc<Task>` within the `TaskSpec`.
     ///
     /// # Returns
-    /// A reference to the `task` field, which is either a `Program` or `CairoPie`.
-    pub fn load_task(&self) -> &Task {
+    /// A reference to the `Rc<Task>` field, which wraps either a `Program` or `CairoPie`.
+    pub fn load_task(&self) -> &Rc<Task> {
         &self.task
     }
 }
