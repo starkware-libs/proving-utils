@@ -1,36 +1,30 @@
-# Cairo bootloader
+# Proving Utils Workspace
 
-Cairo bootloader port for the Rust Cairo VM.
+This workspace contains multiple CLI binaries. Start here, then follow the links to each binary’s README for full usage.
 
-The Cairo bootloader is a Cairo program that loads and executes other programs in a provable way.
-It is also able to execute Cairo PIEs (Position Independent Executables) along with regular Cairo programs.
+## Binaries
 
-We currently support Cairo bootloader v0.13.0.
+### `cairo_program_runner` (crate: `cairo-program-runner`)
 
-## How to use this library
+Runs a compiled Cairo program. Can optionally:
 
-We provide two hint processors that can be used to execute bootloader hints.
+- write a Cairo PIE (non-proof mode), or
+- in proof mode, generate AIR public/private inputs plus encoded trace/memory.
 
-### Standalone hint processor
+Docs: `crates/cairo-program-runner/README.md`
 
-The standalone hint processor (`BootloaderHintProcessor`) is the simplest way to execute the bootloader. 
-You can just declare the hint processor and use it in `cairo_run_program`.
+Quick start:
+cargo run -p cairo-program-runner --bin cairo_program_runner -- --help
 
-Check the [run program example](./examples/run_program.rs) for more details on how to configure the bootloader options.
+### `vm_runner` / `stwo_vm_runner` (crate: `vm_runner`)
 
-### Minimal hint processor.
+Runs a compiled Cairo program in proof-mode config and adapts the result to `stwo_cairo_adapter::ProverInput`. Writes execution resources, and optionally prover input.
 
-For advanced use cases, we also provide the `MinimalBootloaderHintProcessor` struct.
-This is useful when you want to mix multiple hint processors (ex: Starknet OS hints + bootloader hints + builtin hints)
-and avoid checking for the Cairo VM hints multiple times, or simply avoid compatibility issues between different
-versions of `cairo-vm`.
+Docs: `crates/vm_runner/README.md`
 
-To use this hint processor, you will need to define your own hint processor structure and implement the `HintProcessorLogic`
-trait yourself.
+Quick start:
+cargo run -p vm_runner -- --help
 
-Note that this is exactly how the `BootloaderHintProcessor` struct is implemented.
+## Build
 
-## Limitations
-
-* Composite packed outputs are not supported yet.
-* The bootloader is not able to load hints for Cairo 0 programs with hints yet.
+cargo build --release
