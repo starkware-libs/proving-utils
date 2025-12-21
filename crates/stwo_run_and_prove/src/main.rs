@@ -1,14 +1,14 @@
 use anyhow::Result;
 use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::cairo_run_program;
-use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
-use cairo_vm::Felt252;
+use cairo_program_runner_lib::utils::{
+    get_cairo_run_config, get_program, get_program_input, write_output_to_file,
+};
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
-use cairo_vm::vm::runners::cairo_runner::CairoRunner;
 use clap::Parser;
 #[cfg(test)]
 use mockall::automock;
@@ -87,8 +87,6 @@ enum StwoRunAndProveError {
     Serializing(#[from] sonic_rs::error::Error),
     #[error(transparent)]
     VM(#[from] VirtualMachineError),
-    #[error("Failed to parse output line as Felt decimal.")]
-    OutputParsing,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -167,7 +165,7 @@ fn stwo_run_and_prove(
         .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
     let program_input = get_program_input(&program_input)
         .map_err(|e| StwoRunAndProveError::PathIO(e, program_input.unwrap_or_default()))?;
-    let runner = cairo_run_program(&program, program_input, cairo_run_config)?;
+    let mut runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let prover_input = adapt(&runner)?;
     let result = prove(prover_input.clone(), prove_config, prover);
 
@@ -187,7 +185,8 @@ fn stwo_run_and_prove(
     if let Some(output_path) = program_output
         && result.is_ok()
     {
-        write_output_to_file(runner, output_path)?;
+        info!("Saving program output to: {:?}", output_path);
+        write_output_to_file(&mut runner, output_path)?;
     }
 
     result
@@ -262,28 +261,6 @@ impl ProverTrait for StwoProverEntryPoint {
     }
 }
 
-/// Write the program output to the specified output path as Felt252 values.
-fn write_output_to_file(
-    mut runner: CairoRunner,
-    output_path: PathBuf,
-) -> Result<(), StwoRunAndProveError> {
-    info!("Saving program output to: {:?}", output_path);
-    // TODO(Nitsan): move this function to cairo_program_runner_lib or a new utils lib,
-    // and call it from here and from cairo_program_runner.
-
-    let mut output_buffer = String::new();
-    runner.vm.write_output(&mut output_buffer)?;
-    let output_lines = output_buffer
-        .lines()
-        .map(|line: &str| {
-            Felt252::from_dec_str(line).map_err(|_| StwoRunAndProveError::OutputParsing)
-        })
-        .collect::<Result<Vec<Felt252>, _>>()?;
-    std::fs::write(&output_path, sonic_rs::to_string_pretty(&output_lines)?)
-        .map_err(|e| StwoRunAndProveError::PathIO(e, output_path))?;
-    Ok(())
-}
-
 fn file_empty(path: &PathBuf) -> std::io::Result<bool> {
     let metadata = fs::metadata(path)?;
     Ok(metadata.len() == 0)
@@ -303,6 +280,7 @@ fn file_missing_or_empty(path: &PathBuf) -> std::io::Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cairo_vm::Felt252;
     use ctor::ctor;
     use serde_json::Value;
     use stwo_cairo_utils::logging_utils::init_logging;

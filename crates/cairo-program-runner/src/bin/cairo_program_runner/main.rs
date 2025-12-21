@@ -4,12 +4,14 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use bincode::enc::write::Writer;
-use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, get_program_input};
+use cairo_program_runner_lib::utils::{
+    get_cairo_run_config, get_program, get_program_input, write_output_to_file,
+};
 use cairo_vm::types::layout_name::LayoutName;
 
 use cairo_program_runner_lib::cairo_run_program;
+use cairo_vm::cairo_run;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
-use cairo_vm::{cairo_run, Felt252};
 use clap::Parser;
 use tempfile::NamedTempFile;
 
@@ -167,16 +169,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Handle program output file if specified
     if let Some(outputs_file) = args.outputs_file {
-        let mut output_buffer = String::new();
-        runner.vm.write_output(&mut output_buffer)?;
-        let output_lines = output_buffer
-            .lines()
-            .map(|line| {
-                Felt252::from_dec_str(line)
-                    .map_err(|_| format!("Failed to parse output line as Felt decimal: {line}"))
-            })
-            .collect::<Result<Vec<Felt252>, _>>()?;
-        std::fs::write(outputs_file, serde_json::to_string_pretty(&output_lines)?)?;
+        write_output_to_file(&mut runner, outputs_file)?;
     }
 
     // Handle execution resources file if specified
