@@ -39,6 +39,14 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          tool-cache: false
       - name: "Unit tests"
         run: |
           RUSTFLAGS="-D warnings" cargo +nightly-2025-07-14 test
