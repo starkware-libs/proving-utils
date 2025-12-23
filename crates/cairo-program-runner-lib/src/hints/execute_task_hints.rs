@@ -392,7 +392,7 @@ fn process_program_common_logic(
 /// If the program is a CairoPIE, it loads the PIE into memory and sets up the necessary pointers.
 /// It also prepares the output runner data and enters a new scope with the task locals.
 pub fn setup_subtask_for_execution(
-    hint_processor: &mut BootloaderHintProcessor,
+    hint_processor: &mut BootloaderHintProcessor<'_>,
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
     ids_data: &HashMap<String, HintReference>,
@@ -407,7 +407,7 @@ pub fn setup_subtask_for_execution(
 
     let mut hint_extension = HintExtension::default();
 
-    let subtask_cairo1_hint_processor: Option<CairoHintProcessor>;
+    let subtask_cairo1_hint_processor: Option<CairoHintProcessor<'_>>;
     match &task {
         Task::Cairo0Program(cairo0_executable) => {
             if let Some(program_input) = cairo0_executable.program_input.as_ref() {
@@ -499,7 +499,7 @@ pub fn setup_subtask_for_execution(
 // %}
 // also despawns the subtask from the hint processor.
 pub fn execute_task_exit_scope(
-    hint_processor: &mut BootloaderHintProcessor,
+    hint_processor: &mut BootloaderHintProcessor<'_>,
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<HintExtension, HintError> {
     exit_scope(exec_scopes)?;
@@ -616,12 +616,12 @@ mod tests {
             .expect("Hint failed unexpectedly");
 
         let program_data_ptr =
-            get_ptr_from_var_name("program_data_ptr", &mut vm, &ids_data, &ap_tracking)
+            get_ptr_from_var_name("program_data_ptr", &vm, &ids_data, &ap_tracking)
                 .expect("program_data_ptr is not set");
 
         let program_data_base: Relocatable = exec_scopes
             .get(vars::PROGRAM_DATA_BASE)
-            .expect(format!("{} is not set", vars::PROGRAM_DATA_BASE).as_ref());
+            .unwrap_or_else(|_| panic!("{} is not set", vars::PROGRAM_DATA_BASE));
         assert_eq!(program_data_ptr, program_data_base);
 
         // Check that we allocated a new segment and that the pointers point to it
@@ -877,7 +877,7 @@ mod tests {
         let task = Task::Pie(fibonacci_pie.clone());
         exec_scopes.insert_value(vars::TASK, task);
         let bootloader_program = get_simple_bootloader_program();
-        exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr.clone());
+        exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr);
         exec_scopes.insert_value(vars::PROGRAM_OBJECT, bootloader_program);
 
         // Execute the hint

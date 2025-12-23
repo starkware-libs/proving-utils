@@ -181,11 +181,10 @@ mod tests {
             serde_json::from_str(&pedersen_merkle_input)
                 .expect("Failed to deserialize pedersen_merkle_input");
         // assert that output values are correctly set
-        let got_height = vm
+        let got_height = *vm
             .get_integer(Relocatable::from((2, 0)))
             .expect("Failed to read height from VM memory")
-            .as_ref()
-            .clone();
+            .as_ref();
         assert_eq!(
             got_height,
             Felt252::from(expected_pedersen_merkle_input.height),
@@ -297,7 +296,7 @@ mod tests {
         // Prepare auth_path with two siblings
         let sibling1 = Felt252::from(111u64);
         let sibling2 = Felt252::from(222u64);
-        exec_scopes.insert_value::<Vec<Felt252>>(AUTH_PATH, vec![sibling1.clone(), sibling2]);
+        exec_scopes.insert_value::<Vec<Felt252>>(AUTH_PATH, vec![sibling1, sibling2]);
 
         vm.add_memory_segment();
         vm.add_memory_segment();

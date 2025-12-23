@@ -664,7 +664,7 @@ mod tests {
                 assert_eq!(output_builtin.base(), output_builtin_state.base);
                 assert_eq!(output_builtin.base_offset, output_builtin_state.base_offset);
             }
-            other => panic!("Expected an output builtin, found {:?}", other),
+            other => panic!("Expected an output builtin, found {other:?}"),
         }
     }
 
@@ -780,14 +780,16 @@ mod tests {
         // Tests both simple and nested arguments.
         let mut vm = VirtualMachine::new(false, false);
 
-        let mut nested_args = Vec::<Box<dyn Any>>::new();
-        nested_args.push(Box::new(MaybeRelocatable::from(128)));
-        nested_args.push(Box::new(MaybeRelocatable::from(42)));
+        let nested_args: Vec<Box<dyn Any>> = vec![
+            Box::new(MaybeRelocatable::from(128)),
+            Box::new(MaybeRelocatable::from(42)),
+        ];
 
-        let mut args = Vec::<Box<dyn Any>>::new();
-        args.push(Box::new(MaybeRelocatable::from(1001)));
-        args.push(Box::new(MaybeRelocatable::from(2048)));
-        args.push(Box::new(nested_args));
+        let args: Vec<Box<dyn Any>> = vec![
+            Box::new(MaybeRelocatable::from(1001)),
+            Box::new(MaybeRelocatable::from(2048)),
+            Box::new(nested_args),
+        ];
 
         let args_base: Relocatable = gen_arg(&mut vm, &args).expect("gen_args failed unexpectedly");
 
@@ -979,7 +981,7 @@ mod tests {
                     assert_eq!(item, &expected[i]);
                 }
             }
-            other => panic!("Expected Ok(Vec<PackedOutput>), got {:?}", other),
+            other => panic!("Expected Ok(Vec<PackedOutput>), got {other:?}"),
         }
     }
 
@@ -1158,12 +1160,12 @@ mod tests {
         };
         let _ = insert_value_from_var_name(
             vars::PROGRAM_ADDRESS,
-            ptr.clone(),
+            ptr,
             &mut vm,
             &ids_data,
             &ap_tracking,
         )
-        .map_err(|e| panic!("could not insert var: {}", e));
+        .map_err(|e| panic!("could not insert var: {e}"));
 
         if expect_fail {
             ptr = Relocatable {
@@ -1188,7 +1190,6 @@ mod tests {
             Err(HintError::CustomHint(e)) => {
                 assert!(expect_fail);
                 assert_eq!(e.as_ref(), "program address is incorrect");
-                ()
             }
             _ => panic!("result not recognized"),
         }
