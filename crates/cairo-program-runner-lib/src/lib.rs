@@ -7,6 +7,7 @@ pub use hints::*;
 use tracing::{span, Level};
 
 pub mod hints;
+pub mod pie_reader;
 pub mod tasks;
 pub mod test_utils;
 pub mod utils;

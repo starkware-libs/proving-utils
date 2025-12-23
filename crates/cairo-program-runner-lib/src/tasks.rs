@@ -8,10 +8,10 @@ use cairo_lang_executable::executable::Executable;
 use cairo_lang_execute_utils::{program_and_hints_from_executable, user_args_from_flags};
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::program::Program;
-use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use num_bigint::BigInt;
 use serde_json::Value;
 
+use crate::pie_reader::{read_cairo_pie_preallocated, PieReaderError};
 use crate::{types::Cairo1Executable, Cairo0Executable, Task};
 
 #[derive(thiserror::Error, Debug)]
@@ -20,7 +20,7 @@ pub enum BootloaderTaskError {
     Program(#[from] ProgramError),
 
     #[error("Failed to read PIE: {0}")]
-    Pie(#[from] std::io::Error),
+    Pie(#[from] PieReaderError),
 
     #[error("Cairo1 error: {0}")]
     Cairo1(String),
@@ -49,6 +49,10 @@ pub fn create_cairo0_program_task(
 
 /// Creates a `TaskSpec` for a Cairo PIE task by reading it from a zip file.
 ///
+/// This function uses an optimized reader that pre-allocates memory based on
+/// ZIP metadata, avoiding the repeated reallocations of the default reader.
+/// This can save several GB of peak memory for large PIE files.
+///
 /// # Arguments
 /// - `pie_path`: A reference to a `Path` where the Cairo PIE file is located.
 ///
@@ -57,7 +61,7 @@ pub fn create_cairo0_program_task(
 /// - `Err(BootloaderTaskError)`: On failure, returns a `BootloaderTaskError::Pie` if there's an
 ///   issue with reading the Cairo PIE file.
 pub fn create_pie_task(pie_path: &Path) -> Result<Task, BootloaderTaskError> {
-    let pie = CairoPie::read_zip_file(pie_path).map_err(BootloaderTaskError::Pie)?;
+    let pie = read_cairo_pie_preallocated(pie_path)?;
     Ok(Task::Pie(pie))
 }
 
