@@ -36,7 +36,7 @@ pub mod utils;
 pub fn cairo_run_program(
     program: &Program,
     program_input_contents: Option<String>,
-    cairo_run_config: CairoRunConfig,
+    cairo_run_config: CairoRunConfig<'_>,
 ) -> Result<CairoRunner, CairoRunError> {
     let _span = span!(Level::INFO, "cairo_run_program").entered();
 

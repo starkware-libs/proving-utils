@@ -85,7 +85,7 @@ mod test {
         #[case] expected: u64,
     ) {
         let mut vm = VirtualMachine::new(false, false);
-        let mut ids_data = fill_ids_data_for_test(&["queries", "params"]);
+        let ids_data = fill_ids_data_for_test(&["queries", "params"]);
         let ap_tracking = ApTracking::default();
         vm.add_memory_segment();
         vm.add_memory_segment();
@@ -124,7 +124,7 @@ mod test {
                 MaybeRelocatable::from(400), // eval_point
             ],
         );
-        divide_queries_ind_by_coset_size_to_fp_offset(&mut vm, &mut ids_data, &ap_tracking)
+        divide_queries_ind_by_coset_size_to_fp_offset(&mut vm, &ids_data, &ap_tracking)
             .expect("Failed to run hint");
         // Assert result at fp+1 is 42/7 = 6
         let fp = vm.get_fp();
