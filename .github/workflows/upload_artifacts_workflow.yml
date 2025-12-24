@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/test_c3d_zev4_compilation
 
 jobs:
   artifacts-push:
@@ -82,7 +82,7 @@ jobs:
 
       - name: Build stwo_run_and_prove for sapphirerapids architecture
         run: |
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=sapphirerapids" cargo build --release --target x86_64-unknown-linux-gnu --bin stwo_run_and_prove
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=znver4" cargo build --release --target x86_64-unknown-linux-gnu --bin stwo_run_and_prove
 
       - name: Upload stwo_run_and_prove_sapphirerapids binary to GCP
         id: upload_stwo_run_and_prove_sapphirerapids
