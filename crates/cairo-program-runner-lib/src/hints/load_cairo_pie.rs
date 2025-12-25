@@ -294,6 +294,7 @@ fn relocate_cairo_pie_memory(
 
         vm.insert_value(relocated_address, relocated_value)?;
     }
+    tracing::info!("cairo pie memory relocated memory: {} bytes", std::mem::size_of_val(&vm.segments.memory));
     Ok(())
 }
 
