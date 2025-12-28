@@ -644,17 +644,17 @@
     118
   ],
   "builtin_segments": {
-    "add_mod": null,
-    "bitwise": null,
+    "add_mod_builtin": null,
+    "bitwise_builtin": null,
     "output": {
       "begin_addr": 118,
       "stop_ptr": 119
     },
-    "mul_mod": null,
-    "pedersen": null,
-    "poseidon": null,
-    "range_check_bits_96": null,
-    "range_check_bits_128": null
+    "mul_mod_builtin": null,
+    "pedersen_builtin": null,
+    "poseidon_builtin": null,
+    "range_check96_builtin": null,
+    "range_check_builtin": null
   },
   "public_segment_context": {
     "present": [
