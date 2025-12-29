@@ -8,7 +8,7 @@ on:
 
 jobs:
   rustfmt:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-medium-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
@@ -18,7 +18,7 @@ jobs:
       - run: cargo +nightly-2025-07-14 fmt --all -- --check
 
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-medium-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
@@ -28,7 +28,7 @@ jobs:
       - run: cargo +nightly-2025-07-14 clippy --all -- -D warnings
 
   tests:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-large-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,7 +55,7 @@ jobs:
           RUSTFLAGS="-D warnings" cargo +nightly-2025-07-14 run --example run_program
 
   udeps:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-medium-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
       - run: rustup show

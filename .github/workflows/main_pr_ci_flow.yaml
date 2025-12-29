@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   merge-gatekeeper:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-medium-ubuntu-24-04-amd64
     # Restrict permissions of the GITHUB_TOKEN.
     # Docs: https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
     permissions:

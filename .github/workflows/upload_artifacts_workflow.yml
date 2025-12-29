@@ -7,7 +7,7 @@ on:
 
 jobs:
   artifacts-push:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-medium-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
 
