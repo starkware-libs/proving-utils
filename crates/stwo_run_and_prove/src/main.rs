@@ -53,7 +53,7 @@ struct Args {
     verify: bool,
     #[clap(
         long = "program_output",
-        help = "Optional absolute path for the program output."
+        help = "Optional absolute path where the program's output will be saved."
     )]
     program_output: Option<PathBuf>,
     #[clap(
