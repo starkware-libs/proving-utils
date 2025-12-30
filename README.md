@@ -2,6 +2,7 @@
 
 This workspace contains multiple CLI binaries. Start here, then follow the links to each binary’s README for full usage.
 
+
 ## Binaries
 
 ### `cairo_program_runner` (crate: `cairo-program-runner`)
@@ -16,6 +17,7 @@ Docs: `crates/cairo-program-runner/README.md`
 Quick start:
 cargo run -p cairo-program-runner --bin cairo_program_runner -- --help
 
+
 ### `vm_runner` / `stwo_vm_runner` (crate: `vm_runner`)
 
 Runs a compiled Cairo program in proof-mode config and adapts the result to `stwo_cairo_adapter::ProverInput`. Writes execution resources, and optionally prover input.
@@ -24,6 +26,17 @@ Docs: `crates/vm_runner/README.md`
 
 Quick start:
 cargo run -p vm_runner -- --help
+
+
+### `stwo_run_and_prove` / (crate: `stwo_run_and_prove`)
+
+Runs a compiled cairo program and generates a Stwo proof for it. Optionally verifies the proof, and saves the program output and data for debugging.
+
+Docs: `crates/stwo_run_and_prove/README.md`
+
+Quick start:
+cargo run -p stwo_run_and_prove -- --help
+
 
 ## Build
 
