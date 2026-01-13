@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - naor/refactor/hint-BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT
 
 jobs:
   artifacts-push:
