@@ -14,8 +14,7 @@ pub const BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT: &str =
 simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)";
 
 pub const BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT: &str =
-    "from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
-bootloader_input = BootloaderInput.Schema().load(program_input)";
+    "BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT";
 
 pub const BOOTLOADER_RESTORE_BOOTLOADER_OUTPUT: &str =
     "# Restore the bootloader's output builtin state.
