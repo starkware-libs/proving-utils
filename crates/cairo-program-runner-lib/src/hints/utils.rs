@@ -1,10 +1,13 @@
 use std::any::Any;
 use std::cmp::min;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use super::types::Task;
+use super::PROGRAM_INPUT;
 use crate::hints::fact_topologies::GPS_FACT_TOPOLOGY;
 use crate::hints::types::ProgramIdentifiers;
+use crate::utils::ProgramInput;
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_ptr_from_var_name;
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::{ApTracking, Identifier};
@@ -16,6 +19,7 @@ use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::runners::builtin_runner::OutputBuiltinRunner;
 use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use cairo_vm::vm::vm_core::VirtualMachine;
+use serde::de::DeserializeOwned;
 
 #[macro_export]
 macro_rules! maybe_relocatable_box {
@@ -53,6 +57,43 @@ pub fn get_program_identifies(
     Err(HintError::VariableNotInScopeError(
         program.to_string().into_boxed_str(),
     ))
+}
+
+fn parse_program_input_from_str<T: DeserializeOwned>(json: &str) -> Result<T, HintError> {
+    serde_json::from_str(json).map_err(|e| {
+        HintError::CustomHint(format!("Failed to parse program input JSON: {e}").into())
+    })
+}
+
+fn parse_program_input_from_path<T: DeserializeOwned>(path: &PathBuf) -> Result<T, HintError> {
+    let json = std::fs::read_to_string(path).map_err(|e| {
+        HintError::CustomHint(format!("Failed to read program input from {path:?}: {e}").into())
+    })?;
+    parse_program_input_from_str(&json)
+}
+
+pub fn get_program_input_value<T>(exec_scopes: &ExecutionScopes) -> Result<T, HintError>
+where
+    T: DeserializeOwned + Clone + 'static,
+{
+    let program_input = exec_scopes
+        .get_ref::<ProgramInput>(PROGRAM_INPUT)
+        .map_err(|_| {
+            HintError::CustomHint("Program input was not found in execution scopes.".into())
+        })?;
+    match program_input {
+        ProgramInput::Json(json) => parse_program_input_from_str(json),
+        ProgramInput::Path(path) => parse_program_input_from_path(path),
+        ProgramInput::Value(value) => {
+            if let Some(typed) = value.downcast_ref::<T>() {
+                // TODO: avoid clone by returning a borrowed value after refactor.
+                return Ok(typed.clone());
+            }
+            Err(HintError::CustomHint(
+                "Program input value has unsupported in-memory type.".into(),
+            ))
+        }
+    }
 }
 
 /// Fetches a specific identifier's program counter (PC) from a given identifiers map.

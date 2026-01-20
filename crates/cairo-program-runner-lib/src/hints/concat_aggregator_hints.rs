@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use super::{types::ConcatAggregatorInput, PROGRAM_INPUT};
+use super::types::ConcatAggregatorInput;
+use super::utils::get_program_input_value;
 use cairo_vm::{
     hint_processor::{
         builtin_hint_processor::hint_utils::{
@@ -47,9 +48,7 @@ pub fn concat_aggregator_parse_task(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-    let concat_aggregator_input: ConcatAggregatorInput = serde_json::from_str(program_input)
-        .map_err(|e| HintError::CustomHint(format!("JSON decode error: {e}").into()))?;
+    let concat_aggregator_input: ConcatAggregatorInput = get_program_input_value(exec_scopes)?;
 
     let bl_numbers = concat_aggregator_input
         .bootloader_output

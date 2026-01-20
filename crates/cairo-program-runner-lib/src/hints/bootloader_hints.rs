@@ -23,8 +23,8 @@ use crate::hints::types::{
 };
 use crate::hints::vars;
 
-use super::utils::gen_arg;
-use super::{BOOTLOADER_INPUT, PROGRAM_INPUT, SIMPLE_BOOTLOADER_INPUT};
+use super::utils::{gen_arg, get_program_input_value};
+use super::{BOOTLOADER_INPUT, SIMPLE_BOOTLOADER_INPUT};
 
 /// Implements
 /// %{
@@ -78,9 +78,7 @@ pub fn prepare_simple_bootloader_output_segment(
 /// ```
 pub fn load_simple_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
     // Load SIMPLE_BOOTLOADER_INPUT into the execution scope.
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-    let simple_bootloader_input: SimpleBootloaderInput =
-        serde_json::from_str(program_input).unwrap();
+    let simple_bootloader_input: SimpleBootloaderInput = get_program_input_value(exec_scopes)?;
     exec_scopes.insert_value(SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
     Ok(())
 }
@@ -93,9 +91,7 @@ pub fn load_simple_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result
 /// ```
 pub fn load_unpacker_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
     // Load BOOTLOADER_INPUT into the execution scope.
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-
-    let bootloader_input: BootloaderInput = serde_json::from_str(program_input).unwrap();
+    let bootloader_input: BootloaderInput = get_program_input_value(exec_scopes)?;
     exec_scopes.insert_value(BOOTLOADER_INPUT, bootloader_input);
     Ok(())
 }

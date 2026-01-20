@@ -11,12 +11,12 @@ use cairo_vm::{
     Felt252,
 };
 
-use super::{types::SimpleOutputInput, vars::SIMPLE_OUTPUT_INPUT, PROGRAM_INPUT};
+use super::utils::get_program_input_value;
+use super::{types::SimpleOutputInput, vars::SIMPLE_OUTPUT_INPUT};
 
 /// Implements %{ output = program_input["output"] %}
 pub fn load_simple_output_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-    let simple_output_input: SimpleOutputInput = serde_json::from_str(program_input).unwrap();
+    let simple_output_input: SimpleOutputInput = get_program_input_value(exec_scopes)?;
     let output_as_maybe: Vec<MaybeRelocatable> = simple_output_input
         .output
         .iter()

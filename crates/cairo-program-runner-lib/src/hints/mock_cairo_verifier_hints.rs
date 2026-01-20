@@ -15,7 +15,9 @@ use crate::maybe_relocatable_box;
 use cairo_vm::types::relocatable::MaybeRelocatable;
 
 use super::{
-    types::MockCairoVerifierInput, utils::gen_arg, vars::MOCK_CAIRO_VERIFIER_INPUT, PROGRAM_INPUT,
+    types::MockCairoVerifierInput,
+    utils::{gen_arg, get_program_input_value},
+    vars::MOCK_CAIRO_VERIFIER_INPUT,
 };
 
 /// Implements
@@ -34,9 +36,7 @@ pub fn load_mock_cairo_verifier_input(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-    let mock_cairo_verifier_input: MockCairoVerifierInput =
-        serde_json::from_str(program_input).unwrap();
+    let mock_cairo_verifier_input: MockCairoVerifierInput = get_program_input_value(exec_scopes)?;
     let converted_args: Vec<Box<dyn Any>> = mock_cairo_verifier_input
         .program_output
         .iter()

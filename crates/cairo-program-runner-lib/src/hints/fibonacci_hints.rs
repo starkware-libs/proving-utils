@@ -4,7 +4,8 @@ use cairo_vm::{
     vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
 };
 
-use super::{types::FibonacciInput, PROGRAM_INPUT};
+use super::types::FibonacciInput;
+use super::utils::get_program_input_value;
 
 const FIBONACCI_CLAIM_INDEX: &str = "fibonacci_claim_index";
 
@@ -13,8 +14,7 @@ pub fn fibonacci_load_second_element(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-    let fibonacci_input: FibonacciInput = serde_json::from_str(program_input).unwrap();
+    let fibonacci_input: FibonacciInput = get_program_input_value(exec_scopes)?;
     exec_scopes.insert_value(FIBONACCI_CLAIM_INDEX, fibonacci_input.fibonacci_claim_index);
     insert_value_into_ap(vm, fibonacci_input.second_element)
 }
@@ -31,6 +31,7 @@ pub fn fibonacci_load_claim_idx(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ProgramInput, PROGRAM_INPUT};
     use cairo_vm::types::relocatable::Relocatable;
     use cairo_vm::vm::vm_core::VirtualMachine;
     use cairo_vm::Felt252;
@@ -46,7 +47,7 @@ mod tests {
         let mut exec_scopes = ExecutionScopes::new();
         exec_scopes.insert_value(
             PROGRAM_INPUT,
-            serde_json::to_string(&fibonacci_input).unwrap(),
+            ProgramInput::Json(serde_json::to_string(&fibonacci_input).unwrap()),
         );
         (vm, exec_scopes)
     }

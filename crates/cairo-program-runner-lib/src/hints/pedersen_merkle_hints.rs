@@ -14,7 +14,8 @@ use cairo_vm::{
 };
 use num_traits::ToPrimitive;
 
-use super::{types::PedersenMerkleInput, PROGRAM_INPUT};
+use super::types::PedersenMerkleInput;
+use super::utils::get_program_input_value;
 const AUTH_PATH: &str = "auth_path";
 
 /// Implements hint:
@@ -39,8 +40,7 @@ pub fn pedersen_merkle_load_input(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-    let pedersen_merkle_input: PedersenMerkleInput = serde_json::from_str(program_input).unwrap();
+    let pedersen_merkle_input: PedersenMerkleInput = get_program_input_value(exec_scopes)?;
     let output = get_ptr_from_var_name("output", vm, ids_data, ap_tracking)?;
     vm.insert_value(output, pedersen_merkle_input.height)?;
     vm.insert_value((output + 1)?, pedersen_merkle_input.prev_leaf)?;
@@ -125,6 +125,7 @@ pub fn pedersen_merkle_update(
 mod tests {
     use super::*;
     use crate::test_utils::fill_ids_data_for_test;
+    use crate::{ProgramInput, PROGRAM_INPUT};
     use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
     use cairo_vm::vm::vm_core::VirtualMachine;
     use num_bigint::BigUint;
@@ -161,7 +162,10 @@ mod tests {
     fn test_pedersen_merkle_load_input(pedersen_merkle_input: String) {
         let mut vm = VirtualMachine::new(false, false);
         let mut exec_scopes = ExecutionScopes::new();
-        exec_scopes.insert_value(PROGRAM_INPUT, pedersen_merkle_input.clone());
+        exec_scopes.insert_value(
+            PROGRAM_INPUT,
+            ProgramInput::Json(pedersen_merkle_input.clone()),
+        );
         let ids_data = fill_ids_data_for_test(&["output"]);
         let ap_tracking = ApTracking::new();
 
