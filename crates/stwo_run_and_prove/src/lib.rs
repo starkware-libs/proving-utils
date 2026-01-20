@@ -1,9 +1,8 @@
 use anyhow::Result;
 use cairo_air::utils::ProofFormat;
+use cairo_program_runner_lib::ProgramInput;
 use cairo_program_runner_lib::cairo_run_program;
-use cairo_program_runner_lib::utils::{
-    get_cairo_run_config, get_program, get_program_input, write_output_to_file,
-};
+use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, write_output_to_file};
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
@@ -63,7 +62,7 @@ pub struct ProveConfig {
 /// If `program_output` is provided, the program output to that path.
 pub fn stwo_run_and_prove(
     program_path: PathBuf,
-    program_input: Option<PathBuf>,
+    program_input: Option<ProgramInput>,
     program_output: Option<PathBuf>,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
@@ -88,8 +87,6 @@ pub fn stwo_run_and_prove(
 
     let program = get_program(program_path.as_path())
         .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
-    let program_input = get_program_input(&program_input)
-        .map_err(|e| StwoRunAndProveError::PathIO(e, program_input.unwrap_or_default()))?;
     let mut runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let prover_input = adapt(&runner)?;
     let result = prove(prover_input.clone(), prove_config, prover);
@@ -231,7 +228,7 @@ mod tests {
 
     struct TestArgs {
         program: PathBuf,
-        program_input: Option<PathBuf>,
+        program_input: Option<ProgramInput>,
         program_output: Option<PathBuf>,
         prover_params_json: Option<PathBuf>,
         proof_path: PathBuf,

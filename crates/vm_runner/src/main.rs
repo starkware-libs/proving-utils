@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use cairo_program_runner_lib::cairo_run_program;
-use cairo_program_runner_lib::utils::{get_program, get_program_input};
+use cairo_program_runner_lib::utils::{get_program, get_program_input_from_path};
 use cairo_vm::cairo_run;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
@@ -72,7 +72,7 @@ fn run() -> Result<ProverInput, Error> {
     let args = Args::parse();
 
     let program = get_program(args.program.as_path())?;
-    let program_input_contents = get_program_input(&args.program_input)?;
+    let program_input = get_program_input_from_path(&args.program_input)?;
 
     let cairo_run_config = cairo_run::CairoRunConfig {
         entrypoint: "main",
@@ -90,7 +90,7 @@ fn run() -> Result<ProverInput, Error> {
         dynamic_layout_params: None,
     };
 
-    let cairo_runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
+    let cairo_runner = cairo_run_program(&program, program_input, cairo_run_config)?;
     let prover_input = adapt(&cairo_runner)?;
 
     if let Some(prover_input_path) = args.output_prover_input_path {

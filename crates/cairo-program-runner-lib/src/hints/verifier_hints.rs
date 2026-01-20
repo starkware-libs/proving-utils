@@ -7,13 +7,13 @@ use serde_json::from_value;
 use std::collections::HashMap;
 
 use super::types::{ExtractedProofValues, OwnedPublicInput};
-use super::utils::gen_arg;
+use super::utils::{gen_arg, get_program_input_value};
 use super::verifier_utils::extract_from_ids_and_public_input;
 use crate::hints::cairo_structs::ToVec;
 use crate::hints::verifier_utils::{extract_proof_values, get_stark_proof_cairo_struct};
 
 use super::utils::get_program_identifies;
-use super::{CairoVerifierInput, PROGRAM_INPUT, PROGRAM_OBJECT};
+use super::{CairoVerifierInput, PROGRAM_OBJECT};
 
 /// Implements
 ///
@@ -29,14 +29,7 @@ pub fn load_and_parse_proof(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-
-    let cairo_verifier_input: CairoVerifierInput =
-        serde_json::from_str(program_input).map_err(|_| {
-            HintError::CustomHint(
-                "Failed to deserialize program_input into cairo_verifier_input".into(),
-            )
-        })?;
+    let cairo_verifier_input: CairoVerifierInput = get_program_input_value(exec_scopes)?;
 
     // Retrieve verifier identifiers from execution scopes
     let verifier_identifiers = get_program_identifies(exec_scopes, PROGRAM_OBJECT)?;

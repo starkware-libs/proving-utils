@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::path::PathBuf;
 
-use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::types::RunMode;
+use cairo_program_runner_lib::{cairo_run_program, ProgramInput};
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 
@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut runner = cairo_run_program(
         &simple_bootloader_program,
-        Some(program_input_contents),
+        Some(ProgramInput::Json(program_input_contents)),
         cairo_run_config,
     )?;
 

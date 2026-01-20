@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use super::{
     execute_task_hints::felt_to_felt252, fact_topologies::GPS_FACT_TOPOLOGY,
-    types::FlexibleBuiltinUsageInput, PROGRAM_INPUT,
+    types::FlexibleBuiltinUsageInput, utils::get_program_input_value,
 };
 use cairo_vm::{
     hint_processor::{
@@ -17,6 +15,7 @@ use cairo_vm::{
     Felt252,
 };
 use starknet_crypto::{pedersen_hash, Felt};
+use std::collections::HashMap;
 
 /// Implements hint:
 /// %{
@@ -140,8 +139,7 @@ pub fn flexible_builtin_usage_from_input(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(PROGRAM_INPUT)?;
-    let usage_input: FlexibleBuiltinUsageInput = serde_json::from_str(program_input).unwrap();
+    let usage_input: FlexibleBuiltinUsageInput = get_program_input_value(exec_scopes)?;
 
     insert_value_from_var_name("n_output", usage_input.n_output, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name(
@@ -268,7 +266,10 @@ mod tests {
             "n_blake2s",
         ]);
         let mut exec_scopes = ExecutionScopes::new();
-        exec_scopes.insert_value(PROGRAM_INPUT, serde_json::to_string(input).unwrap());
+        exec_scopes.insert_value(
+            crate::PROGRAM_INPUT,
+            crate::ProgramInput::Json(serde_json::to_string(input).unwrap()),
+        );
         let ap_tracking = ApTracking::default();
         vm.set_fp(13);
         vm.set_ap(13);

@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     io,
     path::{Path, PathBuf},
 };
@@ -14,6 +15,19 @@ use cairo_vm::{
 };
 
 use crate::types::RunMode;
+
+#[derive(Debug)]
+pub enum ProgramInput {
+    Path(PathBuf),
+    Json(String),
+    Value(Box<dyn Any>),
+}
+
+impl ProgramInput {
+    pub fn from_value<T: Any>(value: T) -> Self {
+        Self::Value(Box::new(value))
+    }
+}
 
 /// Loads a Cairo program from a file.
 ///
@@ -32,11 +46,10 @@ pub fn get_program(program: &Path) -> Result<Program, ProgramError> {
     Program::from_file(program, Some("main"))
 }
 
-/// Reads the input for a Cairo program from a file.
+/// Wraps the input for a Cairo program.
 ///
-/// This function checks if an input file is provided. If so, it reads the entire
-/// content of the file into a `String` and returns it wrapped in `Some`.
-/// If no input file is provided, it returns `Ok(None)`.
+/// This function checks if an input file is provided. If so, it returns the path wrapped
+/// as `ProgramInput::Path`. If no input file is provided, it returns `Ok(None)`.
 ///
 /// # Arguments
 ///
@@ -44,12 +57,13 @@ pub fn get_program(program: &Path) -> Result<Program, ProgramError> {
 ///
 /// # Errors
 ///
-/// Returns an `io::Error` if there is an issue reading the input file.
-pub fn get_program_input(program_input: &Option<PathBuf>) -> io::Result<Option<String>> {
-    let Some(ref input_path) = program_input else {
-        return Ok(None);
-    };
-    Ok(Some(std::fs::read_to_string(input_path)?))
+/// Returns an `io::Error` only for API consistency.
+pub fn get_program_input_from_path(
+    program_input: &Option<PathBuf>,
+) -> io::Result<Option<ProgramInput>> {
+    Ok(program_input
+        .as_ref()
+        .map(|input_path| ProgramInput::Path(input_path.to_path_buf())))
 }
 
 /// Creates a Cairo run configuration based on the provided parameters.

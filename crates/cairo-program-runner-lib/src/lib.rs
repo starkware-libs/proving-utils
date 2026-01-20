@@ -10,6 +10,7 @@ pub mod hints;
 pub mod tasks;
 pub mod test_utils;
 pub mod utils;
+pub use utils::ProgramInput;
 
 /// Executes a Cairo program with the given configuration, optionally handling program input and
 /// proof mode.
@@ -17,9 +18,9 @@ pub mod utils;
 /// # Arguments
 /// - `program`: A reference to a `Program` object that represents the compiled Cairo program to
 ///   run.
-/// - `program_input_contents`: An optional `String` containing the program's input data in JSON
-///   format. If `Some`, the input is injected into the execution scope under the key
-///   `"program_input"`.
+/// - `program_input`: An optional program input source. If `Some`, the input is injected into the
+///   execution scope under the key `"program_input"` and later decoded by hints into the concrete
+///   type the hints expect (e.g. `SimpleProgramInput`).
 /// - `layout`: A `LayoutName` specifying the Cairo layout to use in the VM (e.g., `plain`,
 ///   `all_cairo`).
 /// - `dynamic_layout_params`: An optional `CairoLayoutParams` providing dynamic parameters for the
@@ -35,7 +36,7 @@ pub mod utils;
 #[allow(clippy::result_large_err)]
 pub fn cairo_run_program(
     program: &Program,
-    program_input_contents: Option<String>,
+    program_input: Option<ProgramInput>,
     cairo_run_config: CairoRunConfig<'_>,
 ) -> Result<CairoRunner, CairoRunError> {
     let _span = span!(Level::INFO, "cairo_run_program").entered();
@@ -44,9 +45,9 @@ pub fn cairo_run_program(
 
     let mut exec_scopes = ExecutionScopes::new();
 
-    if let Some(program_input_contents) = program_input_contents {
+    if let Some(program_input) = program_input {
         // Insert the program input into the execution scopes if exists
-        exec_scopes.insert_value(PROGRAM_INPUT, program_input_contents);
+        exec_scopes.insert_value(PROGRAM_INPUT, program_input);
     }
 
     // Insert the program object into the execution scopes
