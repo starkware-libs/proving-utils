@@ -1,4 +1,5 @@
 use cairo_air::utils::ProofFormat;
+use cairo_program_runner_lib::utils::get_program_input_from_path;
 use clap::Parser;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -68,7 +69,7 @@ fn run() -> Result<(), StwoRunAndProveError> {
     let stwo_prover = Box::new(StwoProverEntryPoint);
     stwo_run_and_prove(
         args.program,
-        args.program_input,
+        get_program_input_from_path(&args.program_input)?,
         args.program_output,
         prove_config,
         stwo_prover,

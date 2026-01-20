@@ -414,7 +414,7 @@ pub struct ApplicativeBootloaderInput {
     pub aggregator_task: TaskSpec,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct CairoVerifierInput {
     pub proof: HashMap<String, serde_json::Value>,
 }

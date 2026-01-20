@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use bincode::enc::write::Writer;
 use cairo_program_runner_lib::utils::{
-    get_cairo_run_config, get_program, get_program_input, write_output_to_file,
+    get_cairo_run_config, get_program, get_program_input_from_path, write_output_to_file,
 };
 use cairo_vm::types::layout_name::LayoutName;
 
@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let program = get_program(args.program.as_path())?;
-    let program_input_contents = get_program_input(&args.program_input)?;
+    let program_input = get_program_input_from_path(&args.program_input)?;
     let cairo_run_config = get_cairo_run_config(
         &args.dynamic_params_file,
         args.layout,
@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.relocate_mem, // will affect only if proof_mode is true
     )?;
 
-    let mut runner = cairo_run_program(&program, program_input_contents, cairo_run_config)?;
+    let mut runner = cairo_run_program(&program, program_input, cairo_run_config)?;
 
     // Handle program output file if specified
     if let Some(outputs_file) = args.outputs_file {

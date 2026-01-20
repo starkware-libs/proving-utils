@@ -420,11 +420,10 @@ pub fn get_task_fact_topology(
                 ));
             }
             let additional_data = {
-                let additional_data = cairo_pie
-                    .additional_data
-                    .0
-                    .get(&BuiltinName::output)
-                    .ok_or(FactTopologyError::CairoPieHasNoOutputBuiltinData)?;
+                let Some(additional_data) = cairo_pie.additional_data.0.get(&BuiltinName::output)
+                else {
+                    return Ok(FactTopology::trivial(0));
+                };
                 match additional_data {
                     BuiltinAdditionalData::Output(output_data) => output_data,
                     _ => {
