@@ -132,8 +132,6 @@ pub const BOOTLOADER_ASSERT_IS_COMPOSITE_PACKED_OUTPUT: &str =
 pub const SETUP_RUN_SIMPLE_BOOTLOADER_BEFORE_TASK_EXECUTION: &str =
     "SETUP_RUN_SIMPLE_BOOTLOADER_BEFORE_TASK_EXECUTION";
 
-pub const SIMPLE_BOOTLOADER_SET_TASKS_VARIABLE: &str = "tasks = simple_bootloader_input.tasks";
-
 // Appears as nondet %{ ids.num // 2 %} in the code.
 pub const SIMPLE_BOOTLOADER_DIVIDE_NUM_BY_2: &str =
     "memory[ap] = to_felt_or_relocatable(ids.num // 2)";

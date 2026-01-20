@@ -30,7 +30,7 @@ use crate::hints::inner_select_builtins::select_builtin;
 use crate::hints::select_builtins::select_builtins_enter_scope;
 use crate::hints::simple_bootloader_hints::{
     divide_num_by_2, program_hash_function_to_ap, set_ap_to_zero, set_current_task,
-    set_tasks_variable, setup_run_simple_bootloader_before_task_execution,
+    setup_run_simple_bootloader_before_task_execution,
 };
 use crate::hints::utils::output_builtin_set_pages_by_size_and_fact_topology;
 use crate::hints::verifier_hints::load_and_parse_proof;
@@ -150,7 +150,6 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
                     ap_tracking,
                 )
             }
-            SIMPLE_BOOTLOADER_SET_TASKS_VARIABLE => set_tasks_variable(exec_scopes),
             SIMPLE_BOOTLOADER_DIVIDE_NUM_BY_2 => divide_num_by_2(vm, ids_data, ap_tracking),
             SIMPLE_BOOTLOADER_SET_CURRENT_TASK => {
                 set_current_task(vm, exec_scopes, ids_data, ap_tracking)
