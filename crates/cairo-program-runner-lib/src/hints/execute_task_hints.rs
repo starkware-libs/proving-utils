@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::vec;
 
 use cairo_lang_runner::{Arg, CairoHintProcessor};
@@ -82,8 +83,8 @@ pub fn load_program_hint(
         ap_tracking,
     )?;
 
-    let task: Task = exec_scopes.get(vars::TASK)?;
-    let program = get_program_from_task(&task)?;
+    let task: &Rc<Task> = exec_scopes.get_ref(vars::TASK)?;
+    let program = get_program_from_task(task)?;
 
     let program_header_ptr = get_ptr_from_var_name("program_header", vm, ids_data, ap_tracking)?;
 
@@ -125,7 +126,7 @@ pub fn append_fact_topologies(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let task: Task = exec_scopes.get(vars::TASK)?;
+    let task: Rc<Task> = exec_scopes.get(vars::TASK)?;
     let output_runner_data: Option<OutputBuiltinState> =
         exec_scopes.get(vars::OUTPUT_RUNNER_DATA)?;
     let fact_topologies: &mut Vec<FactTopology> = exec_scopes.get_mut_ref(vars::FACT_TOPOLOGIES)?;
@@ -162,8 +163,8 @@ pub fn validate_hash(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let task: Task = exec_scopes.get(vars::TASK)?;
-    let program = get_program_from_task(&task)?;
+    let task: &Rc<Task> = exec_scopes.get_ref(vars::TASK)?;
+    let program = get_program_from_task(task)?;
 
     let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
     let program_hash_ptr = (output_ptr + 1)?;
@@ -301,11 +302,11 @@ pub fn write_return_builtins_hint(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let task: Task = exec_scopes.get(vars::TASK)?;
+    let task: &Rc<Task> = exec_scopes.get_ref(vars::TASK)?;
     let n_builtins: usize = exec_scopes.get(vars::N_BUILTINS)?;
 
     // builtins = task.get_program().builtins
-    let program = get_program_from_task(&task)?;
+    let program = get_program_from_task(task)?;
     let builtins = &program.builtins;
 
     // write_return_builtins(
@@ -325,7 +326,7 @@ pub fn write_return_builtins_hint(
         builtins,
         used_builtins_addr,
         pre_execution_builtins_addr,
-        &task,
+        task,
     )?;
 
     // vm_enter_scope({'n_selected_builtins': n_builtins})
@@ -398,7 +399,7 @@ pub fn setup_subtask_for_execution(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<HintExtension, HintError> {
-    let task: Task = exec_scopes.get(vars::TASK)?;
+    let task: Rc<Task> = exec_scopes.get(vars::TASK)?;
 
     let n_builtins = get_program_from_task(&task)?.builtins.len();
     exec_scopes.insert_value(vars::N_BUILTINS, n_builtins);
@@ -408,7 +409,7 @@ pub fn setup_subtask_for_execution(
     let mut hint_extension = HintExtension::default();
 
     let subtask_cairo1_hint_processor: Option<CairoHintProcessor<'_>>;
-    match &task {
+    match &*task {
         Task::Cairo0Program(cairo0_executable) => {
             if let Some(program_input) = cairo0_executable.program_input.as_ref() {
                 new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input.clone()]);
@@ -530,8 +531,8 @@ pub fn bootloader_validate_hash(
         return Ok(());
     }
 
-    let task: Task = exec_scopes.get(vars::TASK)?;
-    let program = get_program_from_task(&task)?;
+    let task: &Rc<Task> = exec_scopes.get_ref(vars::TASK)?;
+    let program = get_program_from_task(task)?;
     let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
     let program_hash_ptr = (output_ptr + 1)?;
     let program_hash = vm.get_integer(program_hash_ptr)?.into_owned();
@@ -598,10 +599,10 @@ mod tests {
     /// pointers in the ids_data point to it.
     #[rstest]
     fn test_allocation_in_load_program_hint(fibonacci: Program) {
-        let fibonacci_task = Task::Cairo0Program(Cairo0Executable {
+        let fibonacci_task = Rc::new(Task::Cairo0Program(Cairo0Executable {
             program: fibonacci.clone(),
             program_input: None,
-        });
+        }));
         let (
             mut vm,
             ids_data,
@@ -674,10 +675,10 @@ mod tests {
     /// memory is checked in program_loader.rs tests.
     #[rstest]
     fn test_load_program(fibonacci: Program) {
-        let fibonacci_task = Task::Cairo0Program(Cairo0Executable {
+        let fibonacci_task = Rc::new(Task::Cairo0Program(Cairo0Executable {
             program: fibonacci.clone(),
             program_input: None,
-        });
+        }));
 
         let (
             mut vm,
@@ -718,10 +719,10 @@ mod tests {
     /// extension, and that the output runner data is set correctly.
     #[rstest]
     fn test_call_task(fibonacci: Program) {
-        let fibonacci_task = Task::Cairo0Program(Cairo0Executable {
+        let fibonacci_task = Rc::new(Task::Cairo0Program(Cairo0Executable {
             program: fibonacci.clone(),
             program_input: None,
-        });
+        }));
         let (
             mut vm,
             ids_data,
@@ -757,12 +758,12 @@ mod tests {
         vm.builtin_runners
             .push(BuiltinRunner::Output(output_builtin));
 
-        let task = Task::Cairo0Program(Cairo0Executable {
+        let task = Rc::new(Task::Cairo0Program(Cairo0Executable {
             program: fibonacci.clone(),
             program_input: None,
-        });
+        }));
 
-        exec_scopes.insert_box(vars::TASK, Box::new(task));
+        exec_scopes.insert_value(vars::TASK, task);
 
         let hint_data =
             HintProcessorData::new_default(String::from(EXECUTE_TASK_CALL_TASK), ids_data);
@@ -825,7 +826,7 @@ mod tests {
     /// the VM, to a similar state as in the execute_task function in execute_task.cairo.
     #[rstest]
     fn test_call_cairo_pie_task(fibonacci_pie: CairoPie) {
-        let fibonacci_pie_task = Task::Pie(fibonacci_pie.clone());
+        let fibonacci_pie_task = Rc::new(Task::Pie(fibonacci_pie.clone()));
         let (
             mut vm,
             ids_data,
@@ -874,7 +875,7 @@ mod tests {
         vm.builtin_runners
             .push(BuiltinRunner::Output(output_builtin));
 
-        let task = Task::Pie(fibonacci_pie.clone());
+        let task = Rc::new(Task::Pie(fibonacci_pie.clone()));
         exec_scopes.insert_value(vars::TASK, task);
         let bootloader_program = get_simple_bootloader_program();
         exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_header_ptr);
@@ -974,7 +975,7 @@ mod tests {
         let mut exec_scopes = ExecutionScopes::new();
 
         exec_scopes.insert_value(vars::OUTPUT_RUNNER_DATA, Some(output_builtin_state.clone()));
-        exec_scopes.insert_value(vars::TASK, fibonacci_task);
+        exec_scopes.insert_value(vars::TASK, Rc::new(fibonacci_task));
         exec_scopes.insert_value(vars::FACT_TOPOLOGIES, Vec::<FactTopology>::new());
 
         append_fact_topologies(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
@@ -1057,7 +1058,7 @@ mod tests {
         let mut exec_scopes = ExecutionScopes::new();
         let n_builtins = builtin_usage_program.builtins_len();
         exec_scopes.insert_value(vars::N_BUILTINS, n_builtins);
-        exec_scopes.insert_value(vars::TASK, task);
+        exec_scopes.insert_value(vars::TASK, Rc::new(task));
 
         write_return_builtins_hint(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
             .expect("Hint failed unexpectedly");

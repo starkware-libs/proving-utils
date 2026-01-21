@@ -60,11 +60,13 @@ pub fn setup_run_simple_bootloader_before_task_execution(
 
 /// Implements
 /// %{ tasks = simple_bootloader_input.tasks %}
-pub fn set_tasks_variable(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
-    let simple_bootloader_input: &SimpleBootloaderInput =
-        exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
-    exec_scopes.insert_value(vars::TASKS, simple_bootloader_input.tasks.clone());
-
+///
+/// Note: The TASKS variable is not actually read anywhere in the Rust implementation.
+/// Tasks are accessed directly from SIMPLE_BOOTLOADER_INPUT when needed.
+/// This function exists only to maintain compatibility with the Cairo hint interface.
+pub fn set_tasks_variable(_exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
+    // Intentionally not cloning tasks - the TASKS variable is never read.
+    // Tasks are accessed directly via SIMPLE_BOOTLOADER_INPUT.tasks when needed.
     Ok(())
 }
 

@@ -160,7 +160,8 @@ pub fn extract_segment(maybe_relocatable: MaybeRelocatable) -> Result<isize, Rel
 ///
 /// Makes it more convenient to access values in the Cairo PIE memory.
 fn build_cairo_pie_memory_map(memory: &CairoPieMemory) -> HashMap<Relocatable, &MaybeRelocatable> {
-    let mut memory_map: HashMap<Relocatable, &MaybeRelocatable> = HashMap::new();
+    let mut memory_map: HashMap<Relocatable, &MaybeRelocatable> =
+        HashMap::with_capacity(memory.0.len());
 
     for ((segment_index, offset), value) in memory.0.iter() {
         let address = Relocatable::from((*segment_index as isize, *offset));
