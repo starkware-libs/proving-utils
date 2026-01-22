@@ -5,7 +5,9 @@ use cairo_lang_runner::CairoHintProcessor;
 use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::{
     BuiltinHintProcessor, HintFunc, HintProcessorData,
 };
-use cairo_vm::hint_processor::hint_processor_definition::{HintExtension, HintProcessorLogic};
+use cairo_vm::hint_processor::hint_processor_definition::{
+    HintExtension, HintProcessor, HintProcessorLogic,
+};
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::runners::cairo_runner::ResourceTracker;
@@ -358,21 +360,23 @@ pub struct BootloaderHintProcessor<'a> {
     builtin_hint_processor: BuiltinHintProcessor,
     test_programs_hint_processor: MinimalTestProgramsHintProcessor,
     pub subtask_cairo1_hint_processor_stack: Vec<Option<CairoHintProcessor<'a>>>,
+    extra_hint_processor: Option<&'a mut dyn HintProcessor>,
 }
 
 impl Default for BootloaderHintProcessor<'_> {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 impl<'a> BootloaderHintProcessor<'a> {
-    pub fn new() -> Self {
+    pub fn new(extra_hint_processor: Option<&'a mut dyn HintProcessor>) -> Self {
         Self {
             bootloader_hint_processor: MinimalBootloaderHintProcessor::new(),
             builtin_hint_processor: BuiltinHintProcessor::new_empty(),
             subtask_cairo1_hint_processor_stack: Vec::new(),
             test_programs_hint_processor: MinimalTestProgramsHintProcessor::new(),
+            extra_hint_processor,
         }
     }
 
@@ -422,6 +426,22 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             self.subtask_cairo1_hint_processor_stack.last_mut()
         {
             match subtask_cairo_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
+                // For cairo1 hint processors, we also ignore HintError::WrongHintData, since it
+                // if we reach a cairo1 hint procesor with a cairo0 hint, downcasting the hint data
+                // will fail and we will return the HintError::WrongHintData.
+                Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
+                result => {
+                    return result;
+                }
+            }
+        }
+
+        // Since we don't want to ignore HintError::WrongHintData from the cairo0 hint processors,
+        // we assume all possbile cairo1 hint processors are matched first and since the extra
+        // hint processor might contain a cairo1 hint processor, we need to match it straight after
+        // the cairo1 hint processors.
+        if let Some(extra_hint_processor) = self.extra_hint_processor.as_mut() {
+            match extra_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
                 Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
                 result => {
                     return result;

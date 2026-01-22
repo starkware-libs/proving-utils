@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use stwo_cairo_utils::binary_utils::run_binary;
 use stwo_run_and_prove::{
-    ProveConfig, StwoProverEntryPoint, StwoRunAndProveError, stwo_run_and_prove,
+    ProveConfig, RunConfig, StwoProverEntryPoint, StwoRunAndProveError, stwo_run_and_prove,
 };
 use tracing::{Level, span};
 
@@ -67,14 +67,14 @@ fn run() -> Result<(), StwoRunAndProveError> {
     };
 
     let stwo_prover = Box::new(StwoProverEntryPoint);
-    stwo_run_and_prove(
-        args.program,
-        get_program_input_from_path(&args.program_input)?,
-        args.program_output,
-        prove_config,
-        stwo_prover,
-        args.debug_data_dir,
-        args.save_debug_data,
-    )?;
+    let run_config = RunConfig {
+        program_path: args.program,
+        program_input: get_program_input_from_path(&args.program_input)?,
+        program_output: args.program_output,
+        debug_data_dir: args.debug_data_dir,
+        save_debug_data: args.save_debug_data,
+        extra_hint_processor: None,
+    };
+    stwo_run_and_prove(run_config, prove_config, stwo_prover)?;
     Ok(())
 }

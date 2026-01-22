@@ -771,7 +771,7 @@ mod tests {
         let hint_data =
             HintProcessorData::new_default(String::from(EXECUTE_TASK_CALL_TASK), ids_data);
 
-        let mut hint_processor = BootloaderHintProcessor::new();
+        let mut hint_processor = BootloaderHintProcessor::new(None);
 
         let hint_extension = hint_processor
             .execute_hint_extensive(&mut vm, &mut exec_scopes, &any_box!(hint_data))
@@ -885,7 +885,7 @@ mod tests {
         exec_scopes.insert_value(vars::PROGRAM_OBJECT, bootloader_program);
 
         // Execute the hint
-        let mut hint_processor = BootloaderHintProcessor::new();
+        let mut hint_processor = BootloaderHintProcessor::new(None);
         setup_subtask_for_execution(
             &mut hint_processor,
             &mut vm,
