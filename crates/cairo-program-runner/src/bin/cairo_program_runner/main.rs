@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.relocate_mem, // will affect only if proof_mode is true
     )?;
 
-    let mut runner = cairo_run_program(&program, program_input, cairo_run_config)?;
+    let mut runner = cairo_run_program(&program, program_input, cairo_run_config, None)?;
 
     // Handle program output file if specified
     if let Some(outputs_file) = args.outputs_file {

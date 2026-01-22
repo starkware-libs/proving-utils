@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         allow_missing_builtins: false,
     }
     .create_config();
-    let runner = cairo_run_program(&fibonnaci_program, None, cairo_run_config)?;
+    let runner = cairo_run_program(&fibonnaci_program, None, cairo_run_config, None)?;
     let result_pie = runner.get_cairo_pie()?;
     let pie_task: Task = Task::Pie(result_pie);
     let pie_task_spec: TaskSpec = TaskSpec {
@@ -47,6 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &simple_bootloader_program,
         Some(ProgramInput::Value(Box::new(simple_bootloader_input))),
         cairo_run_config,
+        None,
     )?;
 
     let mut output_buffer = "Program Output:\n".to_string();

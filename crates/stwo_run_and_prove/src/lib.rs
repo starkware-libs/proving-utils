@@ -87,7 +87,7 @@ pub fn stwo_run_and_prove(
 
     let program = get_program(program_path.as_path())
         .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
-    let mut runner = cairo_run_program(&program, program_input, cairo_run_config)?;
+    let mut runner = cairo_run_program(&program, program_input, cairo_run_config, None)?;
     let prover_input = adapt(&runner)?;
     let result = prove(prover_input.clone(), prove_config, prover);
 
