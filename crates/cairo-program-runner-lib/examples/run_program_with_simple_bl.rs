@@ -39,6 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &simple_bootloader_program,
         Some(ProgramInput::Json(program_input_contents)),
         cairo_run_config,
+        None,
     )?;
 
     let mut output_buffer = "Program Output:\n".to_string();

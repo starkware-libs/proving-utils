@@ -3,6 +3,7 @@ use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::ProgramInput;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, write_output_to_file};
+use cairo_vm::hint_processor::hint_processor_definition::HintProcessor;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
@@ -56,20 +57,33 @@ pub struct ProveConfig {
     pub prover_params_json: Option<PathBuf>,
 }
 
+pub struct RunConfig<'a> {
+    pub program_path: PathBuf,
+    pub program_input: Option<ProgramInput>,
+    pub program_output: Option<PathBuf>,
+    pub debug_data_dir: Option<PathBuf>,
+    pub save_debug_data: bool,
+    pub extra_hint_processor: Option<&'a mut dyn HintProcessor>,
+}
+
 /// Runs the program and generates a proof for it, then saves the proof to the given path.
 /// If `debug_data_dir` is provided, and there is a proving error or the `save_debug_data` flag is
 /// enabled, saves the debug data to that path.
 /// If `program_output` is provided, the program output to that path.
 pub fn stwo_run_and_prove(
-    program_path: PathBuf,
-    program_input: Option<ProgramInput>,
-    program_output: Option<PathBuf>,
+    run_config: RunConfig<'_>,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
-    debug_data_dir: Option<PathBuf>,
-    save_debug_data: bool,
 ) -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "stwo_run_and_prove").entered();
+    let RunConfig {
+        program_path,
+        program_input,
+        program_output,
+        debug_data_dir,
+        save_debug_data,
+        extra_hint_processor,
+    } = run_config;
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
@@ -87,7 +101,12 @@ pub fn stwo_run_and_prove(
 
     let program = get_program(program_path.as_path())
         .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
-    let mut runner = cairo_run_program(&program, program_input, cairo_run_config)?;
+    let mut runner = cairo_run_program(
+        &program,
+        program_input,
+        cairo_run_config,
+        extra_hint_processor,
+    )?;
     let prover_input = adapt(&runner)?;
     let result = prove(prover_input.clone(), prove_config, prover);
 
@@ -277,16 +296,16 @@ mod tests {
             proof_format: args.proof_format,
             prover_params_json: args.prover_params_json,
         };
+        let run_config = RunConfig {
+            program_path: args.program,
+            program_input: args.program_input,
+            program_output: args.program_output,
+            debug_data_dir: args.debug_data_dir,
+            save_debug_data: args.save_debug_data,
+            extra_hint_processor: None,
+        };
 
-        stwo_run_and_prove(
-            args.program,
-            args.program_input,
-            args.program_output,
-            prove_config,
-            prover,
-            args.debug_data_dir,
-            args.save_debug_data,
-        )
+        stwo_run_and_prove(run_config, prove_config, prover)
     }
 
     fn run_with_successful_mock_prover() -> (TempPath, TempPath) {

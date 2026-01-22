@@ -90,7 +90,7 @@ fn run() -> Result<ProverInput, Error> {
         dynamic_layout_params: None,
     };
 
-    let cairo_runner = cairo_run_program(&program, program_input, cairo_run_config)?;
+    let cairo_runner = cairo_run_program(&program, program_input, cairo_run_config, None)?;
     let prover_input = adapt(&cairo_runner)?;
 
     if let Some(prover_input_path) = args.output_prover_input_path {
