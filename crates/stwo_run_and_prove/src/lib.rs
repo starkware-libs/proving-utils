@@ -3,6 +3,7 @@ use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::ProgramInput;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, write_output_to_file};
+use cairo_vm::hint_processor::hint_processor_definition::HintProcessor;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
@@ -68,6 +69,7 @@ pub fn stwo_run_and_prove(
     prover: Box<dyn ProverTrait>,
     debug_data_dir: Option<PathBuf>,
     save_debug_data: bool,
+    extra_hint_processor: Option<&mut dyn HintProcessor>,
 ) -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "stwo_run_and_prove").entered();
     let cairo_run_config = get_cairo_run_config(
@@ -87,7 +89,7 @@ pub fn stwo_run_and_prove(
 
     let program = get_program(program_path.as_path())
         .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
-    let mut runner = cairo_run_program(&program, program_input, cairo_run_config, None)?;
+    let mut runner = cairo_run_program(&program, program_input, cairo_run_config, extra_hint_processor)?;
     let prover_input = adapt(&runner)?;
     let result = prove(prover_input.clone(), prove_config, prover);
 
@@ -286,6 +288,7 @@ mod tests {
             prover,
             args.debug_data_dir,
             args.save_debug_data,
+            None,
         )
     }
 

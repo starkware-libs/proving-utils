@@ -75,6 +75,7 @@ fn run() -> Result<(), StwoRunAndProveError> {
         stwo_prover,
         args.debug_data_dir,
         args.save_debug_data,
+        None,
     )?;
     Ok(())
 }
