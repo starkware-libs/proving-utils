@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - base_for_sharp_7_2
 
 jobs:
   artifacts-push:
