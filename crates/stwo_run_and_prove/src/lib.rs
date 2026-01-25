@@ -1,6 +1,8 @@
 use anyhow::Result;
-use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::ProgramInput;
+
+// Re-export ProofFormat so downstream crates use the same version.
+pub use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, write_output_to_file};
 use cairo_vm::hint_processor::hint_processor_definition::HintProcessor;

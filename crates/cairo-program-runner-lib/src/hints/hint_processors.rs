@@ -438,34 +438,33 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             .bootloader_hint_processor
             .execute_hint_extensive(vm, exec_scopes, hint_data)
         {
-            Err(HintError::UnknownHint(_)) => {}
+            Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
             result => {
                 return result;
             }
         }
 
-        let hint_data_dc = hint_data
-            .downcast_ref::<HintProcessorData>()
-            .ok_or(HintError::WrongHintData)?;
-        match hint_data_dc.code.as_str() {
-            EXECUTE_TASK_CALL_TASK => {
-                return setup_subtask_for_execution(
-                    self,
-                    vm,
-                    exec_scopes,
-                    &hint_data_dc.ids_data,
-                    &hint_data_dc.ap_tracking,
-                )
+        if let Some(hint_data_dc) = hint_data.downcast_ref::<HintProcessorData>() {
+            match hint_data_dc.code.as_str() {
+                EXECUTE_TASK_CALL_TASK => {
+                    return setup_subtask_for_execution(
+                        self,
+                        vm,
+                        exec_scopes,
+                        &hint_data_dc.ids_data,
+                        &hint_data_dc.ap_tracking,
+                    )
+                }
+                EXECUTE_TASK_EXIT_SCOPE => return execute_task_exit_scope(self, exec_scopes),
+                _ => {}
             }
-            EXECUTE_TASK_EXIT_SCOPE => return execute_task_exit_scope(self, exec_scopes),
-            _ => {}
         }
 
         match self
             .builtin_hint_processor
             .execute_hint_extensive(vm, exec_scopes, hint_data)
         {
-            Err(HintError::UnknownHint(_)) => {}
+            Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
             result => {
                 return result;
             }
@@ -480,8 +479,15 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             }
         }
 
-        self.test_programs_hint_processor
+        match self
+            .test_programs_hint_processor
             .execute_hint_extensive(vm, exec_scopes, hint_data)
+        {
+            Err(HintError::WrongHintData) => Err(HintError::UnknownHint(
+                "Hint not handled by any processor".to_string().into_boxed_str(),
+            )),
+            result => result,
+        }
     }
 }
 
