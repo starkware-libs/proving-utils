@@ -434,6 +434,15 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             }
         }
 
+        if let Some(extra_hint_processor) = self.extra_hint_processor.as_mut() {
+            match extra_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
+                Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
+                result => {
+                    return result;
+                }
+            }
+        }
+
         match self
             .bootloader_hint_processor
             .execute_hint_extensive(vm, exec_scopes, hint_data)
@@ -468,15 +477,6 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             Err(HintError::UnknownHint(_)) => {}
             result => {
                 return result;
-            }
-        }
-
-        if let Some(extra_hint_processor) = self.extra_hint_processor.as_mut() {
-            match extra_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
-                Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
-                result => {
-                    return result;
-                }
             }
         }
 
