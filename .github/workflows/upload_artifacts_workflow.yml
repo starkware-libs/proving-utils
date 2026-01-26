@@ -7,7 +7,7 @@ on:
 
 jobs:
   artifacts-push:
-    runs-on: namespace-profile-medium-ubuntu-24-04-amd64
+    runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
 
