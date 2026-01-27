@@ -7,15 +7,21 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/starkware-libs/proving-utils"
+
 [workspace.dependencies]
 anyhow = "1.0.98"
 bincode = { version = "2.0.1", features = ["serde"] }
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "81b6d6ee8f78bf4ff59081597b9526e23998ddc3" }
+cairo-air = "1.0.0"
 cairo-lang-executable = "=2.14.1-dev.0"
 cairo-lang-runner = "=2.14.1-dev.0"
 cairo-lang-casm = "=2.14.1-dev.0"
 cairo-lang-execute-utils = "=2.14.1-dev.0"
-cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib" }
+cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
 cairo-vm = { version = "=3.0.0", features = [
     "extensive_hints",
     "mod_builtin",
@@ -34,10 +40,10 @@ sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
 starknet-types-core = "=0.2.4"
-stwo_cairo_utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "81b6d6ee8f78bf4ff59081597b9526e23998ddc3" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "81b6d6ee8f78bf4ff59081597b9526e23998ddc3" }
-stwo_cairo_prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "81b6d6ee8f78bf4ff59081597b9526e23998ddc3" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "81b6d6ee8f78bf4ff59081597b9526e23998ddc3" }
+stwo-cairo-utils = "1.0.0"
+stwo-cairo-adapter = "1.0.0"
+stwo-cairo-prover = "1.0.0"
+stwo-cairo-serialize = "1.0.0"
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"

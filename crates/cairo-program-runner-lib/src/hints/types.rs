@@ -370,7 +370,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
                 return Err(D::Error::custom(format!(
                     "Unsupported type: {}",
                     helper.task_type
-                )))
+                )));
             }
         };
 
