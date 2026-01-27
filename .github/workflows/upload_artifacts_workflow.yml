@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/stwo_update_27_01_26
 
 jobs:
   artifacts-push:
