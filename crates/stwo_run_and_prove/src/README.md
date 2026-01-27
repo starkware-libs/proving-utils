@@ -1,4 +1,4 @@
-# stwo_run_and_prove
+# stwo-run-and-prove
 
 Runs a compiled Cairo program and generates a Stwo proof for it. Optionally verifies the proof.
 Saves the proof to the given path with the requested format, and optionally saves the program output and data for debugging.
@@ -8,7 +8,7 @@ Entry point: `crates/stwo_run_and_prove/src/main.rs`
 
 ## Build & run
 
-cargo run -p stwo_run_and_prove -- --help
+cargo run -p stwo-run-and-prove -- --help
 
 
 ## Basic usage
@@ -18,7 +18,7 @@ Required arguments:
 - `--proof_path <PathBuf>`: Absolute path where the generated proof will be saved.
 
 Basic Example:
-cargo run -p stwo_run_and_prove -- \
+cargo run -p stwo-run-and-prove -- \
  --program path/to/compiled_program.json \
  --proof_path proof.json
 
@@ -33,7 +33,7 @@ Optional arguments:
                                 case of a proving error, or when the save_debug_data flag is enabled.
 
 Example with verification and debug data:
-cargo run -p stwo_run_and_prove -- \
+cargo run -p stwo-run-and-prove -- \
  --program path/to/compiled_program.json \
  --program_input path/to/program_input.json \
  --proof_path path/to/proof.json \
