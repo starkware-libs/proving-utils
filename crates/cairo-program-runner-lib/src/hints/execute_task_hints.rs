@@ -431,7 +431,10 @@ pub fn setup_subtask_for_execution(
             // ret_pc = ids.ret_pc_label.instruction_offset_ - ids.call_task.instruction_offset_ +
             // pc
             let bootloader_identifiers = get_program_identifies(exec_scopes, PROGRAM_OBJECT)?;
-            let ret_pc_label = get_identifier(&bootloader_identifiers, "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label")?;
+            let ret_pc_label = get_identifier(
+                &bootloader_identifiers,
+                "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label",
+            )?;
             let call_task = get_identifier(
                 &bootloader_identifiers,
                 "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.call_task",

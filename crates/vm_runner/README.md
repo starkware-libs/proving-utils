@@ -1,4 +1,4 @@
-# vm_runner (stwo_vm_runner)
+# stwo-vm-runner
 
 Runs a compiled Cairo program in a proof-mode configuration, adapts the run result to a `stwo_cairo_adapter::ProverInput`, using stwo-cairo's adapter implementation and writes execution resources (and optionally the prover input) to disk.
 
@@ -6,7 +6,7 @@ Entry point: `crates/vm_runner/src/main.rs`
 
 ## Build & run
 
-cargo run -p vm_runner -- --help
+cargo run -p stwo-vm-runner -- --help
 
 ## Usage
 
@@ -25,7 +25,7 @@ Optional:
 - `--secure_run`: enable Cairo VM secure_run mode
 
 Example:
-cargo run -p vm_runner -- \
+cargo run -p stwo-vm-runner -- \
  --program /abs/path/to/compiled_program.json \
  --program_input /abs/path/to/program_input.json \
  --layout plain \
