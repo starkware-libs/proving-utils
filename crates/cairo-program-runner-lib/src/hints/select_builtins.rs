@@ -4,11 +4,9 @@ use std::collections::HashMap;
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_integer_from_var_name;
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::ApTracking;
-use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use num_traits::ToPrimitive;
 
 use crate::hints::vars;
 
@@ -22,12 +20,6 @@ pub fn select_builtins_enter_scope(
 ) -> Result<(), HintError> {
     let n_selected_builtins =
         get_integer_from_var_name(vars::N_SELECTED_BUILTINS, vm, ids_data, ap_tracking)?;
-    let n_selected_builtins =
-        n_selected_builtins
-            .to_usize()
-            .ok_or(MathError::Felt252ToUsizeConversion(Box::new(
-                n_selected_builtins,
-            )))?;
 
     exec_scopes.enter_scope(HashMap::from([(
         vars::N_SELECTED_BUILTINS.to_string(),
