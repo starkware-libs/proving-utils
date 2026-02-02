@@ -22,6 +22,7 @@ use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinSt
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use cairo_vm::{any_box, Felt252};
+use num_traits::ToPrimitive as _;
 use starknet_crypto::Felt;
 
 use super::types::HashFunc;
@@ -303,7 +304,7 @@ pub fn write_return_builtins_hint(
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
     let task: &Rc<Task> = exec_scopes.get_ref(vars::TASK)?;
-    let n_builtins: usize = exec_scopes.get(vars::N_BUILTINS)?;
+    let n_builtins: Felt = exec_scopes.get(vars::N_BUILTINS)?;
 
     // builtins = task.get_program().builtins
     let program = get_program_from_task(task)?;
@@ -401,7 +402,7 @@ pub fn setup_subtask_for_execution(
 ) -> Result<HintExtension, HintError> {
     let task: Rc<Task> = exec_scopes.get(vars::TASK)?;
 
-    let n_builtins = get_program_from_task(&task)?.builtins.len();
+    let n_builtins: Felt = get_program_from_task(&task)?.builtins.len().into();
     exec_scopes.insert_value(vars::N_BUILTINS, n_builtins);
 
     let mut new_task_locals = HashMap::new();
@@ -442,6 +443,9 @@ pub fn setup_subtask_for_execution(
 
             let ret_pc_offset = ret_pc_label - call_task;
             let ret_pc = (vm.get_pc() + ret_pc_offset)?;
+            let n_builtins = n_builtins
+                .to_usize()
+                .ok_or_else(|| HintError::CustomHint("n_builtins does not fit in usize".into()))?;
 
             load_cairo_pie(
                 cairo_pie,
@@ -1059,7 +1063,7 @@ mod tests {
         let ap_tracking = ApTracking::new();
 
         let mut exec_scopes = ExecutionScopes::new();
-        let n_builtins = builtin_usage_program.builtins_len();
+        let n_builtins: Felt = builtin_usage_program.builtins_len().into();
         exec_scopes.insert_value(vars::N_BUILTINS, n_builtins);
         exec_scopes.insert_value(vars::TASK, Rc::new(task));
 
@@ -1101,7 +1105,7 @@ mod tests {
             1,
             "The new scope should only contain one variable"
         );
-        let n_selected_builtins: usize = exec_scopes
+        let n_selected_builtins: Felt = exec_scopes
             .get(vars::N_SELECTED_BUILTINS)
             .expect("n_selected_builtins should be set");
         assert_eq!(n_selected_builtins, n_builtins);
