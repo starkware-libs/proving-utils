@@ -1,4 +1,5 @@
 use cairo_air::utils::ProofFormat;
+use cairo_air::PreProcessedTraceVariant;
 use cairo_program_runner_lib::utils::get_program_input_from_path;
 use clap::Parser;
 use std::path::PathBuf;
@@ -50,6 +51,11 @@ struct Args {
         case of a proving error, or when the save_debug_data flag is enabled."
     )]
     debug_data_dir: Option<PathBuf>,
+    #[clap(
+        long = "without_pedersen",
+        help = "Use preprocessed trace variant without Pedersen support."
+    )]
+    without_pedersen: bool,
 }
 
 fn main() -> ExitCode {
@@ -59,11 +65,17 @@ fn main() -> ExitCode {
 fn run() -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "run").entered();
     let args = Args::parse();
+    let preprocessed_trace_variant = if args.without_pedersen {
+        PreProcessedTraceVariant::CanonicalWithoutPedersen
+    } else {
+        PreProcessedTraceVariant::Canonical
+    };
     let prove_config = ProveConfig {
         verify: args.verify,
         proof_path: args.proof_path,
         proof_format: args.proof_format,
         prover_params_json: args.prover_params_json,
+        preprocessed_trace_variant,
     };
 
     let stwo_prover = Box::new(StwoProverEntryPoint);

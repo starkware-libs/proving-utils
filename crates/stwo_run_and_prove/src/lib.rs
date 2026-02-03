@@ -1,8 +1,9 @@
 use anyhow::Result;
 use cairo_air::utils::ProofFormat;
-use cairo_program_runner_lib::ProgramInput;
+use cairo_air::PreProcessedTraceVariant;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, write_output_to_file};
+use cairo_program_runner_lib::ProgramInput;
 use cairo_vm::hint_processor::hint_processor_definition::HintProcessor;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
@@ -13,11 +14,11 @@ use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
 use mockall::automock;
 use std::fs;
 use std::path::PathBuf;
-use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapt;
+use stwo_cairo_adapter::AdaptedInput;
 use stwo_cairo_prover::prover::create_and_serialize_proof;
 use thiserror::Error;
-use tracing::{Level, error, info, span};
+use tracing::{error, info, span, Level};
 
 static PROVER_INPUT_FILE_NAME: &str = "prover_input.json";
 
@@ -55,6 +56,7 @@ pub struct ProveConfig {
     pub proof_format: ProofFormat,
     pub verify: bool,
     pub prover_params_json: Option<PathBuf>,
+    pub preprocessed_trace_variant: PreProcessedTraceVariant,
 }
 
 pub struct RunConfig<'a> {
@@ -107,8 +109,10 @@ pub fn stwo_run_and_prove(
         cairo_run_config,
         extra_hint_processor,
     )?;
-    let prover_input = adapt(&runner)?;
-    let result = prove(prover_input.clone(), prove_config, prover);
+    let adapted_input = adapt(&runner, prove_config.preprocessed_trace_variant.clone())?;
+    // Clone prover_input for potential debug data saving before passing adapted_input to prove.
+    let prover_input_for_debug = adapted_input.prover_input.clone();
+    let result = prove(adapted_input, &prove_config, prover);
 
     if let Some(data_dir) = debug_data_dir
         && (result.is_err() || save_debug_data)
@@ -118,7 +122,7 @@ pub fn stwo_run_and_prove(
         let prover_input_path = data_dir.join(PROVER_INPUT_FILE_NAME);
         std::fs::write(
             &prover_input_path,
-            sonic_rs::to_string_pretty(&prover_input)?,
+            sonic_rs::to_string_pretty(&prover_input_for_debug)?,
         )
         .map_err(|e| StwoRunAndProveError::PathIO(e, data_dir))?
     }
@@ -133,17 +137,17 @@ pub fn stwo_run_and_prove(
     result
 }
 
-/// Prepares the prover parameters and generates a proof given the prover input and parameters.
+/// Prepares the prover parameters and generates a proof given the adapted input and parameters.
 /// Verifies the proof in case the respective flag is set.
 fn prove(
-    prover_input: ProverInput,
-    prove_config: ProveConfig,
+    adapted_input: AdaptedInput,
+    prove_config: &ProveConfig,
     prover: Box<dyn ProverTrait>,
 ) -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "prove").entered();
 
     match prover.create_and_serialize_proof(
-        prover_input.clone(),
+        adapted_input,
         prove_config.verify,
         prove_config.proof_path.clone(),
         prove_config.proof_format.clone(),
@@ -171,7 +175,7 @@ fn prove(
 pub trait ProverTrait {
     fn create_and_serialize_proof(
         &self,
-        input: ProverInput,
+        input: AdaptedInput,
         verify: bool,
         proof_path: PathBuf,
         proof_format: ProofFormat,
@@ -184,14 +188,14 @@ pub struct StwoProverEntryPoint;
 impl ProverTrait for StwoProverEntryPoint {
     fn create_and_serialize_proof(
         &self,
-        prover_input: ProverInput,
+        adapted_input: AdaptedInput,
         verify: bool,
         proof_path: PathBuf,
         proof_format: ProofFormat,
         proof_params_json: Option<PathBuf>,
     ) -> Result<(), StwoRunAndProveError> {
         create_and_serialize_proof(
-            prover_input,
+            adapted_input,
             verify,
             proof_path,
             proof_format,
@@ -295,6 +299,7 @@ mod tests {
             proof_path: args.proof_path,
             proof_format: args.proof_format,
             prover_params_json: args.prover_params_json,
+            preprocessed_trace_variant: PreProcessedTraceVariant::Canonical,
         };
         let run_config = RunConfig {
             program_path: args.program,
