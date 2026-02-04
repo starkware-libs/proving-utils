@@ -3,14 +3,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Ok;
 use cairo_vm::{
+    Felt252,
     cairo_run::CairoRunConfig,
     types::{
-        errors::program_errors::ProgramError, layout::CairoLayoutParams, layout_name::LayoutName,
-        program::Program,
+        builtin_name::BuiltinName, errors::program_errors::ProgramError, layout::CairoLayoutParams,
+        layout_name::LayoutName, program::Program, relocatable::MaybeRelocatable,
     },
-    vm::runners::cairo_runner::CairoRunner,
-    Felt252,
+    vm::runners::cairo_runner::{CairoArg, CairoRunner},
 };
 
 use crate::types::RunMode;
@@ -131,4 +132,73 @@ pub fn write_output_to_file(runner: &mut CairoRunner, output_path: PathBuf) -> a
         .collect::<Result<Vec<Felt252>, anyhow::Error>>()?;
     std::fs::write(&output_path, sonic_rs::to_string_pretty(&output_lines)?)?;
     Ok(())
+}
+// Builds the implicit arguments (builtin pointers, syscall_ptr) for a specific Cairo function
+/// by reading the function's ImplicitArgs from the program metadata.
+///
+/// # Arguments
+///
+/// * `program` - The compiled Cairo program
+/// * `function_name` - The name of the function to get implicit args for
+/// * `runner` - The CairoRunner instance (to access builtin runners and add segments)
+///
+/// # Returns
+///
+/// A vector of `CairoArg` containing the builtin pointers in the correct order,
+/// or empty vector if the function's ImplicitArgs cannot be found or empty.
+///
+/// # Example
+///
+/// For a function `func foo{range_check_ptr, pedersen_ptr}(x: felt)`,
+/// this returns a vector with [range_check_ptr_value, pedersen_ptr_value].
+pub fn build_function_implicit_args(
+    program: &Program,
+    func_name: &str,
+    runner: &mut CairoRunner,
+) -> Result<Vec<CairoArg>, anyhow::Error> {
+    let implicit_args_key = format!("__main__.{func_name}.ImplicitArgs");
+    // Get the ImplicitArgs identifier from program metadata
+    let Some(implicit_args_identifier) = program.get_identifier(&implicit_args_key) else {
+        return Ok(vec![]);
+    };
+    // Check if members exist
+    let Some(members) = &implicit_args_identifier.members else {
+        return Ok(vec![]);
+    };
+    // Sort members by offset to get correct stack order
+    let mut sorted_members: Vec<_> = members.iter().collect();
+    sorted_members.sort_by_key(|(_, member)| member.offset);
+
+    let mut args = Vec::new();
+
+    for (member_name, _member_info) in sorted_members {
+        // Special case: syscall_ptr (for StarkNet contracts)
+        if member_name == "syscall_ptr" {
+            let syscall_segment = runner.vm.add_memory_segment();
+            args.push(CairoArg::Single(MaybeRelocatable::from(syscall_segment)));
+        } else {
+            let builtin_name_str = member_name
+                .strip_suffix("_ptr")
+                .or_else(|| member_name.strip_suffix("Ptr"))
+                .unwrap_or(member_name);
+
+            // Convert string to BuiltinName enum
+            let Some(builtin_name) = BuiltinName::from_str(builtin_name_str) else {
+                return Err(anyhow::anyhow!("Unknown builtin name '{builtin_name_str}'"));
+            };
+
+            // Find the builtin runner by name from runner.vm.builtin_runners
+            let builtin_runner = runner
+                .vm
+                .builtin_runners
+                .iter()
+                .find(|b| b.name() == builtin_name)
+                .ok_or_else(|| anyhow::anyhow!("Builtin '{builtin_name_str}' not found in VM"))?;
+
+            for val in builtin_runner.initial_stack() {
+                args.push(CairoArg::Single(val));
+            }
+        }
+    }
+    Ok(args)
 }

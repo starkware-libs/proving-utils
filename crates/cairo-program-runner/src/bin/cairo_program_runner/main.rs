@@ -18,10 +18,10 @@ use tempfile::NamedTempFile;
 fn parse_bool(s: &str) -> Result<bool, String> {
     match s.to_lowercase().as_str() {
         "true" | "1" => Ok(true),
-        "false" | "0" => Ok(false),
+        "false" | "0" => Ok(false),cairo_program_runner 
         _ => Err(format!("invalid boolean value: {s}")),
     }
-}
+}cairo_program_runner 
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
