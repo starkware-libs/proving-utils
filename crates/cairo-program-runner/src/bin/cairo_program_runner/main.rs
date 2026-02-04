@@ -14,7 +14,6 @@ use cairo_vm::cairo_run;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
 use tempfile::NamedTempFile;
-
 fn parse_bool(s: &str) -> Result<bool, String> {
     match s.to_lowercase().as_str() {
         "true" | "1" => Ok(true),
