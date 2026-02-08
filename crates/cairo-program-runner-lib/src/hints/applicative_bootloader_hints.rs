@@ -81,7 +81,10 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
         single_page: true,
     };
 
-    exec_scopes.insert_value(APPLICATIVE_BOOTLOADER_INPUT, applicative_bootloader_input);
+    exec_scopes.insert_value(
+        APPLICATIVE_BOOTLOADER_INPUT,
+        applicative_bootloader_input.clone(),
+    );
     exec_scopes.insert_value(vars::SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
 
     // Python:
@@ -94,7 +97,6 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
         vars::APPLICATIVE_OUTPUT_BUILTIN_STATE,
         applicative_output_builtin_state,
     );
-
     insert_value_from_var_name(
         "aggregator_output_ptr",
         new_segment_base,
@@ -102,7 +104,12 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
         ids_data,
         ap_tracking,
     )?;
-
+    exec_scopes.insert_value(
+        vars::PROGRAM_HASH_FUNCTION,
+        applicative_bootloader_input
+            .aggregator_task
+            .program_hash_function,
+    );
     Ok(())
 }
 
