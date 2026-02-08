@@ -107,6 +107,23 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
 }
 
 /// Implements
+/// %{ GET_AGGREGATOR_PROGRAM_HASH_FUNCTION %}
+pub fn get_aggregator_program_hash_function(
+    exec_scopes: &mut ExecutionScopes,
+) -> Result<(), HintError> {
+    let program_input: &String = exec_scopes.get_ref(vars::PROGRAM_INPUT)?;
+    let applicative_bootloader_input: ApplicativeBootloaderInput =
+        serde_json::from_str(program_input).unwrap();
+    exec_scopes.insert_value(
+        vars::PROGRAM_HASH_FUNCTION,
+        applicative_bootloader_input
+            .aggregator_task
+            .program_hash_function,
+    );
+    Ok(())
+}
+
+/// Implements
 ///%{
 ///    from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
 ///
