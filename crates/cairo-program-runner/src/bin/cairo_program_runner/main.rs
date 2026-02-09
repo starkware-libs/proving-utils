@@ -1,18 +1,19 @@
-use std::env;
-use std::error::Error;
-use std::io::{self, Write};
-use std::path::PathBuf;
-
 use bincode::enc::write::Writer;
 use cairo_program_runner_lib::utils::{
     get_cairo_run_config, get_program, get_program_input_from_path, write_output_to_file,
 };
 use cairo_vm::types::layout_name::LayoutName;
+use std::env;
+use std::error::Error;
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::process::ExitCode;
 
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_vm::cairo_run;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
+use stwo_cairo_utils::binary_utils::run_binary;
 use tempfile::NamedTempFile;
 
 fn parse_bool(s: &str) -> Result<bool, String> {
@@ -148,7 +149,11 @@ impl FileWriter {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> ExitCode {
+    run_binary(run, "cairo_program_runner")
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
     let args = match Args::try_parse_from(env::args()) {
         Ok(args) => args,
         Err(err) => err.exit(),
