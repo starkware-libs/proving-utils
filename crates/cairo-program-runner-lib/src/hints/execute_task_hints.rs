@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::vec;
 
@@ -34,6 +35,7 @@ use crate::hints::program_hash::compute_program_hash_chain;
 use crate::hints::program_loader::ProgramLoader;
 use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
+use crate::ProgramInput;
 
 pub fn felt_to_felt252(field_element: Felt) -> Felt252 {
     let bytes = field_element.to_bytes_be();
@@ -413,7 +415,12 @@ pub fn setup_subtask_for_execution(
     match &*task {
         Task::Cairo0Program(cairo0_executable) => {
             if let Some(program_input) = cairo0_executable.program_input.as_ref() {
-                new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input.clone()]);
+                let program_input = if Path::new(program_input).is_file() {
+                    ProgramInput::Path(PathBuf::from(program_input))
+                } else {
+                    ProgramInput::Json(program_input.clone())
+                };
+                new_task_locals.insert(PROGRAM_INPUT.to_string(), any_box![program_input]);
             }
 
             process_program_common_logic(

@@ -18,6 +18,7 @@ use crate::hints::{
         add_consecutive_output_pages, write_to_fact_topologies_file, GPS_FACT_TOPOLOGY,
     },
     types::BOOTLOADER_CONFIG_SIZE,
+    utils::get_program_input_value,
 };
 
 use super::{
@@ -56,9 +57,8 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
     ids_data: &HashMap<String, HintReference>,
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
-    let program_input: &String = exec_scopes.get_ref(vars::PROGRAM_INPUT)?;
     let applicative_bootloader_input: ApplicativeBootloaderInput =
-        serde_json::from_str(program_input).unwrap();
+        get_program_input_value(exec_scopes)?;
     // Python: ids.aggregator_output_ptr = segments.add()
     let new_segment_base = vm.add_memory_segment();
     insert_value_from_var_name(
