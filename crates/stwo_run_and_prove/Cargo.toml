@@ -22,6 +22,7 @@ stwo-cairo-prover.workspace = true
 stwo-cairo-utils.workspace = true
 stwo-cairo-adapter.workspace = true
 stwo-cairo-serialize.workspace = true
+stwo-circuits.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

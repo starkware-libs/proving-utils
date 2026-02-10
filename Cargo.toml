@@ -3,6 +3,7 @@ members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
     "crates/stwo_run_and_prove",
+    "crates/proving_service",
     "crates/vm_runner",
 ]
 resolver = "2"
@@ -44,9 +45,11 @@ stwo-cairo-utils = "1.0.1"
 stwo-cairo-adapter = "1.0.1"
 stwo-cairo-prover = "1.0.1"
 stwo-cairo-serialize = "1.0.1"
+stwo-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1374fbe" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
+
 tracing = "0.1.40"
 mockall = "0.13.1"
 rstest = "0.21"
