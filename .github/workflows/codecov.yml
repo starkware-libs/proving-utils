@@ -1,9 +1,11 @@
 name: codecov
 
+
 on:
-  workflow_run:
-    workflows: ["check"]
-    types: [completed]
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
   report:
