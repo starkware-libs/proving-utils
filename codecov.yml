@@ -1,0 +1,21 @@
+# Codecov configuration (used by Codecov app when processing uploads)
+# https://docs.codecov.com/docs/codecov-yaml
+
+ignore:
+  - "crates/test_utils"
+  - "crates/**/*test*.rs"
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0%
+        informational: true
+        only_pulls: true
+    patch:
+      default:
+        target: 100%
+        threshold: 0%
+        informational: true
+        only_pulls: true
