@@ -9,7 +9,6 @@ on:
 
 jobs:
   report:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     runs-on: namespace-profile-starkware-libs-proving-utils-small-ubuntu-24-04-amd64
     steps:
       - name: "Download coverage report"
