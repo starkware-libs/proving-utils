@@ -36,9 +36,6 @@ jobs:
       - run: rustup show
       - run: rustup toolchain install nightly-2025-07-14 --profile minimal
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-tarpaulin
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
@@ -50,22 +47,13 @@ jobs:
           haskell: true
           large-packages: false
           tool-cache: false
-      - name: "Unit tests with coverage"
+      - name: "Unit tests"
         run: |
-          mkdir -p coverage
-          cargo +nightly-2025-07-14 tarpaulin \
-            --workspace --all-targets --all-features \
-            --out Stdout --out Xml --output-dir coverage \
-            --fail-under 0
+          cargo +nightly-2025-07-14 test --workspace --all-targets --all-features
       - name: "Test examples"
         run: |
           cargo +nightly-2025-07-14 run --example run_program_with_simple_bl
           cargo +nightly-2025-07-14 run --example run_pie_object_with_simple_bl
-      - name: "Upload coverage report"
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
 
   udeps:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
