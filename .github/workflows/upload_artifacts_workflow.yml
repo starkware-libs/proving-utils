@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - noamp/applicative_bootloader_hints_extract_hash_func
+      - noamp/app_bl_hash_list_in_bl_cfg
 
 jobs:
   artifacts-push:

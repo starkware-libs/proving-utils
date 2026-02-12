@@ -30,7 +30,7 @@ pub(crate) type ProgramIdentifiers = HashMap<String, Identifier>;
 #[derive(Deserialize, Debug, Clone)]
 pub struct BootloaderConfig {
     pub supported_simple_bootloader_hash_list: Vec<Felt252>,
-    pub applicative_bootloader_program_hash: Felt252,
+    pub applicative_bootloader_program_hash_list: Vec<Felt252>,
     pub supported_cairo_verifier_program_hashes: Vec<Felt252>,
 }
 
@@ -72,7 +72,7 @@ impl CompositePackedOutput {
     /// * Returns an error if the sum of subtask sizes does not match the length of `outputs`.
     pub fn get_plain_fact_topologies(
         &self,
-        applicative_bootloader_program_hash: Felt252,
+        applicative_bootloader_program_hash_list: Vec<Felt252>,
     ) -> Result<Vec<FactTopology>, String> {
         let mut subtasks_fact_topologies = Vec::new();
 
@@ -111,7 +111,7 @@ impl CompositePackedOutput {
             // Handle subtask if it is of type `PackedOutput::Plain`
             if let PackedOutput::Plain = subtask {
                 // If the program hash matches the app. bootloader hash, adjust the page sizes
-                if *program_hash == applicative_bootloader_program_hash {
+                if applicative_bootloader_program_hash_list.contains(program_hash) {
                     let mut page_sizes = self.fact_topologies[index].page_sizes.clone();
                     if let Some(first_page_size) = page_sizes.get_mut(0) {
                         *first_page_size -= applicative_bootloader_header_size;
@@ -128,7 +128,9 @@ impl CompositePackedOutput {
             // Handle subtask recursively if it is of type `PackedOutput::Composite`
             else if let PackedOutput::Composite(composite) = subtask {
                 subtasks_fact_topologies.extend(
-                    composite.get_plain_fact_topologies(applicative_bootloader_program_hash)?,
+                    composite.get_plain_fact_topologies(
+                        applicative_bootloader_program_hash_list.clone(),
+                    )?,
                 );
             } else {
                 return Err("Unsupported subtask type".to_string());
