@@ -8,5 +8,8 @@
         "n_queries": 70
     }
 },
-"preprocessed_trace": "canonical_without_pedersen"
+"preprocessed_trace": "canonical_without_pedersen",
+"include_all_preprocessed_columns": false,
+"store_polynomials_coefficients": false,
+"channel_salt": 0
 }
