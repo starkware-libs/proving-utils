@@ -240,6 +240,8 @@ pub const VERIFIER_GET_INDEX_LAST_BIT: &str = "ids.bit = ids.current.index & 1";
 pub const VERIFIER_DIVIDE_QUERIES_IND_BY_COSET_SIZE_TO_FP_OFFSET: &str =
     "memory[fp + 1] = to_felt_or_relocatable(ids.queries.index // ids.params.coset_size)";
 
+pub const AGGREGATOR_PROGRAM_HASH_FUNCTION_TO_AP: &str =
+    "memory[ap] = to_felt_or_relocatable(aggregator_program_hash_function)";
 pub const APPLICATIVE_LOAD_INPUTS: &str =
     "from starkware.cairo.bootloaders.applicative_bootloader.objects import (
     ApplicativeBootloaderInput,

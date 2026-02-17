@@ -13,6 +13,7 @@ use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::runners::cairo_runner::ResourceTracker;
 use cairo_vm::vm::vm_core::VirtualMachine;
 
+use crate::hints::applicative_bootloader_hints::aggregator_program_hash_function_to_ap;
 use crate::hints::bootloader_hints::{
     assert_is_composite_packed_output, assert_program_address,
     compute_and_configure_fact_topologies, compute_and_configure_fact_topologies_simple,
@@ -183,6 +184,9 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             VERIFIER_GET_INDEX_LAST_BIT => set_bit_from_index(vm, ids_data, ap_tracking),
             VERIFIER_DIVIDE_QUERIES_IND_BY_COSET_SIZE_TO_FP_OFFSET => {
                 divide_queries_ind_by_coset_size_to_fp_offset(vm, ids_data, ap_tracking)
+            }
+            AGGREGATOR_PROGRAM_HASH_FUNCTION_TO_AP => {
+                aggregator_program_hash_function_to_ap(vm, exec_scopes)
             }
             APPLICATIVE_LOAD_INPUTS => prepare_aggregator_simple_bootloader_output_segment(
                 vm,

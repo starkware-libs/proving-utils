@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noamp/abl_get_aggregator_hash_func_to_ap
 
 jobs:
   artifacts-push:
