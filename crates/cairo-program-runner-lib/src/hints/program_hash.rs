@@ -3,6 +3,8 @@ use cairo_vm::types::relocatable::MaybeRelocatable;
 use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use cairo_vm::Felt252;
 use starknet_crypto::{pedersen_hash, poseidon_hash_many, Felt};
+use starknet_types_core::hash::Blake2Felt252;
+use std::iter::once;
 
 use super::types::HashFunc;
 
@@ -91,18 +93,9 @@ fn maybe_relocatable_to_felt(
     felt252_to_felt(felt)
 }
 
-#[allow(dead_code)] // TODO: remove
-/// Computes the Pedersen hash of a program.
-///
-/// Reimplements this Python function:
-/// def compute_program_hash_chain(program: ProgramBase, bootloader_version=0):
-///     builtin_list = [from_bytes(builtin.encode("ascii")) for builtin in program.builtins]
-///     # The program header below is missing the data length, which is later added to the
-///     # data_chain.
-///     program_header = [bootloader_version, program.main, len(program.builtins)] + builtin_list
-///     data_chain = program_header + program.data
-///
-///     return compute_hash_chain([len(data_chain)] + data_chain)
+/// Computes the program hash chain using the selected hash function.
+/// This implementation takes into account the program header in addition to the program data,
+/// which aligns with how the bootloader computes the program hash of its subtasks.
 pub fn compute_program_hash_chain(
     program: &StrippedProgram,
     bootloader_version: usize,
@@ -125,30 +118,23 @@ pub fn compute_program_hash_chain(
         program.data.iter().map(maybe_relocatable_to_felt).collect();
     let program_data = program_data?;
 
-    let data_chain_len = program_header.len() + builtin_list.len() + program_data.len();
-    let data_chain_len_vec = vec![Felt::from(data_chain_len)];
-
-    // Prepare a chain of iterators to feed to the hash function
-    let data_chain = [
-        &data_chain_len_vec,
-        &program_header,
-        &builtin_list,
-        &program_data,
-    ];
+    let data_without_len: Vec<Felt> = [&program_header, &builtin_list, &program_data]
+        .iter()
+        .flat_map(|&v| v.iter().copied())
+        .collect();
 
     let hash = match program_hash_function {
         HashFunc::Pedersen => {
-            compute_hash_chain(data_chain.iter().flat_map(|&v| v.iter()), pedersen_hash)?
+            let data_chain_len_felt = Felt::from(data_without_len.len());
+            compute_hash_chain(
+                once(&data_chain_len_felt).chain(data_without_len.iter()),
+                pedersen_hash,
+            )?
         }
-        HashFunc::Poseidon => {
-            let data: Vec<Felt> = data_chain[1..]
-                .iter()
-                .flat_map(|&v| v.iter().copied())
-                .collect();
-            poseidon_hash_many(&data)
+        HashFunc::Poseidon => poseidon_hash_many(&data_without_len),
+        HashFunc::Blake => {
+            Blake2Felt252::encode_felt252_data_and_calc_blake_hash(&data_without_len)
         }
-        // TODO(yairv): replace dummy with actual impl.
-        HashFunc::Blake => Felt::from(0x123456789u64),
     };
     Ok(hash)
 }
@@ -157,9 +143,15 @@ pub fn compute_program_hash_chain(
 mod tests {
     use std::path::PathBuf;
 
+    use cairo_vm::math_utils::signed_felt;
+    use cairo_vm::types::layout_name::LayoutName;
     use cairo_vm::types::program::Program;
+    use cairo_vm::Felt252;
     use rstest::rstest;
     use starknet_crypto::pedersen_hash;
+
+    use crate::types::RunMode;
+    use crate::{cairo_run_program, ProgramInput};
 
     use super::*;
 
@@ -205,5 +197,86 @@ mod tests {
         let program_hash_hex = format!("{program_hash:#x}");
 
         assert_eq!(program_hash_hex, expected_program_hash);
+    }
+
+    /// Runs the simple bootloader with a fibonncci program task with each of the 3 hash func
+    /// variants, and asserts that the program hash at output buffer index 2 (third element) matches
+    /// the Rust `compute_program_hash_chain` result.
+    #[rstest]
+    #[case::pedersen(HashFunc::Pedersen)]
+    #[case::poseidon(HashFunc::Poseidon)]
+    #[case::blake(HashFunc::Blake)]
+    fn test_bootloader_program_hash_matches_rust_impl(#[case] hash_func: HashFunc) {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let simple_bootloader_path = manifest_dir
+            .join("resources/compiled_programs/bootloaders/simple_bootloader_compiled.json");
+        let fibonacci_path = manifest_dir.join("examples/fibonacci.json");
+
+        let simple_bootloader_program =
+            Program::from_file(simple_bootloader_path.as_path(), Some("main"))
+                .expect("Could not load simple bootloader program.");
+        let fibonacci_program = Program::from_file(fibonacci_path.as_path(), Some("main"))
+            .expect("Could not load fibonacci program.");
+        let stripped_program = fibonacci_program
+            .get_stripped_program()
+            .expect("Could not get stripped program.");
+
+        let program_hash_function_str = match hash_func {
+            HashFunc::Pedersen => "pedersen",
+            HashFunc::Poseidon => "poseidon",
+            HashFunc::Blake => "blake",
+        };
+        let program_input_contents = format!(
+            r#"{{
+                "tasks": [
+                    {{
+                        "path": "{}",
+                        "program_hash_function": "{}",
+                        "type": "RunProgramTask"
+                    }}
+                ],
+                "single_page": true
+            }}"#,
+            fibonacci_path.display(),
+            program_hash_function_str,
+        );
+
+        let cairo_run_config = RunMode::Proof {
+            layout: LayoutName::starknet_with_keccak,
+            dynamic_layout_params: None,
+            disable_trace_padding: false,
+            relocate_mem: true,
+        }
+        .create_config();
+
+        let mut runner = cairo_run_program(
+            &simple_bootloader_program,
+            Some(ProgramInput::Json(program_input_contents)),
+            cairo_run_config,
+            None,
+        )
+        .expect("Bootloader run failed.");
+
+        let expected_hash = compute_program_hash_chain(&stripped_program, 0, hash_func)
+            .expect("Failed to compute program hash in Rust.");
+        let mut output_buffer = String::new();
+        runner
+            .vm
+            .write_output(&mut output_buffer)
+            .expect("Failed to write VM output.");
+
+        // write_output renders integers as signed felt decimals.
+        let expected_hash_output_format =
+            signed_felt(Felt252::from_bytes_be(&expected_hash.to_bytes_be())).to_string();
+        let output_lines: Vec<&str> = output_buffer.lines().collect();
+        assert!(
+            output_lines.len() > 2,
+            "Expected at least 3 output lines (n_tasks, n_task_words, program_hash). Got:\n{output_buffer}"
+        );
+        assert_eq!(
+            output_lines[2],
+            expected_hash_output_format,
+            "Bootloader output program hash should match compute_program_hash_chain for {hash_func:?}",
+        );
     }
 }
