@@ -74,6 +74,7 @@ pub fn stwo_run_and_prove(
     run_config: RunConfig<'_>,
     prove_config: ProveConfig,
     prover: Box<dyn ProverTrait>,
+    generic_opcode_reroute: bool,
 ) -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "stwo_run_and_prove").entered();
     let RunConfig {
@@ -107,7 +108,7 @@ pub fn stwo_run_and_prove(
         cairo_run_config,
         extra_hint_processor,
     )?;
-    let prover_input = adapt(&runner)?;
+    let prover_input = adapt(&runner, generic_opcode_reroute)?;
     let result = prove(prover_input.clone(), prove_config, prover);
 
     if let Some(data_dir) = debug_data_dir
@@ -289,6 +290,7 @@ mod tests {
     fn run_stwo_run_and_prove(
         args: TestArgs,
         prover: Box<dyn ProverTrait>,
+        generic_opcode_reroute: bool,
     ) -> Result<(), StwoRunAndProveError> {
         let prove_config = ProveConfig {
             verify: args.verify,
@@ -305,7 +307,7 @@ mod tests {
             extra_hint_processor: None,
         };
 
-        stwo_run_and_prove(run_config, prove_config, prover)
+        stwo_run_and_prove(run_config, prove_config, prover, generic_opcode_reroute)
     }
 
     fn run_with_successful_mock_prover() -> (TempPath, TempPath) {
@@ -321,7 +323,7 @@ mod tests {
                 Ok(())
             });
 
-        run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
+        run_stwo_run_and_prove(args, mock_prover, false).expect("failed to run stwo_run_and_prove");
 
         (program_output_tempfile, proof_tempfile)
     }
@@ -339,7 +341,7 @@ mod tests {
                 )))
             });
 
-        let result = run_stwo_run_and_prove(args, mock_prover);
+        let result = run_stwo_run_and_prove(args, mock_prover, false);
         assert!(
             matches!(result, Err(StwoRunAndProveError::Anyhow(_))),
             "run and prove should return Err(StwoRunAndProveError::Anyhow), but got: {result:?}",

@@ -50,6 +50,12 @@ struct Args {
         case of a proving error, or when the save_debug_data flag is enabled."
     )]
     debug_data_dir: Option<PathBuf>,
+    #[arg(
+        long = "generic_opcode_reroute",
+        default_value = "false",
+        help = "Whether to reroute all Stone opcodes to the generic_opcode in the adapter."
+    )]
+    generic_opcode_reroute: bool,
 }
 
 fn main() -> ExitCode {
@@ -75,6 +81,11 @@ fn run() -> Result<(), StwoRunAndProveError> {
         save_debug_data: args.save_debug_data,
         extra_hint_processor: None,
     };
-    stwo_run_and_prove(run_config, prove_config, stwo_prover)?;
+    stwo_run_and_prove(
+        run_config,
+        prove_config,
+        stwo_prover,
+        args.generic_opcode_reroute,
+    )?;
     Ok(())
 }

@@ -44,6 +44,13 @@ struct Args {
 
     #[clap(long = "secure_run", help = "Enable secure_run mode in the Cairo VM.")]
     secure_run: bool,
+
+    #[arg(
+        long = "generic_opcode_reroute",
+        default_value = "false",
+        help = "Whether to reroute all Stone opcodes to the generic_opcode in the adapter."
+    )]
+    generic_opcode_reroute: bool,
 }
 
 #[derive(Debug, Error)]
@@ -91,7 +98,7 @@ fn run() -> Result<ProverInput, Error> {
     };
 
     let cairo_runner = cairo_run_program(&program, program_input, cairo_run_config, None)?;
-    let prover_input = adapt(&cairo_runner)?;
+    let prover_input = adapt(&cairo_runner, args.generic_opcode_reroute)?;
 
     if let Some(prover_input_path) = args.output_prover_input_path {
         std::fs::write(prover_input_path, serde_json::to_string(&prover_input)?)?;
