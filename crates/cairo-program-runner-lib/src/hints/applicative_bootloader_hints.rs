@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use cairo_vm::{
     hint_processor::{
-        builtin_hint_processor::hint_utils::{get_ptr_from_var_name, insert_value_from_var_name},
+        builtin_hint_processor::hint_utils::{
+            get_ptr_from_var_name, insert_value_from_var_name, insert_value_into_ap,
+        },
         hint_processor_definition::HintReference,
     },
     serde::deserialize_program::ApTracking,
@@ -25,6 +27,20 @@ use super::{
     fact_topologies::FactTopology, vars, ApplicativeBootloaderInput, BootloaderInput,
     SimpleBootloaderInput, APPLICATIVE_BOOTLOADER_INPUT,
 };
+
+/// Implements nondet %{ aggregator_program_hash_function %}
+/// Compiles to: memory[ap] = to_felt_or_relocatable(aggregator_program_hash_function)
+pub fn aggregator_program_hash_function_to_ap(
+    vm: &mut VirtualMachine,
+    exec_scopes: &mut ExecutionScopes,
+) -> Result<(), HintError> {
+    let applicative_bootloader_input: &ApplicativeBootloaderInput =
+        exec_scopes.get_ref(vars::APPLICATIVE_BOOTLOADER_INPUT)?;
+    let program_hash_function = applicative_bootloader_input
+        .aggregator_task
+        .program_hash_function;
+    insert_value_into_ap(vm, program_hash_function as usize)
+}
 
 /// Implements
 /// %{
