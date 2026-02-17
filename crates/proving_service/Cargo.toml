@@ -1,0 +1,33 @@
+[package]
+name = "proving_service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Run Cairo programs and generate STWO proofs"
+
+[dependencies]
+anyhow.workspace = true
+cairo-air.workspace = true
+cairo-program-runner-lib.workspace = true
+cairo-vm.workspace = true
+clap.workspace = true
+env_logger.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sonic-rs.workspace = true
+starknet-ff.workspace = true
+stwo-cairo-prover.workspace = true
+stwo-cairo-utils.workspace = true
+stwo-cairo-adapter.workspace = true
+stwo-cairo-serialize.workspace = true
+stwo-circuits.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+ctor.workspace = true
+mockall.workspace = true
+rstest.workspace = true
+tempfile.workspace = true
