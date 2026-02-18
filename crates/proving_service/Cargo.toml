@@ -1,0 +1,24 @@
+[package]
+name = "proving-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Run Cairo programs and generate STWO proofs using the proving service"
+
+[[bin]]
+name = "proving_service"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+cairo-air.workspace = true
+cairo-program-runner-lib.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+stwo-cairo-adapter.workspace = true
+stwo-cairo-prover.workspace = true
+stwo-cairo-utils.workspace = true
+stwo-circuits.workspace = true
+stwo-run-and-prove = { path = "../stwo_run_and_prove" }
+tracing.workspace = true

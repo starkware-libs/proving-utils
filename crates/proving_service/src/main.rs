@@ -5,8 +5,8 @@ use proving_service::ProvingServiceEntryPoint;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use stwo_cairo_utils::binary_utils::run_binary;
-use stwo_run_and_prove::{ProveConfig, RunConfig, StwoRunAndProveError, stwo_run_and_prove};
-use tracing::{Level, span};
+use stwo_run_and_prove::{stwo_run_and_prove, ProveConfig, RunConfig, StwoRunAndProveError};
+use tracing::{span, Level};
 
 /// This binary runs a cairo program and generates a Stwo proof for it.
 #[derive(Parser, Debug)]

@@ -45,7 +45,7 @@ stwo-cairo-utils = "1.0.1"
 stwo-cairo-adapter = "1.0.1"
 stwo-cairo-prover = "1.0.1"
 stwo-cairo-serialize = "1.0.1"
-stwo-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1374fbe" }
+stwo-circuits = { path = "../stwo-circuits" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"

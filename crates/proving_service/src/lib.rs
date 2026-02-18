@@ -7,8 +7,8 @@ use stwo_cairo_prover::stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleCh
 
 use stwo_circuits::{cairo_air::verify::verify_cairo, circuit_prover::prover::prove_circuit};
 pub use stwo_run_and_prove::{
-    ProveConfig, ProverTrait, RunConfig, StwoProverEntryPoint, StwoRunAndProveError,
-    stwo_run_and_prove,
+    stwo_run_and_prove, ProveConfig, ProverTrait, RunConfig, StwoProverEntryPoint,
+    StwoRunAndProveError,
 };
 
 pub struct ProvingServiceEntryPoint;
