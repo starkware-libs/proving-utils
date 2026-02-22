@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/starkware-libs/proving-utils"
@@ -16,11 +16,11 @@ repository = "https://github.com/starkware-libs/proving-utils"
 [workspace.dependencies]
 anyhow = "1.0.98"
 bincode = { version = "2.0.1", features = ["serde"] }
-cairo-air = "1.0.1"
-cairo-lang-executable = "=2.15.0"
-cairo-lang-runner = "=2.15.0"
-cairo-lang-casm = "=2.15.0"
-cairo-lang-execute-utils = "=2.15.0"
+cairo-air = "1.1.0"
+cairo-lang-executable = "2.16.0"
+cairo-lang-runner = "2.16.0"
+cairo-lang-casm = "2.16.0"
+cairo-lang-execute-utils = "2.16.0"
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
 cairo-vm = { version = "=3.1.0", features = [
     "extensive_hints",
@@ -40,10 +40,10 @@ sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
 starknet-types-core = "=0.2.4"
-stwo-cairo-utils = "1.0.1"
-stwo-cairo-adapter = "1.0.1"
-stwo-cairo-prover = "1.0.1"
-stwo-cairo-serialize = "1.0.1"
+stwo-cairo-utils = "1.1.0"
+stwo-cairo-adapter = "1.1.0"
+stwo-cairo-prover = "1.1.0"
+stwo-cairo-serialize = "1.1.0"
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
