@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - naor-proving-utils__ref-hints
 
 jobs:
   artifacts-push:
