@@ -13,6 +13,11 @@ pub const BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT: &str =
     "from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput
 simple_bootloader_input = SimpleBootloaderInput.Schema().load(program_input)";
 
+pub const LOAD_PRIVACY_SIMPLE_BOOTLOADER_INPUT: &str = "LOAD_PRIVACY_SIMPLE_BOOTLOADER_INPUT";
+
+pub const DUMP_PRIVACY_SIMPLE_BOOTLOADER_OUTPUT_PREIMAGE: &str =
+    "DUMP_PRIVACY_SIMPLE_BOOTLOADER_OUTPUT_PREIMAGE";
+
 pub const BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT: &str =
     "BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT";
 

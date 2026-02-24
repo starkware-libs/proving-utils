@@ -67,6 +67,9 @@ use super::simple_bootloader_hints::{
     simulate_ecdsa_fill_mem_with_felt_96_bit_limbs, simulate_ecdsa_get_r_and_s,
     simulate_keccak_calc_high_low, simulate_keccak_fill_mem_with_state,
 };
+use super::privacy_simple_bootloader_hints::{
+    dump_privacy_simple_bootloader_output_preimage, load_privacy_simple_bootloader_input,
+};
 use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, write_simple_output};
 use super::vector_commitment::set_bit_from_index;
 
@@ -107,6 +110,17 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
                 prepare_simple_bootloader_input(exec_scopes)
             }
             BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT => load_simple_bootloader_input(exec_scopes),
+            LOAD_PRIVACY_SIMPLE_BOOTLOADER_INPUT => {
+                load_privacy_simple_bootloader_input(exec_scopes)
+            }
+            DUMP_PRIVACY_SIMPLE_BOOTLOADER_OUTPUT_PREIMAGE => {
+                dump_privacy_simple_bootloader_output_preimage(
+                    vm,
+                    exec_scopes,
+                    ids_data,
+                    ap_tracking,
+                )
+            }
             BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT => {
                 load_unpacker_bootloader_input(exec_scopes)
             }
