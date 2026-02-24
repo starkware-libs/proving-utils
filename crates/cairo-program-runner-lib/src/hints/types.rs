@@ -400,6 +400,13 @@ pub struct SimpleBootloaderInput {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct PrivacySimpleBootloaderInput {
+    #[serde(flatten)]
+    pub simple_bootloader_input: SimpleBootloaderInput,
+    pub output_preimage_dump_path: PathBuf,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct BootloaderInput {
     #[serde(flatten)]
     pub simple_bootloader_input: SimpleBootloaderInput,
