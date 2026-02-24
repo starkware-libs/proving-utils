@@ -70,3 +70,6 @@ pub const SIMPLE_OUTPUT_INPUT: &str = "simple_output_input";
 
 /// Mock Cairo verifier input.
 pub const MOCK_CAIRO_VERIFIER_INPUT: &str = "mock_cairo_verifier_input";
+
+/// Path to dump the output preimage for privacy simple bootloader.
+pub const OUTPUT_PREIMAGE_DUMP_PATH: &str = "output_preimage_dump_path";
