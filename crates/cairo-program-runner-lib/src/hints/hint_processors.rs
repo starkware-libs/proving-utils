@@ -60,6 +60,9 @@ use super::pedersen_merkle_hints::{
     pedersen_merkle_idx_parity_to_ap, pedersen_merkle_load_input, pedersen_merkle_update,
     pedersen_merkle_verify_auth_path_len,
 };
+use super::privacy_simple_bootloader_hints::{
+    dump_privacy_simple_bootloader_output_preimage, load_privacy_simple_bootloader_input,
+};
 use super::simple_bootloader_hints::{
     simple_bootloader_simulate_ec_op, simple_bootloader_simulate_ecdsa,
     simple_bootloader_simulate_keccak, simulate_ec_op_assert_false,
@@ -107,6 +110,17 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
                 prepare_simple_bootloader_input(exec_scopes)
             }
             BOOTLOADER_READ_SIMPLE_BOOTLOADER_INPUT => load_simple_bootloader_input(exec_scopes),
+            LOAD_PRIVACY_SIMPLE_BOOTLOADER_INPUT => {
+                load_privacy_simple_bootloader_input(exec_scopes)
+            }
+            DUMP_PRIVACY_SIMPLE_BOOTLOADER_OUTPUT_PREIMAGE => {
+                dump_privacy_simple_bootloader_output_preimage(
+                    vm,
+                    exec_scopes,
+                    ids_data,
+                    ap_tracking,
+                )
+            }
             BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT => {
                 load_unpacker_bootloader_input(exec_scopes)
             }

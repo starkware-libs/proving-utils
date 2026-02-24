@@ -13,6 +13,7 @@ mod inner_select_builtins;
 mod load_cairo_pie;
 mod mock_cairo_verifier_hints;
 mod pedersen_merkle_hints;
+mod privacy_simple_bootloader_hints;
 mod program_hash;
 mod program_loader;
 mod select_builtins;
