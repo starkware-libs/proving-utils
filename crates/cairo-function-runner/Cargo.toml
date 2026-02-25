@@ -1,0 +1,18 @@
+[package]
+name = "cairo-function-runner"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+repository.workspace = true
+description = "CairoFunctionRunner for demonstrating Python VM builtin initialization"
+
+[lib]
+name = "cairo_function_runner"
+path = "src/lib.rs"
+
+[dependencies]
+cairo-vm.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+clap.workspace = true
+cairo-program-runner-lib = { path = "../cairo-program-runner-lib" }

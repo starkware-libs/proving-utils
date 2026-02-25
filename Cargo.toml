@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/cairo-function-runner",
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
     "crates/stwo_run_and_prove",
