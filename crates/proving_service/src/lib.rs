@@ -1,19 +1,31 @@
 use cairo_air::utils::ProofFormat;
-use tracing::{Level, span};
-
-use std::{fs::read_to_string, path::PathBuf};
-use stwo_cairo_adapter::ProverInput;
+use circuit_cairo_air::statement::MEMORY_VALUES_LIMBS;
+use circuit_cairo_air::verify::{
+    prepare_cairo_proof_for_circuit_verifier, verify_fixed_cairo_circuit, CairoVerifierConfig,
+};
+use circuit_prover::finalize::finalize_context;
+use circuit_prover::prover::prove_circuit_assignment;
+use circuit_prover::witness::preprocessed::PreprocessedCircuit;
+use itertools::Itertools;
 use stwo_cairo_prover::prover::prove_cairo;
+use std::array;
+use std::{fs::read_to_string, path::PathBuf};
+use stwo::core::fields::m31::M31;
+use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_prover::stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
 
-use circuit_cairo_air::verify::verify_cairo;
-use circuit_prover::prover::prove_circuit;
+use tracing::{Level, span};
+
 pub use stwo_run_and_prove::{
     ProveConfig, ProverTrait, RunConfig, StwoProverEntryPoint, StwoRunAndProveError,
     stwo_run_and_prove,
 };
 
-pub struct ProvingServiceEntryPoint;
+
+pub struct ProvingServiceEntryPoint {
+    pub preprocessed_circuit: PreprocessedCircuit,
+    pub privacy_verifier_config: CairoVerifierConfig,
+}
 
 impl ProverTrait for ProvingServiceEntryPoint {
     fn create_and_serialize_proof(
@@ -38,14 +50,30 @@ impl ProverTrait for ProvingServiceEntryPoint {
             .map_err(|e| StwoRunAndProveError::Anyhow(anyhow::Error::from(e)))?;
         span.exit();
 
-        println!("finished proving");
+        let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &self.privacy_verifier_config.proof_config);
+
+        let (public_claim, outputs, _program) = public_data.pack_into_u32s();
+        let outputs = outputs
+            .chunks_exact(MEMORY_VALUES_LIMBS)
+            .map(|chunk| array::from_fn(|i| M31::from_u32_unchecked(chunk[i])))
+            .collect_vec();
+       
 
         let span = span!(Level::INFO, "building verification context").entered();
-        let mut context = verify_cairo(&cairo_proof).unwrap();
+       
+        let mut context = verify_fixed_cairo_circuit(&self.privacy_verifier_config, proof, public_claim, outputs).unwrap();
         span.exit();
 
+
+        finalize_context(&mut context);
+        let context_values = context.values();
+    
         let span = span!(Level::INFO, "proving verification circuit").entered();
-        let _proof = prove_circuit(&mut context);
+
+        
+        let _proof = prove_circuit_assignment(context_values, &self.preprocessed_circuit);
+
+    
         span.exit();
 
         // TODO: Serialize the proof to a file.

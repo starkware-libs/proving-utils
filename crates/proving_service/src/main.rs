@@ -1,5 +1,8 @@
 use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::utils::get_program_input_from_path;
+use circuit_cairo_air::privacy::privacy_cairo_verifier_config;
+use circuit_cairo_air::verify::build_cairo_verifier_circuit;
+use circuit_prover::witness::preprocessed::PreprocessedCircuit;
 use clap::Parser;
 use proving_service::ProvingServiceEntryPoint;
 use std::path::PathBuf;
@@ -65,7 +68,12 @@ fn run() -> Result<(), StwoRunAndProveError> {
         prover_params_json: args.prover_params_json,
     };
 
-    let prover = Box::new(ProvingServiceEntryPoint);
+    let privacy_verifier_config = privacy_cairo_verifier_config();
+    let mut novalue_context = build_cairo_verifier_circuit(&privacy_verifier_config);
+    let preprocessed_circuit = PreprocessedCircuit::preprocess_circuit(&mut novalue_context);
+
+
+    let prover = Box::new(ProvingServiceEntryPoint { preprocessed_circuit, privacy_verifier_config });
     let run_config = RunConfig {
         program_path: args.program,
         program_input: get_program_input_from_path(&args.program_input)?,
@@ -74,6 +82,8 @@ fn run() -> Result<(), StwoRunAndProveError> {
         save_debug_data: args.save_debug_data,
         extra_hint_processor: None,
     };
+    // Sleep for 1 second to create a seperation between the preproccessing and the proving.
+    std::thread::sleep(std::time::Duration::from_secs(1));
     stwo_run_and_prove(run_config, prove_config, prover)?;
     Ok(())
 }
