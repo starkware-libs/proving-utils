@@ -49,11 +49,15 @@ jobs:
           tool-cache: false
       - name: "Unit tests"
         run: |
-          cargo +nightly-2025-07-14 test --workspace --all-targets --all-features
+          cargo +nightly-2025-07-14 test --workspace --all-targets
       - name: "Test examples"
         run: |
           cargo +nightly-2025-07-14 run --example run_program_with_simple_bl
           cargo +nightly-2025-07-14 run --example run_pie_object_with_simple_bl
+      - name: "Slow tests"
+        run: cargo test --all-targets --features=slow-tests
+        env:
+          RUST_MIN_STACK: 4194304
 
   udeps:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
