@@ -4,6 +4,8 @@ members = [
     "crates/cairo-program-runner-lib",
     "crates/stwo_run_and_prove",
     "crates/vm_runner",
+    "crates/privacy_prove",
+    "crates/privacy_circuit_verify",
 ]
 resolver = "2"
 
@@ -22,6 +24,7 @@ cairo-lang-runner = "2.16.0"
 cairo-lang-casm = "2.16.0"
 cairo-lang-execute-utils = "2.16.0"
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
+privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
 cairo-vm = { version = "=3.1.0", features = [
     "extensive_hints",
     "mod_builtin",
@@ -30,6 +33,9 @@ cairo-vm = { version = "=3.1.0", features = [
 clap = { version = "4.3.10", features = ["derive"] }
 ctor = "0.2"
 env_logger = "0.11.3"
+itertools = { version = "0.12", default-features = false, features = [
+    "use_alloc",
+] }
 log = "0.4.21"
 num-bigint = "0.4"
 num-traits = "0.2.19"
@@ -48,5 +54,6 @@ tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
 tracing = "0.1.40"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mockall = "0.13.1"
 rstest = "0.21"

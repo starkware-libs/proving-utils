@@ -10,22 +10,24 @@ jobs:
   rustfmt:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup show
-      - run: rustup toolchain install nightly-2025-07-14 --profile minimal
-      - run: rustup component add rustfmt --toolchain nightly-2025-07-14
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          components: rustfmt
+          toolchain: nightly-2025-07-14
       - uses: Swatinem/rust-cache@v2
-      - run: cargo +nightly-2025-07-14 fmt --all -- --check
+      - run: scripts/rust_fmt.sh --check
 
   clippy:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup show
-      - run: rustup toolchain install nightly-2025-07-14 --profile minimal
-      - run: rustup component add clippy --toolchain nightly-2025-07-14
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo +nightly-2025-07-14 clippy --workspace --all-targets --all-features -- -D warnings -D future-incompatible -D nonstandard-style -D rust-2018-idioms -D unused
+          - uses: actions/checkout@v2
+          - uses: dtolnay/rust-toolchain@master
+            with:
+              components: clippy
+              toolchain: nightly-2025-07-14
+          - uses: Swatinem/rust-cache@v2
+          - run: scripts/clippy.sh
 
   tests:
     runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
@@ -49,11 +51,15 @@ jobs:
           tool-cache: false
       - name: "Unit tests"
         run: |
-          cargo +nightly-2025-07-14 test --workspace --all-targets --all-features
+          cargo +nightly-2025-07-14 test --workspace --all-targets
       - name: "Test examples"
         run: |
           cargo +nightly-2025-07-14 run --example run_program_with_simple_bl
           cargo +nightly-2025-07-14 run --example run_pie_object_with_simple_bl
+      - name: "Slow tests"
+        run: cargo test --all-targets --features=slow-tests
+        env:
+          RUST_MIN_STACK: 4194304
 
   udeps:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
