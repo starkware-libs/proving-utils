@@ -1,0 +1,54 @@
+[package]
+name = "privacy-prove"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Run Cairo programs and generate STWO proofs that can be verified with a cairo-circuit verifier"
+
+[features]
+slow-tests = []
+
+[dependencies]
+anyhow.workspace = true
+cairo-vm.workspace = true
+clap.workspace = true
+itertools.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sonic-rs.workspace = true
+starknet-ff.workspace = true
+starknet-types-core.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# local crates
+cairo-program-runner-lib.workspace = true
+privacy-circuit-verify.workspace = true
+
+# stwo cairo
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
+
+# stwo circuits
+circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
+
+# stwo
+stwo = { version = "2.1.0", features = [
+    "parallel",
+], default-features = false }
+
+
+[dev-dependencies]
+ctor.workspace = true
+mockall.workspace = true
+rstest.workspace = true
+tracing-subscriber.workspace = true
