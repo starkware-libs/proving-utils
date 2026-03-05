@@ -20,7 +20,7 @@ repository = "https://github.com/starkware-libs/proving-utils"
 [workspace.dependencies]
 anyhow = "1.0.98"
 bincode = { version = "2.0.1", features = ["serde"] }
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "074e508f" }
 cairo-lang-executable = "2.16.0"
 cairo-lang-runner = "2.16.0"
 cairo-lang-casm = "2.16.0"
@@ -47,14 +47,14 @@ starknet-types-core = "=0.2.4"
 stwo = { git = "https://github.com/starkware-libs/stwo", rev = "f117d487", features = [
     "parallel",
 ], default-features = false }
-stwo-cairo-utils = { package = "stwo-cairo-utils", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-stwo-cairo-adapter =  { package = "stwo-cairo-adapter", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-stwo-cairo-prover = { package = "stwo-cairo-prover", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-stwo-cairo-serialize =  { package = "stwo-cairo-serialize", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
-circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
+stwo-cairo-utils = { package = "stwo-cairo-utils", git = "https://github.com/starkware-libs/stwo-cairo", rev = "074e508f" }
+stwo-cairo-adapter =  { package = "stwo-cairo-adapter", git = "https://github.com/starkware-libs/stwo-cairo", rev = "074e508f" }
+stwo-cairo-prover = { package = "stwo-cairo-prover", git = "https://github.com/starkware-libs/stwo-cairo", rev = "074e508f" }
+stwo-cairo-serialize =  { package = "stwo-cairo-serialize", git = "https://github.com/starkware-libs/stwo-cairo", rev = "074e508f" }
+circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "263c309" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "263c309" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "263c309" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "263c309" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"

@@ -4,11 +4,13 @@ use circuit_cairo_air::verify::{
     prepare_cairo_proof_for_circuit_verifier, verify_fixed_cairo_circuit, CairoVerifierConfig,
 };
 use circuit_prover::finalize::finalize_context;
-use circuit_prover::prover::prove_circuit_assignment;
+use circuit_prover::prover::{SimdBackend, prove_circuit_assignment};
 use circuit_prover::witness::preprocessed::PreprocessedCircuit;
 use itertools::Itertools;
-use stwo_cairo_prover::prover::prove_cairo;
-use stwo_cairo_prover::witness::prelude::SimdBackend;
+use stwo::core::ColumnVec;
+use stwo::prover::poly::circle::CircleCoefficients;
+use stwo::prover::poly::twiddles::TwiddleTree;
+use stwo_cairo_prover::prover::prove_cairo_precompute;
 use std::array;
 use std::{fs::read_to_string, path::PathBuf};
 use stwo::core::fields::m31::M31;
@@ -28,6 +30,8 @@ pub struct ProvingServiceEntryPoint {
     pub base_column_pool: BaseColumnPool<SimdBackend>,
     pub preprocessed_circuit: PreprocessedCircuit,
     pub privacy_verifier_config: CairoVerifierConfig,
+    pub twiddles: TwiddleTree<SimdBackend>,
+    pub preprocessed_trace_polys: ColumnVec<CircleCoefficients<SimdBackend>>
 }
 
 impl ProverTrait for ProvingServiceEntryPoint {
@@ -49,7 +53,7 @@ impl ProverTrait for ProvingServiceEntryPoint {
         };
 
         let span = span!(Level::INFO, "proving cairo").entered();
-        let cairo_proof = prove_cairo::<Blake2sM31MerkleChannel>(prover_input, proof_params)
+        let cairo_proof = prove_cairo_precompute::<Blake2sM31MerkleChannel>(&self.base_column_pool, &self.twiddles, self.preprocessed_trace_polys.clone(), prover_input, proof_params,)
             .map_err(|e| StwoRunAndProveError::Anyhow(anyhow::Error::from(e)))?;
         span.exit();
 
@@ -64,7 +68,7 @@ impl ProverTrait for ProvingServiceEntryPoint {
 
         let span = span!(Level::INFO, "building verification context").entered();
        
-        let mut context = verify_fixed_cairo_circuit(&self.privacy_verifier_config, proof, public_claim, outputs).unwrap();
+        let mut context = verify_fixed_cairo_circuit(&self.privacy_verifier_config, proof, public_claim, outputs, false).unwrap();
         span.exit();
 
 

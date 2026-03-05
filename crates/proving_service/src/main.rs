@@ -1,13 +1,14 @@
-use cairo_air::utils::ProofFormat;
+use cairo_air::{PreProcessedTraceVariant, utils::ProofFormat};
 use cairo_program_runner_lib::utils::get_program_input_from_path;
 use circuit_cairo_air::privacy::privacy_cairo_verifier_config;
 use circuit_cairo_air::verify::build_cairo_verifier_circuit;
 use circuit_prover::prover::BaseColumnPool;
 use circuit_prover::witness::preprocessed::PreprocessedCircuit;
-use stwo_cairo_prover::witness::prelude::SimdBackend;
+use stwo::prover::poly::circle::PolyOps;
+use stwo_cairo_prover::witness::{prelude::{CanonicCoset, SimdBackend}, preprocessed_trace::gen_trace};
 use clap::Parser;
 use proving_service::ProvingServiceEntryPoint;
-use std::path::PathBuf;
+use std::{cmp::max, path::PathBuf, sync::Arc};
 use std::process::ExitCode;
 use stwo_cairo_utils::binary_utils::run_binary;
 use stwo_run_and_prove::{ProveConfig, RunConfig, StwoRunAndProveError, stwo_run_and_prove};
@@ -73,9 +74,30 @@ fn run() -> Result<(), StwoRunAndProveError> {
     let privacy_verifier_config = privacy_cairo_verifier_config();
     let mut novalue_context = build_cairo_verifier_circuit(&privacy_verifier_config);
     let preprocessed_circuit = PreprocessedCircuit::preprocess_circuit(&mut novalue_context);
+    
+    
+
+    let max_domain_size = max(preprocessed_circuit.params.trace_log_size + 2, privacy_verifier_config.proof_config.log_evaluation_domain_size() as u32);
+
+    // Precompute twiddles.
+    // Account for blowup factor and for composition polynomial calculation (taking the max since
+    // the composition polynomial is split prior to LDE).
+    let twiddles = SimdBackend::precompute_twiddles(
+        CanonicCoset::new(
+            max_domain_size,
+        )
+        .circle_domain()
+        .half_coset,
+    );
 
 
-    let prover = Box::new(ProvingServiceEntryPoint { base_column_pool: BaseColumnPool::<SimdBackend>::new(), preprocessed_circuit, privacy_verifier_config });
+    let preprocessed_trace = Arc::new(PreProcessedTraceVariant::CanonicalSmall.to_preprocessed_trace());
+    let preprocessed_trace_polys =
+        SimdBackend::interpolate_columns(gen_trace(preprocessed_trace.clone()), &twiddles);
+
+
+ 
+    let prover = Box::new(ProvingServiceEntryPoint { base_column_pool: BaseColumnPool::<SimdBackend>::new(), preprocessed_circuit, privacy_verifier_config, twiddles, preprocessed_trace_polys });
     let run_config = RunConfig {
         program_path: args.program,
         program_input: get_program_input_from_path(&args.program_input)?,
