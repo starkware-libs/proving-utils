@@ -4,7 +4,7 @@ use circuit_cairo_air::verify::{
     prepare_cairo_proof_for_circuit_verifier, verify_fixed_cairo_circuit, CairoVerifierConfig,
 };
 use circuit_prover::finalize::finalize_context;
-use circuit_prover::prover::{SimdBackend, prove_circuit_assignment};
+use circuit_prover::prover::{SimdBackend, prove_circuit_with_precompute};
 use circuit_prover::witness::preprocessed::PreprocessedCircuit;
 use itertools::Itertools;
 use stwo::core::ColumnVec;
@@ -17,6 +17,7 @@ use stwo::core::fields::m31::M31;
 use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_prover::stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
 use circuit_prover::prover::BaseColumnPool;
+use stwo::core::pcs::PcsConfig;
 
 use tracing::{Level, span};
 
@@ -77,8 +78,12 @@ impl ProverTrait for ProvingServiceEntryPoint {
     
         let span = span!(Level::INFO, "proving verification circuit").entered();
 
+        let mut pcs_config = PcsConfig::default();
+        let lifting_log_size = self.preprocessed_circuit.params.trace_log_size + pcs_config.fri_config.log_blowup_factor;
+        pcs_config.lifting_log_size = Some(lifting_log_size);
+
         
-        let _proof = prove_circuit_assignment(context_values, &self.preprocessed_circuit, &self.base_column_pool);
+        let _proof = prove_circuit_with_precompute(&self.preprocessed_circuit, &self.base_column_pool, &self.twiddles, pcs_config, context_values);
 
     
         span.exit();
