@@ -20,7 +20,7 @@ repository = "https://github.com/starkware-libs/proving-utils"
 [workspace.dependencies]
 anyhow = "1.0.98"
 bincode = { version = "2.0.1", features = ["serde"] }
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "40c0a41d" }
 cairo-lang-executable = "2.16.0"
 cairo-lang-runner = "2.16.0"
 cairo-lang-casm = "2.16.0"
@@ -44,17 +44,18 @@ sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
 starknet-types-core = "=0.2.4"
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "f117d487", features = [
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "3c72df44", features = [
     "parallel",
 ], default-features = false }
-stwo-cairo-utils = { package = "stwo-cairo-utils", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-stwo-cairo-adapter =  { package = "stwo-cairo-adapter", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-stwo-cairo-prover = { package = "stwo-cairo-prover", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-stwo-cairo-serialize =  { package = "stwo-cairo-serialize", git = "https://github.com/starkware-libs/stwo-cairo", rev = "fa4c727d" }
-circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
-circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f6ac85" }
+stwo-cairo-utils = { package = "stwo-cairo-utils", git = "https://github.com/starkware-libs/stwo-cairo", rev = "40c0a41d" }
+stwo-cairo-adapter =  { package = "stwo-cairo-adapter", git = "https://github.com/starkware-libs/stwo-cairo", rev = "40c0a41d" }
+stwo-cairo-prover = { package = "stwo-cairo-prover", git = "https://github.com/starkware-libs/stwo-cairo", rev = "40c0a41d" }
+stwo-cairo-serialize =  { package = "stwo-cairo-serialize", git = "https://github.com/starkware-libs/stwo-cairo", rev = "40c0a41d" }
+circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9d81d86" }
+circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9d81d86" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9d81d86" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9d81d86" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9d81d86" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
