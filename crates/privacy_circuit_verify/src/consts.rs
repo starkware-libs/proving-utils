@@ -3,7 +3,7 @@ use stwo::core::pcs::PcsConfig;
 
 pub const NUM_OUTPUTS: usize = 1;
 
-pub const BOOTLOADER_PATH: &str = "../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json";
+pub const PRIVACY_BOOTLOADER_PATH: &str = "../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json";
 
 pub const LIFTING_LOG_SIZE: u32 = 22;
 
@@ -20,7 +20,7 @@ pub const PCS_CONFIG: PcsConfig = PcsConfig {
 
 // The set of components that are used to verify the privacy transaction.
 // The order of the components is determend by the order in circuit_cairo_air::all_components()
-pub const COMPONENTS: [&str; 57] = [
+pub const PRIVACY_TRANSACTION_COMPONENTS: [&str; 57] = [
     "add_opcode",
     "add_opcode_small",
     "add_ap_opcode",

@@ -25,16 +25,25 @@ use stwo::core::fields::qm31::QM31;
 use stwo_cairo_common::prover_types::cpu::{FELT252_N_WORDS, Felt252};
 use tracing::{Level, info, span};
 
-use crate::consts::{BOOTLOADER_PATH, COMPONENTS, LIFTING_LOG_SIZE, NUM_OUTPUTS, PCS_CONFIG};
+use crate::consts::{
+    LIFTING_LOG_SIZE, NUM_OUTPUTS, PCS_CONFIG, PRIVACY_BOOTLOADER_PATH,
+    PRIVACY_TRANSACTION_COMPONENTS,
+};
 
-pub fn verify(proof: &[u32], output_preimage: &[Felt]) -> Result<(), Box<dyn Error>> {
+pub struct PrivacyProofOutput {
+    pub proof: Vec<u32>,
+    pub output_preimage: Vec<Felt>,
+}
+
+pub fn verify(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Error>> {
     let _span = span!(Level::INFO, "privacy_circuit_verify").entered();
 
     info!("Deserialize the proof");
-    let bootloader_program = get_bootloader_program()?;
+    let bootloader_program = get_privacy_bootloader_program()?;
     let program_len = bootloader_program.data_len();
-    let (public_claim, mut serialized_proof) =
-        proof.split_at(PUBLIC_DATA_LEN + NUM_OUTPUTS + program_len);
+    let (public_claim, mut serialized_proof) = proof_output
+        .proof
+        .split_at(PUBLIC_DATA_LEN + NUM_OUTPUTS + program_len);
     let proof_config = get_proof_config();
     let proof = deserialize_proof_with_config(&mut serialized_proof, &proof_config)?;
     if !serialized_proof.is_empty() {
@@ -42,7 +51,8 @@ pub fn verify(proof: &[u32], output_preimage: &[Felt]) -> Result<(), Box<dyn Err
     }
 
     info!("Compute the bootloader output");
-    let output = Blake2Felt252::encode_felt252_data_and_calc_blake_hash(output_preimage);
+    let output =
+        Blake2Felt252::encode_felt252_data_and_calc_blake_hash(&proof_output.output_preimage);
     let outputs: [M31; FELT252_N_WORDS] = Felt252::from(output).get_limbs();
 
     info!("Prepare the program");
@@ -69,7 +79,7 @@ pub fn get_proof_config() -> ProofConfig {
     let components: Vec<Box<dyn CircuitEval<QM31>>> = all_components::<QM31>()
         .into_iter()
         .map(|(component_name, component)| {
-            let component_in_set = COMPONENTS.contains(&component_name);
+            let component_in_set = PRIVACY_TRANSACTION_COMPONENTS.contains(&component_name);
             if component_in_set {
                 component
             } else {
@@ -86,9 +96,9 @@ pub fn get_proof_config() -> ProofConfig {
     )
 }
 
-pub fn get_bootloader_program() -> Result<Program, Box<dyn Error>> {
+pub fn get_privacy_bootloader_program() -> Result<Program, Box<dyn Error>> {
     let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bootloader_compiled_path = project_dir.join(BOOTLOADER_PATH);
+    let bootloader_compiled_path = project_dir.join(PRIVACY_BOOTLOADER_PATH);
     let bootloader_program = Program::from_file(bootloader_compiled_path.as_path(), Some("main"))?;
     Ok(bootloader_program)
 }

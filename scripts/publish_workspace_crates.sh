@@ -60,6 +60,8 @@ WORKSPACE_ROOT="${SCRIPT_DIR}/.."
 CRATES_TO_PUBLISH=(
   cairo-program-runner-lib
   cairo-program-runner
+  privacy-prove
+  privacy-circuit-verify
   stwo-vm-runner
   stwo-run-and-prove
 )

@@ -14,7 +14,9 @@ use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use circuit_cairo_air::verify::prepare_cairo_proof_for_circuit_verifier;
 use circuit_serialize::serialize::CircuitSerialize;
 use itertools::chain;
-use privacy_circuit_verify::{get_bootloader_program, get_proof_config};
+use privacy_circuit_verify::{
+    PrivacyProofOutput, get_privacy_bootloader_program, get_proof_config,
+};
 use serde_json::from_str;
 use starknet_types_core::felt::Felt;
 use stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
@@ -27,7 +29,7 @@ use crate::consts::{CAIRO_RUN_CONFIG, PROVER_PARAMS};
 
 /// Runs the program and generates a proof for it with params, bootloader and output format suitable
 /// for the privacy circuit verifier.
-pub fn privacy_prove(pie: CairoPie) -> Result<(Vec<u32>, Vec<Felt>), Box<dyn Error>> {
+pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>> {
     let _span = span!(Level::INFO, "privacy_prove").entered();
 
     let output_preimage_file = NamedTempFile::new()?;
@@ -44,7 +46,7 @@ pub fn privacy_prove(pie: CairoPie) -> Result<(Vec<u32>, Vec<Felt>), Box<dyn Err
         },
         output_preimage_dump_path: output_preimage_path.clone(),
     };
-    let bootloader_program = get_bootloader_program()?;
+    let bootloader_program = get_privacy_bootloader_program()?;
 
     info!("Running the program");
     let runner = cairo_run_program(
@@ -56,7 +58,7 @@ pub fn privacy_prove(pie: CairoPie) -> Result<(Vec<u32>, Vec<Felt>), Box<dyn Err
 
     info!("Reading the bootloader output preimage");
     let output_preimage_content = read_to_string(&output_preimage_path)?;
-    let output_preimage_felts: Vec<Felt> = from_str(&output_preimage_content)?;
+    let output_preimage: Vec<Felt> = from_str(&output_preimage_content)?;
 
     info!("Adapting the runner output for the prover");
     let prover_input = adapt(&runner)?;
@@ -74,8 +76,8 @@ pub fn privacy_prove(pie: CairoPie) -> Result<(Vec<u32>, Vec<Felt>), Box<dyn Err
     let mut proof_u32s = vec![];
     proof.serialize(&mut proof_u32s);
 
-    Ok((
-        chain!(public_claim, proof_u32s).collect(),
-        output_preimage_felts,
-    ))
+    Ok(PrivacyProofOutput {
+        proof: chain!(public_claim, proof_u32s).collect(),
+        output_preimage,
+    })
 }

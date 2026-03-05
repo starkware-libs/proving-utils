@@ -17,7 +17,7 @@ pub mod slow_tests {
         let pie = CairoPie::read_zip_file(&pie_path).unwrap();
 
         // Prove and verify
-        let (proof, output_preimage) = privacy_prove(pie).unwrap();
-        verify(&proof, &output_preimage).unwrap();
+        let proof_output = privacy_prove(pie).unwrap();
+        verify(&proof_output).unwrap();
     }
 }
