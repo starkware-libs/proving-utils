@@ -4,6 +4,7 @@ members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
     "crates/stwo_run_and_prove",
+    "crates/tests_cairo_files",
     "crates/vm_runner",
 ]
 resolver = "2"
@@ -51,3 +52,5 @@ thiserror-no-std = "2.0.2"
 tracing = "0.1.40"
 mockall = "0.13.1"
 rstest = "0.21"
+num-integer = "0.1"
+rand = "0.8"

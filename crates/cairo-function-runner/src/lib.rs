@@ -1,19 +1,23 @@
-use anyhow::{anyhow, Result};
+//! A Cairo function runner for testing purposes.
+//!
+//! This module provides [`CairoFunctionRunner`], a high-level interface for running individual
+//! Cairo functions with automatic builtin initialization. It allows direct invocation of specific
+//! entrypoints with custom arguments.
+
 use cairo_program_runner_lib::hints::vars::{PROGRAM_INPUT, PROGRAM_OBJECT};
 use cairo_program_runner_lib::hints::BootloaderHintProcessor;
 use cairo_program_runner_lib::utils::ProgramInput;
 use cairo_vm::types::builtin_name::BuiltinName;
+use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 use cairo_vm::types::relocatable::MaybeRelocatable;
+use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::runners::cairo_runner::{CairoArg, CairoRunner};
 
-/// A Cairo function runner that mimics the behavior of the Python VM's CairoFunctionRunner.
-///
-/// This struct provides a high-level interface for running individual Cairo functions with
-/// automatic builtin initialization, similar to the Python implementation.
+/// A runner for executing individual Cairo functions.
 pub struct CairoFunctionRunner<'a> {
     /// The compiled Cairo program to execute.
     pub program: &'a Program,
@@ -22,100 +26,75 @@ pub struct CairoFunctionRunner<'a> {
 }
 
 impl<'a> CairoFunctionRunner<'a> {
-    /// Creates a new CairoFunctionRunner with manually initialized builtin runners
-    /// similar to the Python VM's CairoFunctionRunner.
+    /// Creates a new `CairoFunctionRunner`.
     ///
-    /// This constructor initializes the Cairo runner with the `all_cairo` layout and proof mode
-    /// enabled, which ensures all builtins are available regardless of what the program declares.
+    /// Initializes the Cairo runner with the `all_cairo` layout and proof mode enabled, ensuring
+    /// all builtins are available regardless of what the program declares.
     ///
     /// # Arguments
-    ///
-    /// * `program` - A reference to the compiled Cairo program to execute.
+    /// - `program`: The compiled Cairo program to execute.
     ///
     /// # Returns
-    ///
-    /// Returns `Ok(CairoFunctionRunner)` if initialization succeeds, or `Err(RunnerError)` if
-    /// there's an error creating or initializing the runner.
-    ///
-    /// # Errors
-    ///
-    /// Returns `RunnerError` if the runner cannot be created or builtins cannot be initialized.
-    pub fn new(program: &'a Program) -> Result<Self, RunnerError> {
-        // Create the CairoRunner with all_cairo layout and proof mode enabled
-        // This ensures all builtins are initialized even if not declared in the program
+    /// - `Ok(CairoFunctionRunner)`: On successful initialization.
+    /// - `Err(CairoRunError)`: If the runner cannot be created or builtins cannot be initialized.
+    #[allow(clippy::result_large_err)]
+    pub fn new(program: &'a Program) -> std::result::Result<Self, CairoRunError> {
         let mut runner = CairoRunner::new(
             program,
             LayoutName::all_cairo,
             None,  // dynamic_layout_params
-            true,  // proof_mode: enables initialization of all layout builtins
+            true,  // proof_mode
             false, // trace_enabled
             false, // disable_trace_padding
         )?;
 
-        // Initialize builtins from the layout (all builtins in proof mode)
         runner.initialize_builtins(true)?;
-
-        // Initialize all segments at once (program_base, execution_base, and all builtins)
         runner.initialize_segments(None);
 
         Ok(Self { program, runner })
     }
 
-    /// Runs a Cairo function from the specified entrypoint with the given arguments.
-    ///
-    /// This method executes a Cairo function by finding its program counter, setting up the
-    /// execution environment (including program input if provided), and running the function
-    /// using the Cairo VM.
+    /// Runs a Cairo function from the specified entrypoint.
     ///
     /// # Arguments
-    ///
-    /// * `entrypoint` - The name of the function to execute (e.g., "sqrt", "main").
-    /// * `verify_secure` - If `true`, runs additional security verifications after execution.
-    /// * `program_segment_size` - Optional size limit for the program segment (used in security
-    ///   verification).
-    /// * `program_input` - Optional program input to inject into the execution scopes.
-    /// * `args` - A slice of `CairoArg` references representing the function arguments.
+    /// - `entrypoint`: The function name to execute (e.g., "sqrt", "main").
+    /// - `verify_secure`: If `true`, runs additional security verifications after execution.
+    /// - `program_segment_size`: Optional size limit for the program segment.
+    /// - `program_input`: Optional program input to inject into the execution scopes.
+    /// - `args`: The function arguments.
     ///
     /// # Returns
-    ///
-    /// Returns `Ok(())` if execution succeeds, or `Err` if there's an error during execution.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The entrypoint function is not found in the program
-    /// - Execution fails (VM errors, hint errors, etc.)
-    /// - Security verification fails (if `verify_secure` is true)
+    /// - `Ok(())`: On successful execution.
+    /// - `Err(CairoRunError)`: If the entrypoint is not found, execution fails, or security
+    ///   verification fails.
+    #[allow(clippy::result_large_err)]
     pub fn run(
         &mut self,
         entrypoint: &str,
         verify_secure: bool,
         program_segment_size: Option<usize>,
         program_input: Option<ProgramInput>,
-        args: &[&CairoArg],
-    ) -> Result<()> {
-        // Get the program counter for the entrypoint function
+        args: &[CairoArg],
+    ) -> std::result::Result<(), CairoRunError> {
         let entrypoint_pc = self.get_function_pc(entrypoint)?;
 
-        // Create a bootloader hint processor for handling hints during execution
         let mut hint_processor = BootloaderHintProcessor::new(None);
 
-        // Insert program input into execution scopes if provided
         if let Some(program_input) = program_input {
             self.runner
                 .exec_scopes
                 .insert_value(PROGRAM_INPUT, program_input);
         }
 
-        // Insert the program object into execution scopes (required by some hints)
         self.runner
             .exec_scopes
             .insert_value(PROGRAM_OBJECT, self.program.clone());
 
-        // Execute the function from the entrypoint
+        let cairo_args: Vec<&CairoArg> = args.iter().collect();
+
         self.runner.run_from_entrypoint(
             entrypoint_pc,
-            args,
+            &cairo_args,
             verify_secure,
             program_segment_size,
             &mut hint_processor,
@@ -124,23 +103,19 @@ impl<'a> CairoFunctionRunner<'a> {
         Ok(())
     }
 
+    /// Runs a Cairo function with default settings (no security verification, no program input).
+    #[allow(clippy::result_large_err)]
+    pub fn run_default(
+        &mut self,
+        entrypoint: &str,
+        args: &[CairoArg],
+    ) -> std::result::Result<(), CairoRunError> {
+        self.run(entrypoint, false, None, None, args)
+    }
+
     /// Retrieves return values from the VM's memory after function execution.
     ///
-    /// This function reads the last `n_return_values` values from the allocation pointer (AP),
-    /// which is where Cairo functions store their return values.
-    ///
-    /// # Arguments
-    ///
-    /// * `n_return_values` - The number of return values to retrieve.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(Vec<MaybeRelocatable>)` containing the return values, or `Err(MemoryError)`
-    /// if there's an error reading from memory.
-    ///
-    /// # Errors
-    ///
-    /// Returns `MemoryError` if the memory cannot be read or if the address calculation fails.
+    /// Reads the last `n_return_values` values from the allocation pointer (AP).
     pub fn get_return_values(
         &self,
         n_return_values: usize,
@@ -148,19 +123,10 @@ impl<'a> CairoFunctionRunner<'a> {
         self.runner.vm.get_return_values(n_return_values)
     }
 
-    /// Gets the base pointer (starting address) for a specific builtin.
+    /// Gets the base pointer for a specific builtin.
     ///
-    /// This is useful for passing builtin pointers as arguments to Cairo functions that require
-    /// them (e.g., `range_check_ptr` for range check operations).
-    ///
-    /// # Arguments
-    ///
-    /// * `builtin_name` - The name of the builtin to get the base pointer for.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Some(MaybeRelocatable)` containing the base pointer if the builtin is found,
-    /// or `None` if the builtin is not initialized.
+    /// Useful for passing builtin pointers as arguments to Cairo functions (e.g., `range_check_ptr`
+    /// for range check operations).
     pub fn get_builtin_base(&self, builtin_name: BuiltinName) -> Option<MaybeRelocatable> {
         self.runner
             .vm
@@ -171,34 +137,14 @@ impl<'a> CairoFunctionRunner<'a> {
     }
 
     /// Gets the program counter (PC) for a function entrypoint.
-    ///
-    /// This function looks up the function in the program's identifiers and returns its PC,
-    /// which is needed to execute the function.
-    ///
-    /// # Arguments
-    ///
-    /// * `entrypoint` - The name of the function (e.g., "sqrt", "main").
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(usize)` containing the program counter if the function is found, or an error
-    /// if the function doesn't exist or has no PC.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The function is not found in the program identifiers
-    /// - The function identifier has no PC value
-    fn get_function_pc(&self, entrypoint: &str) -> Result<usize> {
-        // Format the full identifier name (Cairo 0 uses __main__.<function_name>)
+    #[allow(clippy::result_large_err)]
+    fn get_function_pc(&self, entrypoint: &str) -> std::result::Result<usize, CairoRunError> {
         let full_name = format!("__main__.{entrypoint}");
-        // Look up the identifier in the program
         let identifier = self
             .program
             .get_identifier(&full_name)
-            .ok_or_else(|| anyhow!("Function '{entrypoint}' not found"))?;
+            .ok_or_else(|| ProgramError::EntrypointNotFound(entrypoint.to_string()))?;
 
-        // Extract the program counter from the identifier
         let pc = identifier.pc.ok_or(RunnerError::NoPC)?;
 
         Ok(pc)
