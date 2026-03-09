@@ -261,10 +261,11 @@ fn relocate_builtin_additional_data(
     relocation_table: &RelocationTable,
 ) -> Result<(), SignatureRelocationError> {
     let ecdsa_additional_data = match cairo_pie.additional_data.0.get(&BuiltinName::ecdsa) {
-        Some(BuiltinAdditionalData::Signature(data)) => data,
-        Some(BuiltinAdditionalData::Empty(_)) => return Ok(()),
+        Some(BuiltinAdditionalData::Signature(data)) if !data.is_empty() => data,
+        Some(BuiltinAdditionalData::Signature(_) | BuiltinAdditionalData::Empty(_)) | None => {
+            return Ok(());
+        }
         Some(_) => return Err(SignatureRelocationError::InvalidCairoPieEcdsaBuiltinData),
-        _ => return Ok(()),
     };
 
     let ecdsa_builtin = vm
