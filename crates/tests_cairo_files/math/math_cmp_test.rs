@@ -1,7 +1,9 @@
+//! Tests for `math_cmp.cairo`.
+
 use std::sync::LazyLock;
 
 use crate::cairo_args;
-use crate::utils::mr_from_i64;
+use crate::cairo_args_convert::mr_from_i64;
 use cairo_function_runner::CairoFunctionRunner;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::program::Program;
@@ -11,7 +13,7 @@ use num_traits::{One, Zero};
 use rand::thread_rng;
 use rstest::{fixture, rstest};
 
-use super::math_utils::{sub_mod_prime, RC_BOUND};
+use super::math_test_utils::{sub_mod_prime, RC_BOUND};
 
 /// The compiled Cairo math_cmp program, loaded once and shared across all tests.
 static PROGRAM: LazyLock<Program> = LazyLock::new(|| {

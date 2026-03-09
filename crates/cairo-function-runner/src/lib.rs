@@ -18,6 +18,7 @@ use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::runners::cairo_runner::{CairoArg, CairoRunner};
 
 /// A runner for executing individual Cairo functions.
+/// Used for testing purposes only.
 pub struct CairoFunctionRunner<'a> {
     /// The compiled Cairo program to execute.
     pub program: &'a Program,

@@ -83,7 +83,7 @@ impl_from_for_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isiz
 #[macro_export]
 macro_rules! cairo_args {
     ($($x:expr),* $(,)?) => {
-        vec![$($crate::utils::IntoCairoArg::into_cairo_arg(&$x)),*]
+        vec![$($crate::cairo_args_convert::IntoCairoArg::into_cairo_arg(&$x)),*]
     };
 }
 

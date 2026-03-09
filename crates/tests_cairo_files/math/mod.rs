@@ -1,7 +1,7 @@
 //! Math-related test utilities and tests.
 
 #[cfg(test)]
-mod math_utils;
+mod math_test_utils;
 
 #[cfg(test)]
 mod math_test;

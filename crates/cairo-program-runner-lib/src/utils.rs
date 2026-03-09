@@ -49,7 +49,7 @@ pub fn get_program(program: &Path) -> Result<Program, ProgramError> {
 /// Wraps the input for a Cairo program.
 ///
 /// This function checks if an input file is provided. If so, it returns the path wrapped
-/// as `ProgramInput::Path`. If no input fise is provided, it returns `Ok(None)`.
+/// as `ProgramInput::Path`. If no input file is provided, it returns `Ok(None)`.
 ///
 /// # Arguments
 ///

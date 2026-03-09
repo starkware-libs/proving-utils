@@ -1,7 +1,10 @@
+//! Tests for `math.cairo`.
+
 use std::sync::LazyLock;
 
-use super::math_utils::{is_quad_residue, MAX_DIV, RC_BOUND};
+use super::math_test_utils::{is_quad_residue, MAX_DIV, RC_BOUND};
 use crate::cairo_args;
+use crate::cairo_args_convert::{add_maybe_relocatable, mr_from_biguint, mr_from_i64};
 use crate::error_utils::{
     expect_assert_lt_felt252, expect_assert_not_equal_fail, expect_diff_index_comp,
     expect_diff_type_comparison, expect_hint_assert_not_zero, expect_hint_out_of_valid_range,
@@ -9,7 +12,6 @@ use crate::error_utils::{
     expect_non_le_felt252, expect_ok, expect_split_int_limb_out_of_range,
     expect_split_int_not_zero, VmCheck,
 };
-use crate::utils::{add_maybe_relocatable, mr_from_biguint, mr_from_i64};
 use cairo_function_runner::CairoFunctionRunner;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::program::Program;
