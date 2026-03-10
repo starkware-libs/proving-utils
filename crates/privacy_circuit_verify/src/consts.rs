@@ -2,13 +2,14 @@ use stwo::core::fri::FriConfig;
 use stwo::core::pcs::PcsConfig;
 
 pub const NUM_OUTPUTS: usize = 1;
-
 pub const PRIVACY_BOOTLOADER_PATH: &str = "../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json";
-
 pub const LIFTING_LOG_SIZE: u32 = 22;
+pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
+    736666193, 671587538, 1100540541, 1401951855, 202000446, 1284259076, 1586213897, 825089717,
+];
 
-pub const PCS_CONFIG: PcsConfig = PcsConfig {
-    pow_bits: 22,
+pub const CAIRO_PCS_CONFIG: PcsConfig = PcsConfig {
+    pow_bits: 26,
     fri_config: FriConfig {
         log_blowup_factor: LIFTING_LOG_SIZE - 20,
         log_last_layer_degree_bound: 0,
@@ -16,6 +17,13 @@ pub const PCS_CONFIG: PcsConfig = PcsConfig {
         line_fold_step: 1,
     },
     lifting_log_size: Some(LIFTING_LOG_SIZE),
+};
+
+pub const CIRCUIT_FRI_CONFIG: FriConfig = FriConfig {
+    log_blowup_factor: 1,
+    log_last_layer_degree_bound: 0,
+    n_queries: 70,
+    line_fold_step: 1,
 };
 
 // The set of components that are used to verify the privacy transaction.
