@@ -26,7 +26,7 @@ cargo run -p cairo-program-runner --bin cairo_program_runner -- \
  --outputs_file outputs.json \
  --execution_resources_file execution_resources.json
 
-- The options for `--layout` are: `plain`, `small`, `dex`, `recursive`, `starknet`, `starknet_with_keccak`, `recursive_large_output`, `recursive_with_poseidon`, `all_solidity`, `all_cairo`, `dynamic`, `all_cairo_stwo`, `perpetual`, `dex_with_bitwise`. See the `LayoutName` enum definition in `cairo-vm`.
+- The options for `--layout` are: `plain`, `small`, `dex`, `recursive`, `starknet`, `starknet_with_keccak`, `recursive_large_output`, `recursive_with_poseidon`, `all_solidity`, `all_cairo`, `dynamic`, `all_cairo_stwo`, `stwo_no_ecop`, `perpetual`, `dex_with_bitwise`. See the `LayoutName` enum definition in `cairo-vm`.
 
 ### Cairo PIE output
 

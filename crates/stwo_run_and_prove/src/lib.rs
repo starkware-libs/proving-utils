@@ -87,11 +87,11 @@ pub fn stwo_run_and_prove(
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
-        LayoutName::all_cairo_stwo,
+        LayoutName::stwo_no_ecop,
         true,
         // in stwo when proof_mode==true, trace padding is redundant work
         true,
-        // we allow missing builtins because all_cairo_stwo doesn't include all builtins, and
+        // we allow missing builtins because stwo_no_ecop doesn't include all builtins, and
         // the bootloader will simulate the missing builtins.
         true,
         // we don't need to relocate memory in the VM because we later call the adapter that does

@@ -1,5 +1,9 @@
 name: check
 
+env:
+  NIGHTLY_VERSION: "nightly-2025-07-14"
+  STABLE_VERSION: "1.89.0"
+
 on:
   push:
     branches:
@@ -14,7 +18,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           components: rustfmt
-          toolchain: nightly-2025-07-14
+          toolchain: ${{ env.NIGHTLY_VERSION }}
       - uses: Swatinem/rust-cache@v2
       - run: scripts/rust_fmt.sh --check
 
@@ -25,7 +29,7 @@ jobs:
           - uses: dtolnay/rust-toolchain@master
             with:
               components: clippy
-              toolchain: nightly-2025-07-14
+              toolchain: ${{ env.NIGHTLY_VERSION }}
           - uses: Swatinem/rust-cache@v2
           - run: scripts/clippy.sh
 
@@ -36,7 +40,7 @@ jobs:
         with:
           submodules: "true"
       - run: rustup show
-      - run: rustup toolchain install nightly-2025-07-14 --profile minimal
+      - run: rustup toolchain install ${{ env.NIGHTLY_VERSION }} --profile minimal
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v4
         with:
@@ -51,24 +55,43 @@ jobs:
           tool-cache: false
       - name: "Unit tests"
         run: |
-          cargo +nightly-2025-07-14 test --workspace --all-targets
+          cargo +${{ env.NIGHTLY_VERSION }} test --workspace --all-targets
       - name: "Test examples"
         run: |
-          cargo +nightly-2025-07-14 run --example run_program_with_simple_bl
-          cargo +nightly-2025-07-14 run --example run_pie_object_with_simple_bl
+          cargo +${{ env.NIGHTLY_VERSION }} run --example run_program_with_simple_bl
+          cargo +${{ env.NIGHTLY_VERSION }} run --example run_pie_object_with_simple_bl
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
       - name: "Slow tests"
-        run: cargo test --all-targets --features=slow-tests
+        run: cargo +${{ env.NIGHTLY_VERSION }} nextest run --package privacy-prove --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
         env:
           RUST_MIN_STACK: 4194304
+          RUSTFLAGS: -C target-cpu=native
+          RUST_LOG_SPAN_EVENTS: enter,close
+          RUST_LOG: info
+
+
+  verifier-stable:
+    runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.STABLE_VERSION }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Check verifier compiles on stable
+        env:
+          RUSTUP_TOOLCHAIN: ${{ env.STABLE_VERSION }}
+        run: cargo check --package privacy-circuit-verify
 
   udeps:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
-      - run: rustup toolchain install nightly-2025-07-14 --profile minimal
+      - run: rustup toolchain install ${{ env.NIGHTLY_VERSION }} --profile minimal
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
       - run: cargo install cargo-udeps --locked
-      - run: cargo +nightly-2025-07-14 udeps
+      - run: cargo +${{ env.NIGHTLY_VERSION }} udeps
