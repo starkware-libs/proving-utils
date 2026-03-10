@@ -18,18 +18,6 @@ repository = "https://github.com/starkware-libs/proving-utils"
 [workspace.dependencies]
 anyhow = "1.0.98"
 bincode = { version = "2.0.1", features = ["serde"] }
-cairo-air = "1.1.0"
-cairo-lang-executable = "2.16.0"
-cairo-lang-runner = "2.16.0"
-cairo-lang-casm = "2.16.0"
-cairo-lang-execute-utils = "2.16.0"
-cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
-privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
-cairo-vm = { version = "=3.1.0", features = [
-    "extensive_hints",
-    "mod_builtin",
-    "clap",
-] }
 clap = { version = "4.3.10", features = ["derive"] }
 ctor = "0.2"
 env_logger = "0.11.3"
@@ -46,10 +34,6 @@ sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
 starknet-types-core = "=0.2.4"
-stwo-cairo-utils = "1.1.0"
-stwo-cairo-adapter = "1.1.0"
-stwo-cairo-prover = "1.1.0"
-stwo-cairo-serialize = "1.1.0"
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
@@ -57,3 +41,49 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mockall = "0.13.1"
 rstest = "0.21"
+
+# cairo-vm
+cairo-vm = { version = "=3.2.0", features = [
+    "extensive_hints",
+    "mod_builtin",
+    "clap",
+] }
+
+# cairo-lang
+cairo-lang-executable = "2.16.0"
+cairo-lang-runner = "2.16.0"
+cairo-lang-casm = "2.16.0"
+cairo-lang-execute-utils = "2.16.0"
+
+# stwo cairo
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e9c0854e" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e9c0854e" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e9c0854e" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e9c0854e" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e9c0854e" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "e9c0854e" }
+
+# stwo circuits
+circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f7f6cc" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f7f6cc" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f7f6cc" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f7f6cc" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f7f6cc" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f7f6cc" }
+circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "0f7f6cc" }
+
+# stwo
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "833bb24e" }
+
+# local crates
+cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
+privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
+
+
+# Optimize witness generation and FFTs. This is usually enough to run the tests without stack overflows,
+# while maintaining a reasonable compile time.
+# In the cases where it's not enough, try to manually increase the stack size,
+# See cairo-ci.yaml for an example command.
+[profile.witness-opt-1]
+inherits = "dev"
+package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 }, "circuit-prover" = { opt-level = 1 }, "privacy-prove" = { opt-level = 1 } }
