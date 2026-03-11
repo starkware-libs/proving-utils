@@ -3,11 +3,15 @@ members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
     "crates/stwo_run_and_prove",
+    "crates/proving_service",
     "crates/vm_runner",
     "crates/privacy_prove",
     "crates/privacy_circuit_verify",
 ]
 resolver = "2"
+
+[profile.release]
+debug = true
 
 [workspace.package]
 version = "1.1.0"
@@ -18,7 +22,7 @@ repository = "https://github.com/starkware-libs/proving-utils"
 [workspace.dependencies]
 anyhow = "1.0.98"
 bincode = { version = "2.0.1", features = ["serde"] }
-cairo-air = "1.1.0"
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "319e2e96" }
 cairo-lang-executable = "2.16.0"
 cairo-lang-runner = "2.16.0"
 cairo-lang-casm = "2.16.0"
@@ -46,14 +50,24 @@ sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
 starknet-types-core = "=0.2.4"
-stwo-cairo-utils = "1.1.0"
-stwo-cairo-adapter = "1.1.0"
-stwo-cairo-prover = "1.1.0"
-stwo-cairo-serialize = "1.1.0"
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "3428a95e", features = [
+    "parallel",
+], default-features = false }
+stwo-cairo-utils = { package = "stwo-cairo-utils", git = "https://github.com/starkware-libs/stwo-cairo", rev = "319e2e96" }
+stwo-cairo-adapter =  { package = "stwo-cairo-adapter", git = "https://github.com/starkware-libs/stwo-cairo", rev = "319e2e96" }
+stwo-cairo-prover = { package = "stwo-cairo-prover", git = "https://github.com/starkware-libs/stwo-cairo", rev = "319e2e96" }
+stwo-cairo-serialize =  { package = "stwo-cairo-serialize", git = "https://github.com/starkware-libs/stwo-cairo", rev = "319e2e96" }
+circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "c6aea41" }
+circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "c6aea41" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "c6aea41" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "c6aea41" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "c6aea41" }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 thiserror-no-std = "2.0.2"
+
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mockall = "0.13.1"
 rstest = "0.21"
+
