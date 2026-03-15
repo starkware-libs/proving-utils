@@ -12,28 +12,34 @@ anyhow.workspace = true
 clap.workspace = true
 itertools.workspace = true
 log.workspace = true
+num-traits.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sonic-rs.workspace = true
 starknet-ff.workspace = true
 starknet-types-core.workspace = true
 tracing.workspace = true
-cairo-vm.workspace = true
+
+# cairo-vm
+cairo-vm = { workspace = true, features = [
+    "extensive_hints",
+    "mod_builtin",
+    "clap",
+] }
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "edfe75c7" }
+cairo-air.workspace = true
+stwo-cairo-serialize.workspace = true
+stwo-cairo-common.workspace = true
 
 # stwo circuits
-circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "46ee372" }
+circuit-cairo-air.workspace = true
+circuits-stark-verifier.workspace = true
+circuits.workspace = true
+circuit-serialize.workspace = true
 
 # stwo
-stwo = { version = "2.1.0" }
-
+stwo.workspace = true
 
 [dev-dependencies]
 ctor.workspace = true
