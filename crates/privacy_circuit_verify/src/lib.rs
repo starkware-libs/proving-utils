@@ -70,7 +70,12 @@ pub fn verify(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Error>> {
     };
 
     info!("Call the verifier");
-    verify_fixed_cairo_circuit(verifier_config, proof, public_claim.to_vec(), vec![outputs])?;
+    verify_fixed_cairo_circuit(
+        &verifier_config,
+        proof,
+        public_claim.to_vec(),
+        vec![outputs],
+    )?;
 
     Ok(())
 }
