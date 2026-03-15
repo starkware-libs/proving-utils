@@ -2,7 +2,6 @@ use stwo::core::fri::FriConfig;
 use stwo::core::pcs::PcsConfig;
 
 pub const NUM_OUTPUTS: usize = 1;
-pub const PRIVACY_BOOTLOADER_PATH: &str = "../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json";
 pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [340767, 340768, 2922740, 2922741];
 pub const CIRCUIT_N_BLAKE_GATES: usize = 13450;
 pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
