@@ -64,6 +64,7 @@ jobs:
         uses: taiki-e/install-action@nextest
       - name: "Slow tests"
         run: cargo +${{ env.NIGHTLY_VERSION }} nextest run --package privacy-prove --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
+        run: cargo +${{ env.NIGHTLY_VERSION }} nextest run --package privacy-circuit-verify --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
         env:
           RUST_MIN_STACK: 4194304
           RUSTFLAGS: -C target-cpu=native
