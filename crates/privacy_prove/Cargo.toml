@@ -46,6 +46,9 @@ circuit-cairo-air.workspace = true
 circuits-stark-verifier.workspace = true
 circuits.workspace = true
 circuit-serialize.workspace = true
+circuit-prover.workspace = true
+circuit-common.workspace = true
+circuit-air.workspace = true
 
 # stwo
 stwo = { workspace = true, features = ["parallel", "prover"] }
