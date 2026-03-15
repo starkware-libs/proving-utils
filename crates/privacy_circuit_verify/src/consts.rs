@@ -3,8 +3,6 @@ use stwo::core::pcs::PcsConfig;
 
 pub const NUM_OUTPUTS: usize = 1;
 
-pub const PRIVACY_BOOTLOADER_PATH: &str = "../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json";
-
 pub const LIFTING_LOG_SIZE: u32 = 22;
 
 pub const PCS_CONFIG: PcsConfig = PcsConfig {

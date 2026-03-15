@@ -2,9 +2,6 @@ pub mod consts;
 #[cfg(test)]
 mod tests;
 
-use std::error::Error;
-use std::path::PathBuf;
-
 use anyhow::Result;
 use cairo_air::verifier::INTERACTION_POW_BITS;
 use cairo_vm::types::program::Program;
@@ -20,15 +17,13 @@ use circuits_stark_verifier::empty_component::EmptyComponent;
 use circuits_stark_verifier::proof::ProofConfig;
 use starknet_types_core::felt::Felt;
 use starknet_types_core::hash::Blake2Felt252;
+use std::error::Error;
 use stwo::core::fields::m31::M31;
 use stwo::core::fields::qm31::QM31;
 use stwo_cairo_common::prover_types::cpu::{FELT252_N_WORDS, Felt252};
 use tracing::{Level, info, span};
 
-use crate::consts::{
-    LIFTING_LOG_SIZE, NUM_OUTPUTS, PCS_CONFIG, PRIVACY_BOOTLOADER_PATH,
-    PRIVACY_TRANSACTION_COMPONENTS,
-};
+use crate::consts::{LIFTING_LOG_SIZE, NUM_OUTPUTS, PCS_CONFIG, PRIVACY_TRANSACTION_COMPONENTS};
 
 pub struct PrivacyProofOutput {
     pub proof: Vec<u32>,
@@ -97,8 +92,10 @@ pub fn get_proof_config() -> ProofConfig {
 }
 
 pub fn get_privacy_bootloader_program() -> Result<Program, Box<dyn Error>> {
-    let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bootloader_compiled_path = project_dir.join(PRIVACY_BOOTLOADER_PATH);
-    let bootloader_program = Program::from_file(bootloader_compiled_path.as_path(), Some("main"))?;
+    const BOOTLOADER_JSON: &[u8] = include_bytes!(
+        "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/\
+         privacy_simple_bootloader_compiled.json"
+    );
+    let bootloader_program = Program::from_bytes(BOOTLOADER_JSON, Some("main"))?;
     Ok(bootloader_program)
 }
