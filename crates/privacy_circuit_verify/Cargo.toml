@@ -37,6 +37,8 @@ circuit-cairo-air.workspace = true
 circuits-stark-verifier.workspace = true
 circuits.workspace = true
 circuit-serialize.workspace = true
+circuit-common.workspace = true
+circuit-air.workspace = true
 
 # stwo
 stwo.workspace = true
