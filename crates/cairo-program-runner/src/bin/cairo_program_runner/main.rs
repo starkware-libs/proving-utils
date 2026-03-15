@@ -1,16 +1,17 @@
-use bincode::enc::write::Writer;
-use cairo_program_runner_lib::utils::{
-    get_cairo_run_config, get_program, get_program_input_from_path, write_output_to_file,
-};
-use cairo_vm::types::layout_name::LayoutName;
 use std::env;
 use std::error::Error;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use bincode::enc::write::Writer;
 use cairo_program_runner_lib::cairo_run_program;
+use cairo_program_runner_lib::utils::{
+    get_cairo_run_config, get_program, get_program_input_from_path, write_output_to_file,
+};
 use cairo_vm::cairo_run;
+use cairo_vm::cairo_run::{BinaryWrite, WriteError};
+use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use clap::Parser;
 use stwo_cairo_utils::binary_utils::run_binary;
@@ -123,15 +124,23 @@ struct FileWriter {
 
 impl Writer for FileWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<(), bincode::error::EncodeError> {
-        self.buf_writer
-            .write_all(bytes)
-            .map_err(|e| bincode::error::EncodeError::Io {
+        std::io::Write::write_all(&mut self.buf_writer, bytes).map_err(|e| {
+            bincode::error::EncodeError::Io {
                 inner: e,
                 index: self.bytes_written,
-            })?;
+            }
+        })?;
 
         self.bytes_written += bytes.len();
 
+        Ok(())
+    }
+}
+
+impl BinaryWrite for FileWriter {
+    fn write_all(&mut self, bytes: &[u8]) -> Result<(), WriteError> {
+        cairo_vm::cairo_run::BinaryWrite::write_all(&mut self.buf_writer, bytes)?;
+        self.bytes_written += bytes.len();
         Ok(())
     }
 }
