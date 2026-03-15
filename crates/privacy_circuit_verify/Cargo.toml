@@ -6,6 +6,8 @@ license.workspace = true
 repository.workspace = true
 description = "Verifies a proof with a cairo-circuit verifier"
 
+[features]
+slow-tests = []
 
 [dependencies]
 anyhow.workspace = true
@@ -37,6 +39,8 @@ circuit-cairo-air.workspace = true
 circuits-stark-verifier.workspace = true
 circuits.workspace = true
 circuit-serialize.workspace = true
+circuit-common.workspace = true
+circuit-air.workspace = true
 
 # stwo
 stwo.workspace = true
@@ -46,3 +50,5 @@ ctor.workspace = true
 mockall.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
+tracing-subscriber.workspace = true
+privacy-prove = { path = "../privacy_prove", version = "1.0.0" }
