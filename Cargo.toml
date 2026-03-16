@@ -56,24 +56,24 @@ cairo-lang-casm = "2.16.0"
 cairo-lang-execute-utils = "2.16.0"
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0fe22c1f" }
-stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0fe22c1f" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0fe22c1f" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0fe22c1f" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0fe22c1f" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "0fe22c1f" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
 
 # stwo circuits
-circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2fe71e9" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2fe71e9" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2fe71e9" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2fe71e9" }
-circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2fe71e9" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2fe71e9" }
-circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2fe71e9" }
+circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1599060" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1599060" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1599060" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1599060" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1599060" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1599060" }
+circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "1599060" }
 
 # stwo
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "e584a309" }
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "aeceb74c" }
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
@@ -87,3 +87,7 @@ privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.
 [profile.witness-opt-1]
 inherits = "dev"
 package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 }, "circuit-prover" = { opt-level = 1 }, "privacy-prove" = { opt-level = 1 } }
+
+[profile.samply]
+inherits = "release"
+debug = true
