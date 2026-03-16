@@ -109,9 +109,23 @@ pub fn prepare_recursive_prover_precomputes()
         .ok_or("Lifting log size is not set in Cairo's PcsConfig")?;
     let circuit_lifting_log_size =
         preprocessed_circuit.params.trace_log_size + CIRCUIT_FRI_CONFIG.log_blowup_factor;
-
+    info!(
+        "preprocessed_circuit.params.trace_log_size: {}",
+        preprocessed_circuit.params.trace_log_size
+    );
+    info!(
+        "CIRCUIT_FRI_CONFIG.log_blowup_factor: {}",
+        CIRCUIT_FRI_CONFIG.log_blowup_factor
+    );
+    info!("circuit_lifting_log_size: {}", circuit_lifting_log_size);
     // Precompute twiddles.
     let max_domain_size = max(cairo_lifting_log_size, circuit_lifting_log_size);
+    info!(
+        "Precompute twiddles for max domain size: {}",
+        max_domain_size
+    );
+    info!("cairo_lifting_log_size: {}", cairo_lifting_log_size);
+    info!("circuit_lifting_log_size: {}", circuit_lifting_log_size);
     let twiddles = SimdBackend::precompute_twiddles(
         CanonicCoset::new(max_domain_size)
             .circle_domain()
