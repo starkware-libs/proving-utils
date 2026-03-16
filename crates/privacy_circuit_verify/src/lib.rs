@@ -19,6 +19,7 @@ use circuit_cairo_air::verify::{
     CairoVerifierConfig, build_cairo_verifier_circuit, get_preprocessed_root,
     verify_fixed_cairo_circuit,
 };
+use circuit_common::finalize::add_zk_blinding;
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_serialize::deserialize::deserialize_proof_with_config;
 use circuits::blake::HashValue;
@@ -187,5 +188,12 @@ pub fn get_preprocessed_cairo_circuit(
     cairo_verifier_config: &CairoVerifierConfig,
 ) -> PreprocessedCircuit {
     let mut novalue_context = build_cairo_verifier_circuit(cairo_verifier_config);
+    // [0; 32] is a stub seed to get the correct circuit structure. In practice, we will use a
+    // random seed.
+    add_zk_blinding(
+        &mut novalue_context,
+        [0; 32],
+        cairo_verifier_config.proof_config.fri.n_queries,
+    );
     PreprocessedCircuit::preprocess_circuit(&mut novalue_context)
 }
