@@ -1,22 +1,18 @@
-use circuit_air::statement::{
-    INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
-};
-use circuit_air::verify::CircuitConfig;
 use circuit_cairo_air::all_components::all_components;
-use circuits_stark_verifier::proof::ProofConfig;
 use stwo::core::fields::qm31::QM31;
-use stwo::core::pcs::PcsConfig;
 
 use crate::consts::{
-    CIRCUIT_FRI_CONFIG, CIRCUIT_LOG_BLOWUP_FACTOR, CIRCUIT_PCS_CONFIG,
-    PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
+    CAIRO_LOG_BLOWUP_FACTOR, CAIRO_PCS_CONFIG, CAIRO_TRACE_LOG_SIZE, CIRCUIT_LOG_BLOWUP_FACTOR,
+    CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG, CIRCUIT_TRACE_LOG_SIZE,
+    PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
     PRIVACY_TRANSACTION_COMPONENTS,
 };
 use crate::{
     build_cairo_verifier_circuit, get_cairo_verifier_config, get_preprocessed_cairo_circuit,
-    get_proof_config, get_recursive_circuit_config,
 };
 use circuits::ivalue::IValue;
+
+const CONJECTURED_SECURITY_BITS: u32 = 96;
 
 #[test]
 fn check_components() {
@@ -48,31 +44,57 @@ fn check_circuit_verifier_configs() {
     let cairo_verifier_config = get_cairo_verifier_config().unwrap();
     let preprocessed_circuit = get_preprocessed_cairo_circuit(&cairo_verifier_config);
 
-    // compute the circuit config
-    let lifting_log_size = preprocessed_circuit.params.trace_log_size + CIRCUIT_LOG_BLOWUP_FACTOR;
-    let circuit_pcs_config = PcsConfig {
-        pow_bits: CIRCUIT_PCS_CONFIG.pow_bits,
-        fri_config: CIRCUIT_FRI_CONFIG,
-        lifting_log_size: Some(lifting_log_size),
-    };
-    let circuit_config = CircuitConfig {
-        config: circuit_pcs_config,
-        output_addresses: preprocessed_circuit.params.output_addresses.clone(),
-        n_blake_gates: preprocessed_circuit.params.n_blake_gates,
-        preprocessed_column_ids: preprocessed_circuit.preprocessed_trace.ids(),
-        preprocessed_root: PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into(),
-    };
-
-    // compute the proof config
-    let proof_config = ProofConfig::from_components(
-        &all_circuit_components::<QM31>(),
-        preprocessed_circuit.preprocessed_trace.ids().len(),
-        &circuit_pcs_config,
-        CIRCUIT_INTERACTION_POW_BITS,
+    // Compare fields of the circuit config that are easily computed from the preprocessed circuit
+    // to the expected values
+    assert_eq!(
+        preprocessed_circuit.params.trace_log_size + CIRCUIT_LOG_BLOWUP_FACTOR,
+        CIRCUIT_PCS_CONFIG.lifting_log_size.unwrap()
+    );
+    assert_eq!(
+        preprocessed_circuit.params.output_addresses,
+        CIRCUIT_OUTPUT_ADDRESSES
+    );
+    assert_eq!(
+        preprocessed_circuit.params.n_blake_gates,
+        CIRCUIT_N_BLAKE_GATES
+    );
+    let preprocessed_column_ids: Vec<String> = preprocessed_circuit
+        .preprocessed_trace
+        .ids()
+        .into_iter()
+        .map(|id| id.id)
+        .collect();
+    assert_eq!(
+        preprocessed_column_ids.as_slice(),
+        PRIVACY_CIRCUIT_PREPROCESSED_IDS
     );
 
-    assert_eq!(circuit_config, get_recursive_circuit_config());
-    assert_eq!(proof_config, get_proof_config());
+    // Check that the lifting log sizes are correct
+    assert!(
+        CAIRO_TRACE_LOG_SIZE + CAIRO_LOG_BLOWUP_FACTOR
+            == CAIRO_PCS_CONFIG.lifting_log_size.unwrap()
+    );
+    assert!(
+        CIRCUIT_TRACE_LOG_SIZE + CIRCUIT_LOG_BLOWUP_FACTOR
+            == CIRCUIT_PCS_CONFIG.lifting_log_size.unwrap()
+    );
+
+    // Check that the circuit pcs config is secure enough
+    assert!(
+        CIRCUIT_PCS_CONFIG.pow_bits
+            + CIRCUIT_PCS_CONFIG.fri_config.n_queries as u32
+                * CIRCUIT_PCS_CONFIG.fri_config.log_blowup_factor
+            >= CONJECTURED_SECURITY_BITS,
+        "The recursive circuit pcs config is not secure enough."
+    );
+
+    assert!(
+        CAIRO_PCS_CONFIG.pow_bits
+            + CAIRO_PCS_CONFIG.fri_config.n_queries as u32
+                * CAIRO_PCS_CONFIG.fri_config.log_blowup_factor
+            >= CONJECTURED_SECURITY_BITS,
+        "The cairo circuit pcs config is not secure enough."
+    );
 }
 
 #[cfg(feature = "slow-tests")]
