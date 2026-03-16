@@ -19,6 +19,7 @@ use circuit_cairo_air::verify::{
     CairoVerifierConfig, build_cairo_verifier_circuit, get_preprocessed_root,
     verify_fixed_cairo_circuit,
 };
+use circuit_common::finalize::add_zk_blinding;
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_serialize::deserialize::deserialize_proof_with_config;
 use circuits::blake::HashValue;
@@ -35,8 +36,8 @@ use stwo_cairo_common::prover_types::cpu::{FELT252_N_WORDS, Felt252};
 use tracing::{Level, info, span};
 
 use crate::consts::{
-    CAIRO_PCS_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG,
-    NUM_OUTPUTS, PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
+    CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES,
+    CIRCUIT_PCS_CONFIG, NUM_OUTPUTS, PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
     PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
     PRIVACY_TRANSACTION_COMPONENTS,
 };
@@ -187,5 +188,8 @@ pub fn get_preprocessed_cairo_circuit(
     cairo_verifier_config: &CairoVerifierConfig,
 ) -> PreprocessedCircuit {
     let mut novalue_context = build_cairo_verifier_circuit(cairo_verifier_config);
+    // [0; 32] is a stub seed to get the correct circuit structure. In practice, we will use a
+    // random seed.
+    add_zk_blinding(&mut novalue_context, [0; 32], CIRCUIT_FRI_CONFIG.n_queries);
     PreprocessedCircuit::preprocess_circuit(&mut novalue_context)
 }

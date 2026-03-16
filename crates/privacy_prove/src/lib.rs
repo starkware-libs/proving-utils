@@ -17,7 +17,7 @@ use circuit_air::verify::CircuitConfig;
 use circuit_cairo_air::verify::CairoVerifierConfig;
 use circuit_cairo_air::verify::build_fixed_cairo_circuit;
 use circuit_cairo_air::verify::prepare_cairo_proof_for_circuit_verifier;
-use circuit_common::finalize::finalize_context;
+use circuit_common::finalize::{add_zk_blinding, finalize_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
     preprare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
@@ -25,7 +25,7 @@ use circuit_prover::prover::{
 use circuit_serialize::serialize::CircuitSerialize;
 use circuits_stark_verifier::proof::ProofConfig;
 use itertools::chain;
-use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG};
+use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
 use privacy_circuit_verify::{
     PrivacyProofOutput, compute_privacy_bootloader_output, get_cairo_proof_config,
     get_cairo_verifier_config, get_preprocessed_cairo_circuit, get_privacy_bootloader_program,
@@ -107,8 +107,9 @@ pub fn prepare_recursive_prover_precomputes()
         .pcs_config
         .lifting_log_size
         .ok_or("Lifting log size is not set in Cairo's PcsConfig")?;
-    let circuit_lifting_log_size =
-        preprocessed_circuit.params.trace_log_size + CIRCUIT_FRI_CONFIG.log_blowup_factor;
+    let circuit_lifting_log_size = CIRCUIT_PCS_CONFIG
+        .lifting_log_size
+        .ok_or("Lifting log size is not set in Circuit's PcsConfig")?;
 
     // Precompute twiddles.
     let max_domain_size = max(cairo_lifting_log_size, circuit_lifting_log_size);
@@ -201,6 +202,12 @@ pub fn privacy_recursive_prove(
     if !context.is_circuit_valid() {
         return Err("Circuit is not valid".into());
     };
+    let zk_blinding_seed = cairo_proof.extended_stark_proof.proof.commitments.0[1].0;
+    add_zk_blinding(
+        &mut context,
+        zk_blinding_seed,
+        precomputes.circuit_config.config.fri_config.n_queries,
+    );
     finalize_context(&mut context);
     let context_values = context.values();
 

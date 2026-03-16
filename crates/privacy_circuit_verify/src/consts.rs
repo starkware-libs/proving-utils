@@ -5,28 +5,28 @@ pub const NUM_OUTPUTS: usize = 1;
 pub const PRIVACY_BOOTLOADER_BYTES: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
-pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [340767, 340768, 2922740, 2922741];
-pub const CIRCUIT_N_BLAKE_GATES: usize = 13450;
+pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [220402, 220403, 1980654, 1980655];
+pub const CIRCUIT_N_BLAKE_GATES: usize = 4333;
 pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
-    1283865202, 2009681603, 1266623912, 534797207, 1489758000, 741307218, 1414461714, 1643656987,
+    1276461526, 1712851563, 2110156022, 1953610410, 1886055249, 1889539449, 2125668529, 1102300118,
 ];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    736666193, 671587538, 1100540541, 1401951855, 202000446, 1284259076, 1586213897, 825089717,
+    147325197, 585890270, 292117463, 1671027298, 1234942458, 1901401899, 1278949567, 2051122417,
 ];
-pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 2;
+pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
-pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 1;
-pub const CIRCUIT_TRACE_LOG_SIZE: u32 = 22;
+pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 2;
+pub const CIRCUIT_TRACE_LOG_SIZE: u32 = 21;
 
 pub const CAIRO_FRI_CONFIG: FriConfig = FriConfig {
     log_blowup_factor: CAIRO_LOG_BLOWUP_FACTOR,
     log_last_layer_degree_bound: 0,
-    n_queries: 35,
-    line_fold_step: 1,
+    n_queries: 23,
+    fold_step: 4,
 };
 
 pub const CAIRO_PCS_CONFIG: PcsConfig = PcsConfig {
-    pow_bits: 26,
+    pow_bits: 27,
     fri_config: CAIRO_FRI_CONFIG,
     lifting_log_size: Some(CAIRO_TRACE_LOG_SIZE + CAIRO_LOG_BLOWUP_FACTOR),
 };
@@ -34,8 +34,8 @@ pub const CAIRO_PCS_CONFIG: PcsConfig = PcsConfig {
 pub const CIRCUIT_FRI_CONFIG: FriConfig = FriConfig {
     log_blowup_factor: CIRCUIT_LOG_BLOWUP_FACTOR,
     log_last_layer_degree_bound: 0,
-    n_queries: 70,
-    line_fold_step: 1,
+    n_queries: 35,
+    fold_step: 4,
 };
 
 pub const CIRCUIT_PCS_CONFIG: PcsConfig = PcsConfig {
@@ -135,16 +135,12 @@ pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 73] = [
     "seq_10",
     "seq_11",
     "seq_12",
-    "seq_13",
     "final_state_addr",
     "blake_output0_addr",
     "blake_output1_addr",
     "blake_output0_mults",
     "blake_output1_mults",
-    "seq_14",
-    "bitwise_xor_7_0",
-    "bitwise_xor_7_1",
-    "bitwise_xor_7_2",
+    "seq_13",
     "t0",
     "t1",
     "finalize_flag",
@@ -155,14 +151,18 @@ pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 73] = [
     "message2_addr",
     "message3_addr",
     "compress_enabler",
+    "seq_14",
+    "bitwise_xor_7_0",
+    "bitwise_xor_7_1",
+    "bitwise_xor_7_2",
     "seq_15",
     "seq_16",
     "bitwise_xor_8_0",
     "bitwise_xor_8_1",
     "bitwise_xor_8_2",
-    "seq_17",
     "eq_in0_address",
     "eq_in1_address",
+    "seq_17",
     "seq_18",
     "bitwise_xor_9_0",
     "bitwise_xor_9_1",
