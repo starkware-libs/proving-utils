@@ -80,11 +80,12 @@ pub mod slow_tests {
     use std::path::PathBuf;
 
     use cairo_vm::vm::runners::cairo_pie::CairoPie;
-    use circuit_serialize::deserialize::deserialize_proof_with_config;
     use privacy_prove::{prepare_recursive_prover_precomputes, privacy_recursive_prove};
     use tracing_subscriber::fmt;
 
-    use crate::consts::PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT;
+    use crate::consts::{
+        PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
+    };
     use crate::get_proof_config;
 
     #[test]
@@ -94,18 +95,43 @@ pub mod slow_tests {
         let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let pie_path = project_dir.join("../privacy_prove/test_data/privacy_tx_cairo_pie.zip");
         let pie = CairoPie::read_zip_file(&pie_path).unwrap();
-
         let precomputes = prepare_recursive_prover_precomputes().unwrap();
         let proof_output = privacy_recursive_prove(pie, precomputes).unwrap();
 
         let proof_config = get_proof_config();
-        let mut serialized_proof: &[u32] = &proof_output.proof;
-        let proof = deserialize_proof_with_config(&mut serialized_proof, &proof_config).unwrap();
-        assert!(serialized_proof.is_empty());
+        let proof_u32s = crate::decompress_proof(
+            &proof_output.proof,
+            crate::consts::MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
+        )
+        .unwrap();
+        let proof = circuit_serialize::deserialize::deserialize_proof_with_config(
+            &mut proof_u32s.as_slice(),
+            &proof_config,
+        )
+        .unwrap();
 
         assert_eq!(
             proof.preprocessed_root,
             PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into()
+        );
+    }
+
+    #[test]
+    fn check_max_recursive_proof_uncompressed_size() {
+        let _ = fmt().with_max_level(tracing::Level::INFO).try_init();
+
+        let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let pie_path = project_dir.join("../privacy_prove/test_data/privacy_tx_cairo_pie.zip");
+        let pie = CairoPie::read_zip_file(&pie_path).unwrap();
+        let precomputes = prepare_recursive_prover_precomputes().unwrap();
+        let proof_output = privacy_recursive_prove(pie, precomputes).unwrap();
+
+        let proof_bytes = zstd::decode_all(proof_output.proof.as_slice()).unwrap();
+        assert_eq!(
+            proof_bytes.len(),
+            RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
+            "Update RECURSIVE_PROOF_UNCOMPRESSED_BYTES in consts.rs to {}",
+            proof_bytes.len()
         );
     }
 }

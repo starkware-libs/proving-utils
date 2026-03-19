@@ -22,6 +22,7 @@ starknet-types-core.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+zstd.workspace = true
 
 # local crates
 cairo-program-runner-lib.workspace = true

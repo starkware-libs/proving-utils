@@ -37,14 +37,28 @@ use tracing::{Level, info, span};
 
 use crate::consts::{
     CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES,
-    CIRCUIT_PCS_CONFIG, NUM_OUTPUTS, PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
-    PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
-    PRIVACY_TRANSACTION_COMPONENTS,
+    CIRCUIT_PCS_CONFIG, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES, NUM_OUTPUTS,
+    PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
+    PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, PRIVACY_TRANSACTION_COMPONENTS,
 };
 
 pub struct PrivacyProofOutput {
-    pub proof: Vec<u32>,
+    /// Compressed proof bytes. The format must be consistent between the prover and verifier:
+    /// - `privacy_prove` / `verify_cairo`
+    /// - `privacy_recursive_prove` / `verify_recursive_circuit`
+    pub proof: Vec<u8>,
     pub output_preimage: Vec<Felt>,
+}
+
+pub(crate) fn decompress_proof(
+    compressed: &[u8],
+    max_bytes: usize,
+) -> Result<Vec<u32>, Box<dyn Error>> {
+    let proof_bytes = zstd::bulk::decompress(compressed, max_bytes)?;
+    Ok(proof_bytes
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .collect())
 }
 
 pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Error>> {
@@ -52,12 +66,12 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
 
     let verifier_config = get_cairo_verifier_config()?;
 
-    info!("Deserialize the proof");
+    info!("Decompress and deserialize the proof");
+    let proof_u32s = decompress_proof(&proof_output.proof, usize::MAX)?;
     let bootloader_program = get_privacy_bootloader_program()?;
     let program_len = bootloader_program.data_len();
-    let (public_claim, mut serialized_proof) = proof_output
-        .proof
-        .split_at(PUBLIC_DATA_LEN + NUM_OUTPUTS + program_len);
+    let (public_claim, mut serialized_proof) =
+        proof_u32s.split_at(PUBLIC_DATA_LEN + NUM_OUTPUTS + program_len);
     let proof =
         deserialize_proof_with_config(&mut serialized_proof, &verifier_config.proof_config)?;
     if !serialized_proof.is_empty() {
@@ -84,8 +98,9 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     let circuit_config = get_recursive_circuit_config();
     let proof_config = get_proof_config();
 
-    info!("Deserialize the proof");
-    let mut serialized_proof: &[u32] = &proof_output.proof;
+    info!("Decompress and deserialize the proof");
+    let proof_u32s = decompress_proof(&proof_output.proof, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES)?;
+    let mut serialized_proof: &[u32] = &proof_u32s;
     let proof = deserialize_proof_with_config(&mut serialized_proof, &proof_config)?;
     if !serialized_proof.is_empty() {
         return Err("Proof deserialization failed".into());
