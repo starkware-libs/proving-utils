@@ -3,17 +3,25 @@ use stwo::core::pcs::PcsConfig;
 
 pub const NUM_OUTPUTS: usize = 1;
 
+/// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
+pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 621_432;
+
 /// Uncompressed size in bytes of the serialized recursive circuit proof.
 pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 346_380;
 
-/// Multiplicative safety factor applied to [`RECURSIVE_PROOF_UNCOMPRESSED_BYTES`] to derive the
-/// decompression limit used in `verify_recursive_circuit` as a zip-bomb protection.
-pub const RECURSIVE_PROOF_MAX_DECOMPRESSED_RATIO: usize = 2;
+/// Multiplicative safety factor applied to the proof size constants to derive decompression limits
+/// used in `verify_cairo` and `verify_recursive_circuit` as zip-bomb protection.
+pub const PROOF_MAX_DECOMPRESSED_RATIO: usize = 2;
+
+/// Maximum allowed uncompressed size in bytes when decompressing the cairo proof.
+/// Used in `verify_cairo` to prevent zip-bomb attacks.
+pub const MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES: usize =
+    CAIRO_PROOF_UNCOMPRESSED_BYTES * PROOF_MAX_DECOMPRESSED_RATIO;
 
 /// Maximum allowed uncompressed size in bytes when decompressing the recursive circuit proof.
 /// Used in `verify_recursive_circuit` to prevent zip-bomb attacks.
 pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
-    RECURSIVE_PROOF_UNCOMPRESSED_BYTES * RECURSIVE_PROOF_MAX_DECOMPRESSED_RATIO;
+    RECURSIVE_PROOF_UNCOMPRESSED_BYTES * PROOF_MAX_DECOMPRESSED_RATIO;
 
 pub const PRIVACY_BOOTLOADER_BYTES: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"

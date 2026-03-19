@@ -93,7 +93,10 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     let combined_u32s: Vec<u32> = chain!(public_claim, proof_u32s).collect();
     let compressed = compress_proof(&combined_u32s)?;
 
-    Ok(PrivacyProofOutput { proof: compressed, output_preimage })
+    Ok(PrivacyProofOutput {
+        proof: compressed,
+        output_preimage,
+    })
 }
 
 pub fn prepare_recursive_prover_precomputes()
@@ -234,7 +237,10 @@ pub fn privacy_recursive_prove(
     proof_qm31s.serialize(&mut proof_u32s);
     let compressed = compress_proof(&proof_u32s)?;
 
-    Ok(PrivacyProofOutput { proof: compressed, output_preimage })
+    Ok(PrivacyProofOutput {
+        proof: compressed,
+        output_preimage,
+    })
 }
 
 fn run_privacy_bootloader(pie: CairoPie) -> Result<(ProverInput, Vec<Felt>), Box<dyn Error>> {
