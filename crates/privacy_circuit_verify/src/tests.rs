@@ -84,7 +84,8 @@ pub mod slow_tests {
     use tracing_subscriber::fmt;
 
     use crate::consts::{
-        PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
+        CAIRO_PROOF_UNCOMPRESSED_BYTES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
+        RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
     };
     use crate::get_proof_config;
 
@@ -104,15 +105,35 @@ pub mod slow_tests {
             crate::consts::MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
         )
         .unwrap();
+        let mut serialized_proof: &[u32] = &proof_u32s;
         let proof = circuit_serialize::deserialize::deserialize_proof_with_config(
-            &mut proof_u32s.as_slice(),
+            &mut serialized_proof,
             &proof_config,
         )
         .unwrap();
+        assert!(serialized_proof.is_empty());
 
         assert_eq!(
             proof.preprocessed_root,
             PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into()
+        );
+    }
+
+    #[test]
+    fn check_max_cairo_proof_uncompressed_size() {
+        let _ = fmt().with_max_level(tracing::Level::INFO).try_init();
+
+        let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let pie_path = project_dir.join("../privacy_prove/test_data/privacy_tx_cairo_pie.zip");
+        let pie = CairoPie::read_zip_file(&pie_path).unwrap();
+        let proof_output = privacy_prove::privacy_prove(pie).unwrap();
+
+        let proof_bytes = zstd::decode_all(proof_output.proof.as_slice()).unwrap();
+        assert_eq!(
+            proof_bytes.len(),
+            CAIRO_PROOF_UNCOMPRESSED_BYTES,
+            "Update CAIRO_PROOF_UNCOMPRESSED_BYTES in consts.rs to {}",
+            proof_bytes.len()
         );
     }
 
