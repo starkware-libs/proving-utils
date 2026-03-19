@@ -4,10 +4,10 @@ use stwo::core::pcs::PcsConfig;
 pub const NUM_OUTPUTS: usize = 1;
 
 /// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
-pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 621_432;
+pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 621_431;
 
 /// Uncompressed size in bytes of the serialized recursive circuit proof.
-pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 346_380;
+pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 344_350;
 
 /// Multiplicative safety factor applied to the proof size constants to derive decompression limits
 /// used in `verify_cairo` and `verify_recursive_circuit` as zip-bomb protection.
@@ -26,13 +26,13 @@ pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const PRIVACY_BOOTLOADER_BYTES: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
-pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [220402, 220403, 1980654, 1980655];
+pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [220311, 220312, 1980612, 1980613];
 pub const CIRCUIT_N_BLAKE_GATES: usize = 4333;
 pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
     1276461526, 1712851563, 2110156022, 1953610410, 1886055249, 1889539449, 2125668529, 1102300118,
 ];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    147325197, 585890270, 292117463, 1671027298, 1234942458, 1901401899, 1278949567, 2051122417,
+    602341238, 1494955906, 1707152935, 354062375, 107517436, 1147733077, 453600859, 1504773373,
 ];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
@@ -127,7 +127,7 @@ pub const PRIVACY_TRANSACTION_COMPONENTS: [&str; 57] = [
     "verify_bitwise_xor_9",
 ];
 
-pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 73] = [
+pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 60] = [
     "blake_sigma_0",
     "blake_sigma_1",
     "blake_sigma_2",
@@ -145,23 +145,14 @@ pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 73] = [
     "blake_sigma_14",
     "blake_sigma_15",
     "seq_4",
-    "seq_5",
-    "seq_6",
-    "seq_7",
-    "seq_8",
     "bitwise_xor_4_0",
     "bitwise_xor_4_1",
     "bitwise_xor_4_2",
-    "seq_9",
-    "seq_10",
-    "seq_11",
-    "seq_12",
     "final_state_addr",
     "blake_output0_addr",
     "blake_output1_addr",
     "blake_output0_mults",
     "blake_output1_mults",
-    "seq_13",
     "t0",
     "t1",
     "finalize_flag",
@@ -183,13 +174,9 @@ pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 73] = [
     "bitwise_xor_8_2",
     "eq_in0_address",
     "eq_in1_address",
-    "seq_17",
-    "seq_18",
     "bitwise_xor_9_0",
     "bitwise_xor_9_1",
     "bitwise_xor_9_2",
-    "seq_19",
-    "seq_20",
     "bitwise_xor_10_0",
     "bitwise_xor_10_1",
     "bitwise_xor_10_2",
