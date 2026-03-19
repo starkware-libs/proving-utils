@@ -20,7 +20,7 @@ use circuit_cairo_air::verify::prepare_cairo_proof_for_circuit_verifier;
 use circuit_common::finalize::{add_zk_blinding, finalize_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
-    preprare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
+    prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
 };
 use circuit_serialize::serialize::CircuitSerialize;
 use circuits_stark_verifier::proof::ProofConfig;
@@ -65,10 +65,8 @@ pub struct RecursiveProverPrecomputes {
     pub proof_config: ProofConfig,
 }
 
-fn compress_proof(proof_u32s: &[u32]) -> Result<Vec<u8>, Box<dyn Error>> {
-    // TODO(Gil): Remove u32→u8 conversion once CircuitSerialize::serialize writes to &mut Vec<u8>.
-    let bytes: Vec<u8> = proof_u32s.iter().flat_map(|x| x.to_le_bytes()).collect();
-    Ok(zstd::encode_all(bytes.as_slice(), 3)?)
+fn compress_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+    Ok(zstd::encode_all(proof_bytes, 3)?)
 }
 
 /// Runs the program and generates a proof for it with params, bootloader and output format suitable
@@ -89,10 +87,11 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
 
     info!("Serialize and compress the proof and public data");
     let (public_claim, _outputs, _program) = public_data.pack_into_u32s();
-    let mut proof_u32s = vec![];
-    proof.serialize(&mut proof_u32s);
-    let combined_u32s: Vec<u32> = chain!(public_claim, proof_u32s).collect();
-    let compressed = compress_proof(&combined_u32s)?;
+    let mut proof_bytes: Vec<u8> = vec![];
+    proof.serialize(&mut proof_bytes);
+    let public_claim_bytes: Vec<u8> = public_claim.iter().flat_map(|x| x.to_le_bytes()).collect();
+    let combined_bytes: Vec<u8> = chain!(public_claim_bytes, proof_bytes).collect();
+    let compressed = compress_proof(&combined_bytes)?;
 
     Ok(PrivacyProofOutput {
         proof: compressed,
@@ -231,12 +230,12 @@ pub fn privacy_recursive_prove(
 
     info!("Prepare the circuit proof for the circuit verifier");
     let (proof_qm31s, _public_data) =
-        preprare_circuit_proof_for_circuit_verifier(circuit_proof, &precomputes.proof_config);
+        prepare_circuit_proof_for_circuit_verifier(circuit_proof, &precomputes.proof_config);
 
     info!("Serialize and compress the proof");
-    let mut proof_u32s: Vec<u32> = vec![];
-    proof_qm31s.serialize(&mut proof_u32s);
-    let compressed = compress_proof(&proof_u32s)?;
+    let mut proof_bytes: Vec<u8> = vec![];
+    proof_qm31s.serialize(&mut proof_bytes);
+    let compressed = compress_proof(&proof_bytes)?;
 
     Ok(PrivacyProofOutput {
         proof: compressed,

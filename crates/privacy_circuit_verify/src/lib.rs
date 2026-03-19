@@ -54,13 +54,8 @@ pub struct PrivacyProofOutput {
 pub(crate) fn decompress_proof(
     compressed: &[u8],
     max_bytes: usize,
-) -> Result<Vec<u32>, Box<dyn Error>> {
-    let proof_bytes = zstd::bulk::decompress(compressed, max_bytes)?;
-    // TODO(Gil): Remove u8→u32 conversion once deserialize_proof_with_config accepts &[u8].
-    Ok(proof_bytes
-        .chunks_exact(4)
-        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
-        .collect())
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    Ok(zstd::bulk::decompress(compressed, max_bytes)?)
 }
 
 pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Error>> {
@@ -69,11 +64,16 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let verifier_config = get_cairo_verifier_config()?;
 
     info!("Decompress and deserialize the proof");
-    let proof_u32s = decompress_proof(&proof_output.proof, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES)?;
+    let proof_bytes = decompress_proof(&proof_output.proof, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES)?;
     let bootloader_program = get_privacy_bootloader_program()?;
     let program_len = bootloader_program.data_len();
-    let (public_claim, mut serialized_proof) =
-        proof_u32s.split_at(PUBLIC_DATA_LEN + NUM_OUTPUTS + program_len);
+    let (public_claim_bytes, serialized_proof_bytes) =
+        proof_bytes.split_at((PUBLIC_DATA_LEN + NUM_OUTPUTS + program_len) * 4);
+    let public_claim: Vec<u32> = public_claim_bytes
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .collect();
+    let mut serialized_proof: &[u8] = serialized_proof_bytes;
     let proof =
         deserialize_proof_with_config(&mut serialized_proof, &verifier_config.proof_config)?;
     if !serialized_proof.is_empty() {
@@ -101,8 +101,9 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     let proof_config = get_proof_config();
 
     info!("Decompress and deserialize the proof");
-    let proof_u32s = decompress_proof(&proof_output.proof, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES)?;
-    let mut serialized_proof: &[u32] = &proof_u32s;
+    let proof_bytes =
+        decompress_proof(&proof_output.proof, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES)?;
+    let mut serialized_proof: &[u8] = &proof_bytes;
     let proof = deserialize_proof_with_config(&mut serialized_proof, &proof_config)?;
     if !serialized_proof.is_empty() {
         return Err("Proof deserialization failed".into());
