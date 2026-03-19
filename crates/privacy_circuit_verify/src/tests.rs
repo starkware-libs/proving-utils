@@ -100,12 +100,12 @@ pub mod slow_tests {
         let proof_output = privacy_recursive_prove(pie, precomputes).unwrap();
 
         let proof_config = get_proof_config();
-        let proof_u32s = crate::decompress_proof(
+        let proof_bytes = crate::decompress_proof(
             &proof_output.proof,
             crate::consts::MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
         )
         .unwrap();
-        let mut serialized_proof: &[u32] = &proof_u32s;
+        let mut serialized_proof: &[u8] = &proof_bytes;
         let proof = circuit_serialize::deserialize::deserialize_proof_with_config(
             &mut serialized_proof,
             &proof_config,
