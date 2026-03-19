@@ -37,9 +37,10 @@ use tracing::{Level, info, span};
 
 use crate::consts::{
     CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES,
-    CIRCUIT_PCS_CONFIG, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES, NUM_OUTPUTS,
-    PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
-    PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, PRIVACY_TRANSACTION_COMPONENTS,
+    CIRCUIT_PCS_CONFIG, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
+    NUM_OUTPUTS, PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
+    PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
+    PRIVACY_TRANSACTION_COMPONENTS,
 };
 
 pub struct PrivacyProofOutput {
@@ -55,6 +56,7 @@ pub(crate) fn decompress_proof(
     max_bytes: usize,
 ) -> Result<Vec<u32>, Box<dyn Error>> {
     let proof_bytes = zstd::bulk::decompress(compressed, max_bytes)?;
+    // TODO(Gil): Remove u8→u32 conversion once deserialize_proof_with_config accepts &[u8].
     Ok(proof_bytes
         .chunks_exact(4)
         .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
@@ -67,7 +69,7 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let verifier_config = get_cairo_verifier_config()?;
 
     info!("Decompress and deserialize the proof");
-    let proof_u32s = decompress_proof(&proof_output.proof, usize::MAX)?;
+    let proof_u32s = decompress_proof(&proof_output.proof, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES)?;
     let bootloader_program = get_privacy_bootloader_program()?;
     let program_len = bootloader_program.data_len();
     let (public_claim, mut serialized_proof) =
