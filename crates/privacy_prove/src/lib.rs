@@ -66,8 +66,9 @@ pub struct RecursiveProverPrecomputes {
 }
 
 fn compress_proof(proof_u32s: &[u32]) -> Result<Vec<u8>, Box<dyn Error>> {
+    // TODO(Gil): Remove u32→u8 conversion once CircuitSerialize::serialize writes to &mut Vec<u8>.
     let bytes: Vec<u8> = proof_u32s.iter().flat_map(|x| x.to_le_bytes()).collect();
-    Ok(zstd::encode_all(bytes.as_slice(), 0)?)
+    Ok(zstd::encode_all(bytes.as_slice(), 3)?)
 }
 
 /// Runs the program and generates a proof for it with params, bootloader and output format suitable
@@ -93,7 +94,10 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     let combined_u32s: Vec<u32> = chain!(public_claim, proof_u32s).collect();
     let compressed = compress_proof(&combined_u32s)?;
 
-    Ok(PrivacyProofOutput { proof: compressed, output_preimage })
+    Ok(PrivacyProofOutput {
+        proof: compressed,
+        output_preimage,
+    })
 }
 
 pub fn prepare_recursive_prover_precomputes()
@@ -234,7 +238,10 @@ pub fn privacy_recursive_prove(
     proof_qm31s.serialize(&mut proof_u32s);
     let compressed = compress_proof(&proof_u32s)?;
 
-    Ok(PrivacyProofOutput { proof: compressed, output_preimage })
+    Ok(PrivacyProofOutput {
+        proof: compressed,
+        output_preimage,
+    })
 }
 
 fn run_privacy_bootloader(pie: CairoPie) -> Result<(ProverInput, Vec<Felt>), Box<dyn Error>> {
