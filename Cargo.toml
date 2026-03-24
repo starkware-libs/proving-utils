@@ -51,10 +51,10 @@ cairo-vm = { version = "=3.2.0", features = [
 ] }
 
 # cairo-lang
-cairo-lang-executable = "2.16.0"
-cairo-lang-runner = "2.16.0"
-cairo-lang-casm = "2.16.0"
-cairo-lang-execute-utils = "2.16.0"
+cairo-lang-executable = "2.17.0-rc.3"
+cairo-lang-runner = "2.17.0-rc.3"
+cairo-lang-casm = "2.17.0-rc.3"
+cairo-lang-execute-utils = "2.17.0-rc.3"
 
 # stwo cairo
 cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
