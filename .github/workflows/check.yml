@@ -94,6 +94,28 @@ jobs:
           RUSTUP_TOOLCHAIN: ${{ env.STABLE_VERSION }}
         run: cargo check --package privacy-circuit-verify
 
+  coverage:
+    runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.NIGHTLY_VERSION }}
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate coverage report
+        run: |
+          cargo +${{ env.NIGHTLY_VERSION }} llvm-cov --workspace --all-targets --lcov --output-path lcov.info
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          fail_ci_if_error: true
+
   udeps:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
