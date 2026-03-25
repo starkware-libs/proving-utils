@@ -16,7 +16,7 @@ Required flags:
 - `--layout <LAYOUT>`: Cairo VM layout
 - `--output_execution_resources_path <PATH>`: absolute path to write execution resources JSON
 
-- The options for `--layout` are: `plain`, `small`, `dex`, `recursive`, `starknet`, `starknet_with_keccak`, `recursive_large_output`, `recursive_with_poseidon`, `all_solidity`, `all_cairo`, `dynamic`, `all_cairo_stwo`, `perpetual`, `dex_with_bitwise`. See the `LayoutName` enum definition in `cairo-vm`.
+- The options for `--layout` are: `plain`, `small`, `dex`, `recursive`, `starknet`, `starknet_with_keccak`, `recursive_large_output`, `recursive_with_poseidon`, `all_solidity`, `all_cairo`, `dynamic`, `all_cairo_stwo`, `stwo_no_ecop`, `perpetual`, `dex_with_bitwise`. See the `LayoutName` enum definition in `cairo-vm`.
 
 Optional:
 
