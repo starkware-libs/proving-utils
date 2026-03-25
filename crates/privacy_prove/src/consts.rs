@@ -7,7 +7,7 @@ use stwo_cairo_prover::prover::{ChannelHash, ProverParameters};
 pub const CAIRO_RUN_CONFIG: CairoRunConfig<'_> = CairoRunConfig {
     trace_enabled: true,
     relocate_trace: false,
-    layout: LayoutName::all_cairo_stwo,
+    layout: LayoutName::stwo_no_ecop,
     fill_holes: true,
     proof_mode: true,
     disable_trace_padding: true,
