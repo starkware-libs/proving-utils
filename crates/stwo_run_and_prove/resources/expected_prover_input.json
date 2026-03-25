@@ -389,7 +389,7 @@
       37,
       5,
       37,
-      5,
+      37,
       5,
       37,
       37,
@@ -435,7 +435,7 @@
       37,
       5,
       37,
-      5,
+      37,
       5,
       37,
       37,
@@ -654,7 +654,8 @@
     "pedersen_builtin": null,
     "poseidon_builtin": null,
     "range_check96_builtin": null,
-    "range_check_builtin": null
+    "range_check_builtin": null,
+    "ec_op_builtin": null
   },
   "public_segment_context": {
     "present": [
