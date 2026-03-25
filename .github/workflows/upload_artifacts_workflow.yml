@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - gil/bump_dependencies
 
 jobs:
   artifacts-push:
