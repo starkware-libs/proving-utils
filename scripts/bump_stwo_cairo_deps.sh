@@ -79,6 +79,7 @@ deps=(
   stwo-cairo-adapter
   stwo-cairo-prover
   stwo-cairo-serialize
+  stwo-cairo-common
 )
 
 for dep in "${deps[@]}"; do
