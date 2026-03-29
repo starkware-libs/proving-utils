@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - or/wip-upload-58e82b6
 
 jobs:
   artifacts-push:
