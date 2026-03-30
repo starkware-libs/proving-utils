@@ -1,3 +1,22 @@
+#[test]
+fn test_privacy_bootloader_program_hash_snapshot() {
+    use cairo_program_runner_lib::compute_program_hash_chain;
+    use cairo_program_runner_lib::types::HashFunc;
+    use expect_test::expect;
+    use privacy_circuit_verify::get_privacy_bootloader_program;
+
+    let bootloader_program = get_privacy_bootloader_program().unwrap();
+    let stripped_program = bootloader_program.get_stripped_program().unwrap();
+    let program_hash = compute_program_hash_chain(&stripped_program, 0, HashFunc::Blake)
+        .expect("Failed to compute program hash.");
+
+    // Source code for the compiled privacy bootloader producing the following hash can be found at
+    // Starkware's internal main repo at commit "f65af209cc2a245a7d1c90711b49555ade65dd8c".
+    let expected_hash_str =
+        expect!["1890025921478295787236140635548238999754587527337379830429702962129599171727"];
+    expected_hash_str.assert_eq(&program_hash.to_string());
+}
+
 #[cfg(feature = "slow-tests")]
 pub mod slow_tests {
     use std::path::PathBuf;
