@@ -23,7 +23,8 @@ use circuit_common::finalize::add_zk_blinding;
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_serialize::deserialize::deserialize_proof_with_config;
 use circuits::blake::HashValue;
-use circuits::ivalue::IValue;
+use circuits::context::Context;
+use circuits::ivalue::{IValue, NoValue};
 use circuits_stark_verifier::constraint_eval::CircuitEval;
 use circuits_stark_verifier::empty_component::EmptyComponent;
 use circuits_stark_verifier::proof::ProofConfig;
@@ -38,7 +39,7 @@ use tracing::{Level, info, span};
 use crate::consts::{
     CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES,
     CIRCUIT_PCS_CONFIG, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
-    NUM_OUTPUTS, PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
+    NUM_OUTPUTS, PRIVACY_BOOTLOADER_JSON, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
     PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
     PRIVACY_TRANSACTION_COMPONENTS,
 };
@@ -171,7 +172,7 @@ pub fn get_cairo_verifier_config() -> Result<CairoVerifierConfig, Box<dyn Error>
 }
 
 pub fn get_privacy_bootloader_program() -> Result<Program, Box<dyn Error>> {
-    let bootloader_program = Program::from_bytes(PRIVACY_BOOTLOADER_BYTES, Some("main"))?;
+    let bootloader_program = Program::from_bytes(PRIVACY_BOOTLOADER_JSON, Some("main"))?;
     Ok(bootloader_program)
 }
 
@@ -202,12 +203,17 @@ pub fn get_proof_config() -> ProofConfig {
     )
 }
 
-pub fn get_preprocessed_cairo_circuit(
+pub fn get_cairo_preprocessed_circuit(
     cairo_verifier_config: &CairoVerifierConfig,
 ) -> PreprocessedCircuit {
+    let mut novalue_context = get_cairo_novalue_context(cairo_verifier_config);
+    PreprocessedCircuit::preprocess_circuit(&mut novalue_context)
+}
+
+fn get_cairo_novalue_context(cairo_verifier_config: &CairoVerifierConfig) -> Context<NoValue> {
     let mut novalue_context = build_cairo_verifier_circuit(cairo_verifier_config);
     // [0; 32] is a stub seed to get the correct circuit structure. In practice, we will use a
     // random seed.
     add_zk_blinding(&mut novalue_context, [0; 32], CIRCUIT_FRI_CONFIG.n_queries);
-    PreprocessedCircuit::preprocess_circuit(&mut novalue_context)
+    novalue_context
 }

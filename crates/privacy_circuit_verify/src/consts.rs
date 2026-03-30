@@ -23,7 +23,7 @@ pub const MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
     RECURSIVE_PROOF_UNCOMPRESSED_BYTES * PROOF_MAX_DECOMPRESSED_RATIO;
 
-pub const PRIVACY_BOOTLOADER_BYTES: &[u8] = include_bytes!(
+pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
 pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [220311, 220312, 1980612, 1980613];
