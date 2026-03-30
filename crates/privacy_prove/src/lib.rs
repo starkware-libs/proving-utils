@@ -27,8 +27,8 @@ use circuits_stark_verifier::proof::ProofConfig;
 use itertools::chain;
 use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
 use privacy_circuit_verify::{
-    PrivacyProofOutput, compute_privacy_bootloader_output, get_cairo_proof_config,
-    get_cairo_verifier_config, get_preprocessed_cairo_circuit, get_privacy_bootloader_program,
+    PrivacyProofOutput, compute_privacy_bootloader_output, get_cairo_preprocessed_circuit,
+    get_cairo_proof_config, get_cairo_verifier_config, get_privacy_bootloader_program,
     get_proof_config, get_recursive_circuit_config,
 };
 use serde_json::from_str;
@@ -104,7 +104,7 @@ pub fn prepare_recursive_prover_precomputes()
     let _span = span!(Level::INFO, "prepare_privacy_recursiveprover_precomputes").entered();
 
     let cairo_verifier_config = get_cairo_verifier_config()?;
-    let preprocessed_circuit = get_preprocessed_cairo_circuit(&cairo_verifier_config);
+    let preprocessed_circuit = get_cairo_preprocessed_circuit(&cairo_verifier_config);
     let circuit_config = get_recursive_circuit_config();
     let proof_config = get_proof_config();
 
