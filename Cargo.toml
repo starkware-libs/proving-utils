@@ -65,9 +65,6 @@ stwo-cairo-serialize = "1.2.0"
 stwo-cairo-common = "1.2.0"
 
 
-# stwo
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "aeceb74c" }
-
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
 privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }

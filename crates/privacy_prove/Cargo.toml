@@ -52,8 +52,7 @@ circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev 
 circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2591775" }
 
 # stwo
-stwo = { workspace = true, features = ["parallel", "prover"] }
-
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "aeceb74c", features = ["parallel", "prover"] }
 
 [dev-dependencies]
 ctor.workspace = true
