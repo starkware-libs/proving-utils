@@ -10,7 +10,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.2.1"
+version = "1.2.2"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/starkware-libs/proving-utils"
@@ -57,12 +57,12 @@ cairo-lang-casm = "2.17.0-rc.4"
 cairo-lang-execute-utils = "2.17.0-rc.4"
 
 # stwo cairo
-cairo-air = "1.2.1"
-stwo-cairo-utils = "1.2.1"
-stwo-cairo-adapter = "1.2.1"
-stwo-cairo-prover = "1.2.1"
-stwo-cairo-serialize = "1.2.1"
-stwo-cairo-common = "1.2.1"
+cairo-air = "1.2.2"
+stwo-cairo-utils = "1.2.2"
+stwo-cairo-adapter = "1.2.2"
+stwo-cairo-prover = "1.2.2"
+stwo-cairo-serialize = "1.2.2"
+stwo-cairo-common = "1.2.2"
 
 
 # local crates
