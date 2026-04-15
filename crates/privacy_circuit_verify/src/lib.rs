@@ -13,7 +13,7 @@ use circuit_air::statement::{
 };
 use circuit_air::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
 use circuit_cairo_air::all_components::all_components;
-use circuit_cairo_air::preprocessed_columns::PREPROCESSED_COLUMNS_ORDER;
+use stwo_cairo_common::preprocessed_columns::preprocessed_trace::PreProcessedTraceVariant;
 use circuit_cairo_air::statement::PUBLIC_DATA_LEN;
 use circuit_cairo_air::verify::{
     CairoVerifierConfig, build_cairo_verifier_circuit, get_preprocessed_root,
@@ -142,7 +142,7 @@ pub fn get_cairo_proof_config() -> ProofConfig {
 
     ProofConfig::from_components(
         &components,
-        PREPROCESSED_COLUMNS_ORDER.len(),
+        PreProcessedTraceVariant::CanonicalSmall.to_preprocessed_trace().ids().len(),
         &CAIRO_PCS_CONFIG,
         INTERACTION_POW_BITS,
     )
@@ -154,7 +154,7 @@ pub fn get_cairo_verifier_config() -> Result<CairoVerifierConfig, Box<dyn Error>
 
     // Get the bootloader program
     let bootloader_program = get_privacy_bootloader_program()?;
-    let mut program = vec![];
+    let mut program : Vec<[M31; FELT252_N_WORDS]> = vec![];
     for value in bootloader_program.iter_data() {
         let value = value.get_int().ok_or("Failed to get value")?;
         program.push(Felt252::from(value).get_limbs());
@@ -164,9 +164,10 @@ pub fn get_cairo_verifier_config() -> Result<CairoVerifierConfig, Box<dyn Error>
 
     Ok(CairoVerifierConfig {
         proof_config: cairo_proof_config,
-        program,
+        program: program.into(),
         n_outputs: NUM_OUTPUTS,
         preprocessed_root: get_preprocessed_root(cairo_lifting_log_size),
+        preprocessed_trace_variant: PreProcessedTraceVariant::CanonicalSmall,
     })
 }
 
