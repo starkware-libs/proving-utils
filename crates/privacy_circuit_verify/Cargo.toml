@@ -31,20 +31,23 @@ cairo-vm = { workspace = true, features = [
 ] }
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "467d5c6d" }
+cairo-air = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-air" }
+stwo-cairo-adapter = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/adapter" }
+stwo-cairo-prover = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/prover" }
+stwo-cairo-serialize = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-serialize" }
+stwo-cairo-common = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/common" }
 
 # stwo circuits
-circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2591775" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2591775" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2591775" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2591775" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2591775" }
-circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "2591775" }
+circuit-cairo-air = { path = "../../../stwo-circuits/crates/cairo_air" }
+circuits-stark-verifier = { path = "../../../stwo-circuits/crates/stark_verifier" }
+circuits = { path = "../../../stwo-circuits/crates/circuits" }
+circuit-serialize = { path = "../../../stwo-circuits/crates/circuit_serialize" }
+circuit-prover = { path = "../../../stwo-circuits/crates/circuit_prover" }
+circuit-common = { path = "../../../stwo-circuits/crates/circuit_common" }
+circuit-air = { path = "../../../stwo-circuits/crates/circuit_air" }
 
 # stwo
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "aeceb74c" }
+stwo = { path = "../../../../stwo/crates/stwo", features = ["parallel", "prover"] }
 
 [dev-dependencies]
 ctor.workspace = true
