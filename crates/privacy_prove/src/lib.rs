@@ -197,9 +197,23 @@ pub fn privacy_recursive_prove(
         &precomputes.cairo_verifier_config.proof_config,
     );
 
+    info!("Serialize and save the proof and public data to test_data");
+    let test_data_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data");
+    let mut proof_bytes: Vec<u8> = vec![];
+    proof.serialize(&mut proof_bytes);
+    std::fs::write(format!("{test_data_dir}/proof.bin"), &proof_bytes)?;
+    std::fs::write(
+        format!("{test_data_dir}/public_data.json"),
+        serde_json::to_vec_pretty(&public_data)?,
+    )?;
+
     info!("Build the cairo-circuit verifier context");
     let (public_claim, _outputs, _program) = public_data.pack_into_u32s();
     let outputs = compute_privacy_bootloader_output(&output_preimage);
+    std::fs::write(
+        format!("{test_data_dir}/outputs.json"),
+        serde_json::to_vec_pretty(&outputs)?,
+    )?;
     let mut context = build_fixed_cairo_circuit(
         &precomputes.cairo_verifier_config,
         proof,
@@ -210,6 +224,7 @@ pub fn privacy_recursive_prove(
         return Err("Circuit is not valid".into());
     };
     let zk_blinding_seed = cairo_proof.extended_stark_proof.proof.commitments.0[1].0;
+    println!("{:?}", &zk_blinding_seed);
     add_zk_blinding(
         &mut context,
         zk_blinding_seed,
