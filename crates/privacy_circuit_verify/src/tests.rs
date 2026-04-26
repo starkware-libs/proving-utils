@@ -1,15 +1,20 @@
 use circuit_cairo_air::all_components::all_components;
+use circuits::blake::HashValue;
 use stwo::core::fields::qm31::QM31;
+use stwo::core::poly::circle::CanonicCoset;
+use stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
+use stwo::prover::CommitmentTreeProver;
+use stwo::prover::backend::simd::SimdBackend;
+use stwo::prover::mempool::BaseColumnPool;
+use stwo::prover::poly::circle::PolyOps;
 
 use crate::consts::{
     CAIRO_LOG_BLOWUP_FACTOR, CAIRO_PCS_CONFIG, CAIRO_TRACE_LOG_SIZE, CIRCUIT_LOG_BLOWUP_FACTOR,
     CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG, CIRCUIT_TRACE_LOG_SIZE,
     PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
-    PRIVACY_TRANSACTION_COMPONENTS,
+    PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, PRIVACY_TRANSACTION_COMPONENTS,
 };
-use crate::{
-    build_cairo_verifier_circuit, get_cairo_verifier_config, get_preprocessed_cairo_circuit,
-};
+use crate::{get_cairo_novalue_context, get_cairo_preprocessed_circuit, get_cairo_verifier_config};
 use circuits::ivalue::IValue;
 
 const CONJECTURED_SECURITY_BITS: u32 = 96;
@@ -28,7 +33,7 @@ fn check_components() {
 #[test]
 fn check_cairo_circuit_verifier_constants() {
     let cairo_verifier_config = get_cairo_verifier_config().unwrap();
-    let novalue_context = build_cairo_verifier_circuit(&cairo_verifier_config);
+    let novalue_context = get_cairo_novalue_context(&cairo_verifier_config);
     let constants = novalue_context
         .constants()
         .keys()
@@ -40,9 +45,41 @@ fn check_cairo_circuit_verifier_constants() {
 }
 
 #[test]
+fn check_privacy_recursion_circuit_preprocessed_root() {
+    let cairo_verifier_config = get_cairo_verifier_config().unwrap();
+    let preprocessed_circuit = get_cairo_preprocessed_circuit(&cairo_verifier_config);
+    let preprocessed_trace = preprocessed_circuit
+        .preprocessed_trace
+        .get_trace::<SimdBackend>();
+    let max_domain_size = CIRCUIT_PCS_CONFIG.lifting_log_size.unwrap();
+    let twiddles = SimdBackend::precompute_twiddles(
+        CanonicCoset::new(max_domain_size)
+            .circle_domain()
+            .half_coset,
+    );
+    let preprocessed_trace_polys = SimdBackend::interpolate_columns(preprocessed_trace, &twiddles);
+    let store_polynomials_coefficients = true;
+    let base_column_pool = BaseColumnPool::<SimdBackend>::new();
+    let preprocessed_tree = CommitmentTreeProver::<SimdBackend, Blake2sM31MerkleChannel>::new(
+        preprocessed_trace_polys,
+        CIRCUIT_PCS_CONFIG.fri_config.log_blowup_factor,
+        &twiddles,
+        store_polynomials_coefficients,
+        CIRCUIT_PCS_CONFIG.lifting_log_size,
+        &base_column_pool,
+    );
+    let expected_root: HashValue<QM31> = preprocessed_tree.commitment.root().into();
+
+    assert_eq!(
+        expected_root,
+        PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into()
+    );
+}
+
+#[test]
 fn check_circuit_verifier_configs() {
     let cairo_verifier_config = get_cairo_verifier_config().unwrap();
-    let preprocessed_circuit = get_preprocessed_cairo_circuit(&cairo_verifier_config);
+    let preprocessed_circuit = get_cairo_preprocessed_circuit(&cairo_verifier_config);
 
     // Compare fields of the circuit config that are easily computed from the preprocessed circuit
     // to the expected values
