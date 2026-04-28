@@ -31,17 +31,17 @@ cairo-vm = { workspace = true, features = [
 ] }
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
+cairo-air = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-air" }
+stwo-cairo-serialize = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-serialize" }
+stwo-cairo-common = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/common" }
 
 # stwo circuits
-circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9aa9692c" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9aa9692c" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9aa9692c" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9aa9692c" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9aa9692c" }
-circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9aa9692c" }
+circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "79f68cf4" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "79f68cf4" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "79f68cf4" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "79f68cf4" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "79f68cf4" }
+circuit-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "79f68cf4" }
 
 # stwo
 stwo = "2.2.0"

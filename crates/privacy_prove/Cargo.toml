@@ -36,11 +36,11 @@ cairo-vm = { workspace = true, features = [
 ] }
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8a3950c2" }
+cairo-air = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-air" }
+stwo-cairo-adapter = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/adapter" }
+stwo-cairo-prover = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/prover" }
+stwo-cairo-serialize = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-serialize" }
+stwo-cairo-common = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/common" }
 
 # stwo circuits
 circuit-cairo-air = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "9aa9692c" }

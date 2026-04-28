@@ -87,7 +87,7 @@ pub fn stwo_run_and_prove(
     let cairo_run_config = get_cairo_run_config(
         // we don't use dynamic layout in stwo
         &None,
-        LayoutName::all_cairo_stwo,
+        LayoutName::stwo_no_ecop,
         true,
         // in stwo when proof_mode==true, trace padding is redundant work
         true,
