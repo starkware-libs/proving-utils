@@ -2,7 +2,7 @@ name: check
 
 env:
   NIGHTLY_VERSION: "nightly-2025-07-14"
-  STABLE_VERSION: "1.90.0"
+  STABLE_VERSION: "1.93.0"
 
 on:
   push:
@@ -122,9 +122,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
+      - run: rustup toolchain install ${{ env.STABLE_VERSION }} --profile minimal
       - run: rustup toolchain install ${{ env.NIGHTLY_VERSION }} --profile minimal
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - run: cargo install cargo-udeps --locked
+      - run: cargo +${{ env.STABLE_VERSION }} install cargo-udeps --locked
       - run: cargo +${{ env.NIGHTLY_VERSION }} udeps
