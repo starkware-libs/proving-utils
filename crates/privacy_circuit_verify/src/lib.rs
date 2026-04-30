@@ -109,6 +109,10 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
         return Err("Proof deserialization failed".into());
     }
 
+    if proof.claim.packed_component_log_sizes != *CIRCUIT_PACKED_LOG_SIZES {
+        return Err("Packed component log sizes mismatch".into());
+    }
+
     info!("Compute the output values");
     let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
     let output_qm31s = pack_into_qm31s(outputs.into_iter());
