@@ -1,3 +1,7 @@
+use std::sync::LazyLock;
+
+use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
+use stwo::core::fields::qm31::QM31;
 use stwo::core::fri::FriConfig;
 use stwo::core::pcs::PcsConfig;
 
@@ -38,6 +42,15 @@ pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
 pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 2;
 pub const CIRCUIT_TRACE_LOG_SIZE: u32 = 21;
+
+/// Per-component trace log sizes for the privacy circuit, in the order expected by the prover.
+/// Verified by `check_circuit_verifier_configs` against the actual circuit; on mismatch the test
+/// prints the expected value to paste here.
+pub const CIRCUIT_LOG_COMPONENT_SIZES: [u32; 15] =
+    [17, 21, 14, 17, 4, 20, 13, 17, 16, 20, 8, 14, 18, 15, 16];
+
+pub static CIRCUIT_PACKED_LOG_SIZES: LazyLock<Vec<QM31>> =
+    LazyLock::new(|| pack_into_qm31s(CIRCUIT_LOG_COMPONENT_SIZES.iter().copied()));
 
 pub const CAIRO_FRI_CONFIG: FriConfig = FriConfig {
     log_blowup_factor: CAIRO_LOG_BLOWUP_FACTOR,
