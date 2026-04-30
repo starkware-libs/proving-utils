@@ -37,10 +37,10 @@ use tracing::{Level, info, span};
 
 use crate::consts::{
     CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES,
-    CIRCUIT_PCS_CONFIG, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
-    NUM_OUTPUTS, PRIVACY_BOOTLOADER_BYTES, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
-    PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
-    PRIVACY_TRANSACTION_COMPONENTS,
+    CIRCUIT_PACKED_LOG_SIZES, CIRCUIT_PCS_CONFIG, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES,
+    MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES, NUM_OUTPUTS, PRIVACY_BOOTLOADER_BYTES,
+    PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
+    PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, PRIVACY_TRANSACTION_COMPONENTS,
 };
 
 pub struct PrivacyProofOutput {
@@ -107,6 +107,10 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     let proof = deserialize_proof_with_config(&mut serialized_proof, &proof_config)?;
     if !serialized_proof.is_empty() {
         return Err("Proof deserialization failed".into());
+    }
+
+    if proof.claim.packed_component_log_sizes != *CIRCUIT_PACKED_LOG_SIZES {
+        return Err("Packed component log sizes mismatch".into());
     }
 
     info!("Compute the output values");

@@ -126,5 +126,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - run: cargo install cargo-udeps --locked
+      - run: cargo install cargo-udeps --locked --version 0.1.60
       - run: cargo +${{ env.NIGHTLY_VERSION }} udeps
