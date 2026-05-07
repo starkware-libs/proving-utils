@@ -12,25 +12,30 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Build ${{ inputs.binary_name }} for ${{ inputs.arch }}
-      shell: bash
-      run: |
-        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=${{ inputs.arch }}" \
-          cargo build --release --target x86_64-unknown-linux-gnu --bin ${{ inputs.binary_name }}
-
-    - name: Rename ${{ inputs.binary_name }} (${{ inputs.arch }})
+    - name: Setup environment variables
       shell: bash
       env:
         BINARY_NAME_ORIGINAL: ${{ inputs.binary_name }}
+        ARCH_NAME: ${{ inputs.arch }}
       run: |
-        BINARY_NAME="$BINARY_NAME_ORIGINAL"
-        BINARY_NAME="${BINARY_NAME//-/_}"
-        mv "target/x86_64-unknown-linux-gnu/release/$BINARY_NAME_ORIGINAL" \
-          "target/x86_64-unknown-linux-gnu/release/$BINARY_NAME"
-        echo "BINARY_NAME=${BINARY_NAME}" >> "$GITHUB_ENV"
+        echo "BINARY_NAME_ORIGINAL=${BINARY_NAME_ORIGINAL}" >> $GITHUB_ENV
+        echo "BINARY_NAME_DEST=${BINARY_NAME_ORIGINAL//-/_}" >> $GITHUB_ENV
+        echo "ARCH_NAME=${ARCH_NAME}" >> $GITHUB_ENV
 
-    - name: Upload ${{ inputs.binary_name }} (${{ inputs.arch }}) to GCP
+    - name: Build ${{ env.BINARY_NAME_ORIGINAL }} for ${{ env.ARCH_NAME }}
+      shell: bash
+      run: |
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=${{ env.ARCH_NAME }}" \
+          cargo build --release --target x86_64-unknown-linux-gnu --bin ${{ env.BINARY_NAME_ORIGINAL }}
+
+    - name: Rename ${{ env.BINARY_NAME_ORIGINAL }} to ${{ env.BINARY_NAME_DEST }} (${{ env.ARCH_NAME }})
+      shell: bash
+      run: |
+        mv "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_ORIGINAL }}" \
+          "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_DEST }}"
+
+    - name: Upload ${{ env.BINARY_NAME_DEST }} (${{ env.ARCH_NAME }}) to GCP
       uses: google-github-actions/upload-cloud-storage@v2
       with:
-        path: "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}"
-        destination: "${{ env.BINARY_NAME }}_${{ inputs.arch }}_artifacts/${{ env.SHORT_HASH }}/release"
+        path: "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_DEST }}"
+        destination: "${{ env.BINARY_NAME_DEST }}_${{ env.ARCH_NAME }}_artifacts/${{ env.SHORT_HASH }}/release"
