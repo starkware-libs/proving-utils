@@ -4519,6 +4519,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "stwo-run-and-prove-recursive-tree"
+version = "1.2.2"
+dependencies = [
+ "anyhow",
+ "cairo-air 1.2.2",
+ "cairo-program-runner-lib",
+ "cairo-vm",
+ "clap",
+ "ctor",
+ "env_logger",
+ "log",
+ "mockall",
+ "rstest 0.21.0",
+ "serde",
+ "serde_json",
+ "sonic-rs",
+ "starknet-ff",
+ "stwo-cairo-adapter 1.2.2",
+ "stwo-cairo-prover 1.2.2",
+ "stwo-cairo-serialize 1.2.2",
+ "stwo-cairo-utils",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
 name = "stwo-std-shims"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

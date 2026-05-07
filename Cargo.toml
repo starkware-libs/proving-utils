@@ -3,6 +3,7 @@ members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
     "crates/stwo_run_and_prove",
+    "crates/stwo_run_and_prove_recursive_tree",
     "crates/vm_runner",
     "crates/privacy_prove",
     "crates/privacy_circuit_verify",

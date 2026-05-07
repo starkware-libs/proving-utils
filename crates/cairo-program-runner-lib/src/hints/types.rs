@@ -35,11 +35,12 @@ pub struct BootloaderConfig {
 }
 
 pub const BOOTLOADER_CONFIG_SIZE: usize = 3;
-#[derive(Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Default, Clone, PartialEq)]
 /// Represents a composite packed output, which consists of a set of outputs,
 /// subtasks (which could be plain or composite themselves), and associated fact topologies of the
 /// plain subtasks.
 pub struct CompositePackedOutput {
+    #[serde(serialize_with = "felt_decimal_vec::serialize")]
     pub outputs: Vec<Felt252>,
     pub subtasks: Vec<PackedOutput>,
     pub fact_topologies: Vec<FactTopology>,
@@ -155,9 +156,12 @@ impl CompositePackedOutput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "type")]
 pub enum PackedOutput {
+    #[serde(rename = "PlainPackedOutput")]
     Plain,
+    #[serde(rename = "CompositePackedOutput")]
     Composite(CompositePackedOutput),
 }
 
@@ -589,4 +593,22 @@ pub struct PedersenMerkleInput {
     pub path: Vec<Felt252>,
     pub prev_leaf: Felt252,
     pub new_leaf: Felt252,
+}
+
+/// Serializes `Vec<Felt252>` as decimal strings so Python's `marshmallow.fields.Integer` can
+/// parse values larger than JSON's safe integer range without precision loss.
+mod felt_decimal_vec {
+    use cairo_vm::Felt252;
+    use serde::ser::{SerializeSeq, Serializer};
+
+    pub fn serialize<S>(values: &[Felt252], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(values.len()))?;
+        for value in values {
+            seq.serialize_element(&value.to_string())?;
+        }
+        seq.end()
+    }
 }
