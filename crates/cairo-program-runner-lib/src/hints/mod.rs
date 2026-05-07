@@ -5,7 +5,7 @@ mod cairo_structs;
 mod codes;
 mod concat_aggregator_hints;
 mod execute_task_hints;
-mod fact_topologies;
+pub mod fact_topologies;
 mod fibonacci_hints;
 mod fri_layer;
 mod hint_processors;

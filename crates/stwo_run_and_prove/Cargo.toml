@@ -18,15 +18,15 @@ serde.workspace = true
 serde_json.workspace = true
 sonic-rs.workspace = true
 starknet-ff.workspace = true
-stwo-cairo-prover.workspace = true
 stwo-cairo-utils.workspace = true
 stwo-cairo-adapter.workspace = true
 stwo-cairo-serialize.workspace = true
+stwo-run-and-prove-common.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 ctor.workspace = true
-mockall.workspace = true
 rstest.workspace = true
+stwo-run-and-prove-common = { workspace = true, features = ["mock"] }
 tempfile.workspace = true
