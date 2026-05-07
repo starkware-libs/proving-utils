@@ -9,13 +9,11 @@ use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
-#[cfg(test)]
-use mockall::automock;
 use std::fs;
 use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapt;
-use stwo_cairo_prover::prover::create_and_serialize_proof;
+pub use stwo_run_and_prove_common::{ProverTrait, StwoProverEntryPoint};
 use thiserror::Error;
 use tracing::{Level, error, info, span};
 
@@ -162,43 +160,8 @@ fn prove(
                     "Proof was generated successfully, but its verification failed with error {e}. The failed proof was written to the proof file."
                 );
             }
-            Err(e)
+            Err(e.into())
         }
-    }
-}
-
-#[cfg_attr(test, automock)]
-pub trait ProverTrait {
-    fn create_and_serialize_proof(
-        &self,
-        input: ProverInput,
-        verify: bool,
-        proof_path: PathBuf,
-        proof_format: ProofFormat,
-        proof_params_json: Option<PathBuf>,
-    ) -> Result<(), StwoRunAndProveError>;
-}
-
-pub struct StwoProverEntryPoint;
-
-impl ProverTrait for StwoProverEntryPoint {
-    fn create_and_serialize_proof(
-        &self,
-        prover_input: ProverInput,
-        verify: bool,
-        proof_path: PathBuf,
-        proof_format: ProofFormat,
-        proof_params_json: Option<PathBuf>,
-    ) -> Result<(), StwoRunAndProveError> {
-        create_and_serialize_proof(
-            prover_input,
-            verify,
-            proof_path,
-            proof_format,
-            proof_params_json,
-        )?;
-
-        Ok(())
     }
 }
 
@@ -226,6 +189,7 @@ mod tests {
     use serde_json::Value;
     use std::env;
     use stwo_cairo_utils::logging_utils::init_logging;
+    use stwo_run_and_prove_common::MockProverTrait;
     use tempfile::{NamedTempFile, TempDir, TempPath};
 
     const ARRAY_SUM_EXPECTED_OUTPUT: [Felt252; 1] = [Felt252::from_hex_unchecked("0x32")];
@@ -333,11 +297,7 @@ mod tests {
         mock_prover
             .expect_create_and_serialize_proof()
             .times(1)
-            .returning(move |_, _, _, _, _| {
-                Err(StwoRunAndProveError::Anyhow(anyhow::anyhow!(
-                    "mocked anyhow error"
-                )))
-            });
+            .returning(move |_, _, _, _, _| Err(anyhow::anyhow!("mocked anyhow error")));
 
         let result = run_stwo_run_and_prove(args, mock_prover);
         assert!(

@@ -1,0 +1,17 @@
+[package]
+name = "stwo-run-and-prove-common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared abstractions for the stwo_run_and_prove* crates (e.g. the prover trait that lets consumers mock the slow prove step in tests)."
+
+[features]
+mock = ["dep:mockall"]
+
+[dependencies]
+anyhow.workspace = true
+cairo-air.workspace = true
+mockall = { workspace = true, optional = true }
+stwo-cairo-adapter.workspace = true
+stwo-cairo-prover.workspace = true
