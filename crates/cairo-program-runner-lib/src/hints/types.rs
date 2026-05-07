@@ -17,6 +17,7 @@ use cairo_vm::vm::runners::cairo_pie::{CairoPie, StrippedProgram};
 use cairo_vm::Felt252;
 use num_traits::ToPrimitive;
 use serde::de::Error as SerdeError;
+use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
 
@@ -36,11 +37,12 @@ pub struct BootloaderConfig {
 }
 
 pub const BOOTLOADER_CONFIG_SIZE: usize = 3;
-#[derive(Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Default, Clone, PartialEq)]
 /// Represents a composite packed output, which consists of a set of outputs,
 /// subtasks (which could be plain or composite themselves), and associated fact topologies of the
 /// plain subtasks.
 pub struct CompositePackedOutput {
+    #[serde(serialize_with = "felt_decimal_vec::serialize")]
     pub outputs: Vec<Felt252>,
     pub subtasks: Vec<PackedOutput>,
     pub fact_topologies: Vec<FactTopology>,
@@ -156,9 +158,12 @@ impl CompositePackedOutput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "type")]
 pub enum PackedOutput {
+    #[serde(rename = "PlainPackedOutput")]
     Plain,
+    #[serde(rename = "CompositePackedOutput")]
     Composite(CompositePackedOutput),
 }
 
@@ -590,4 +595,82 @@ pub struct PedersenMerkleInput {
     pub path: Vec<Felt252>,
     pub prev_leaf: Felt252,
     pub new_leaf: Felt252,
+}
+
+/// Serde helper that serializes `Vec<Felt252>` as a JSON array of decimal-digit strings
+/// (e.g. `["10", "42", ...]`, not `[10, 42, ...]`).
+///
+/// Three constraints force this shape:
+///   1. `Felt252` values can reach ~2^252, far beyond JSON's safe-integer range of ±2^53. Emitting
+///      them as bare JSON numbers risks silent float64 coercion in any consumer that parses JSON
+///      numbers as IEEE-754 (the spec default and what most cross-language toolchains assume).
+///      Wrapping the digits in quotes turns them into a JSON string, which every parser preserves
+///      losslessly.
+///   2. The Python consumer (a `marshmallow.fields.Integer` field on the GPS scheduler side)
+///      deserializes the strings back into Python's arbitrary-precision `int`, so no precision is
+///      lost on the round-trip.
+///   3. Decimal specifically (not hex) because `marshmallow.fields.Integer` only parses base-10
+///      strings by default — hex would require a custom field on the Python side.
+///
+/// Used by `CompositePackedOutput.outputs` here, and by `RecursiveJobData.outputs` in
+/// `stwo_run_and_prove_recursive_tree`.
+pub mod felt_decimal_vec {
+    use super::*;
+
+    pub fn serialize<S>(values: &[Felt252], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(values.len()))?;
+        for value in values {
+            seq.serialize_element(&value.to_string())?;
+        }
+        seq.end()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Serialize)]
+    struct Wrapper {
+        #[serde(serialize_with = "felt_decimal_vec::serialize")]
+        xs: Vec<Felt252>,
+    }
+
+    #[test]
+    fn felt_decimal_vec_serializer_emits_decimal_strings() {
+        // The values below span the boundaries the module's doc-comment calls out: small ints,
+        // past JSON's ±2^53 safe-integer range (u64::MAX), past u64 into multi-limb territory
+        // (2^64), and the field's actual ceiling (Felt252::MAX ≈ 2^252).
+        let two_to_64 = Felt252::from_hex_unchecked("0x10000000000000000");
+        let felt_max = Felt252::MAX;
+        let wrapper = Wrapper {
+            xs: vec![
+                Felt252::from(0u64),
+                Felt252::from(1u64),
+                Felt252::from(u64::MAX),
+                two_to_64,
+                felt_max,
+            ],
+        };
+        let json = serde_json::to_value(&wrapper).expect("serialize Wrapper");
+        let xs = json["xs"].as_array().expect("xs is array");
+        assert_eq!(xs.len(), 5);
+        // The core invariant: every element is a JSON *string*, not a number. This is what dodges
+        // float64 coercion in downstream JSON parsers.
+        for v in xs {
+            assert!(v.is_string(), "expected JSON string, got {v:?}");
+        }
+        assert_eq!(xs[0], serde_json::json!("0"));
+        assert_eq!(xs[1], serde_json::json!("1"));
+        assert_eq!(xs[2], serde_json::json!(u64::MAX.to_string()));
+        assert_eq!(xs[3], serde_json::json!("18446744073709551616"));
+        // For Felt252::MAX, assert against `to_string()` so the test isn't brittle to a future
+        // field-of-definition change, then sanity-check the digit count to lock in the "≈2^252"
+        // promise from the doc (the Stark prime minus 1 is a 76-digit decimal number).
+        assert_eq!(xs[4], serde_json::json!(felt_max.to_string()));
+        assert_eq!(felt_max.to_string().len(), 76);
+    }
 }

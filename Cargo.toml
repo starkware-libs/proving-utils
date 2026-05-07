@@ -2,7 +2,9 @@
 members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
+    "crates/stwo_run_and_prove_common",
     "crates/stwo_run_and_prove",
+    "crates/stwo_run_and_prove_recursive_tree",
     "crates/vm_runner",
     "crates/privacy_prove",
     "crates/privacy_circuit_verify",
@@ -69,6 +71,7 @@ stwo-cairo-common = "1.2.2"
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
 privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
+stwo-run-and-prove-common = { path = "crates/stwo_run_and_prove_common", version = "1.2.2" }
 
 
 # Optimize witness generation and FFTs. This is usually enough to run the tests without stack overflows,

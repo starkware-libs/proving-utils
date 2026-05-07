@@ -55,7 +55,7 @@ jobs:
           tool-cache: false
       - name: "Unit tests"
         run: |
-          cargo +${{ env.NIGHTLY_VERSION }} test --workspace --all-targets
+          cargo +${{ env.NIGHTLY_VERSION }} test --release --workspace --all-targets
       - name: "Test examples"
         run: |
           cargo +${{ env.NIGHTLY_VERSION }} run --example run_program_with_simple_bl
