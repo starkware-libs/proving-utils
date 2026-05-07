@@ -1,0 +1,48 @@
+[package]
+name = "stwo-run-and-prove-recursive-tree"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fold an entire applicative recursive proof tree above its leaves into a single STWO root proof, in one binary invocation."
+
+# Explicit [[bin]] so the produced binary file name uses underscores; this is what Python's
+# `services.gps.bin.rust.stwo_binary_utils.STWO_RUN_AND_PROVE_RECURSIVE_TREE.path` expects, and
+# keeps us decoupled from any Cargo dash-to-underscore normalization quirks across versions.
+[[bin]]
+name = "stwo_run_and_prove_recursive_tree"
+path = "src/main.rs"
+
+[lib]
+name = "stwo_run_and_prove_recursive_tree"
+path = "src/lib.rs"
+
+[features]
+# Gates the end-to-end integration test (real Cairo VM bootloader run over the mock proof),
+# which is too memory/time-heavy for the regular `tests` CI job.
+slow-tests = []
+
+[dependencies]
+anyhow.workspace = true
+cairo-air.workspace = true
+cairo-program-runner-lib.workspace = true
+cairo-vm.workspace = true
+clap.workspace = true
+env_logger.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sonic-rs.workspace = true
+starknet-ff.workspace = true
+stwo-cairo-utils.workspace = true
+stwo-cairo-adapter.workspace = true
+stwo-cairo-serialize.workspace = true
+stwo-run-and-prove-common.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+ctor.workspace = true
+rstest.workspace = true
+stwo-run-and-prove-common = { workspace = true, features = ["mock"] }

@@ -25,13 +25,13 @@ jobs:
   clippy:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-          - uses: actions/checkout@v4
-          - uses: dtolnay/rust-toolchain@master
-            with:
-              components: clippy
-              toolchain: ${{ env.NIGHTLY_VERSION }}
-          - uses: Swatinem/rust-cache@v2
-          - run: scripts/clippy.sh
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          components: clippy
+          toolchain: ${{ env.NIGHTLY_VERSION }}
+      - uses: Swatinem/rust-cache@v2
+      - run: scripts/clippy.sh
 
   tests:
     runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
@@ -55,14 +55,14 @@ jobs:
           tool-cache: false
       - name: "Unit tests"
         run: |
-          cargo +${{ env.NIGHTLY_VERSION }} test --workspace --all-targets
+          cargo +${{ env.NIGHTLY_VERSION }} test --release --workspace --all-targets
       - name: "Test examples"
         run: |
           cargo +${{ env.NIGHTLY_VERSION }} run --example run_program_with_simple_bl
           cargo +${{ env.NIGHTLY_VERSION }} run --example run_pie_object_with_simple_bl
 
   slow-tests:
-    runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
+    runs-on: namespace-profile-starkware-libs-stwo-cairo-xlarge-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -75,6 +75,7 @@ jobs:
         run: |
           cargo +${{ env.NIGHTLY_VERSION }} nextest run --package privacy-prove --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
           cargo +${{ env.NIGHTLY_VERSION }} nextest run --package privacy-circuit-verify --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
+          cargo +${{ env.NIGHTLY_VERSION }} nextest run --package stwo-run-and-prove-recursive-tree --features=slow-tests --release -j 1 -P ci
         env:
           RUST_MIN_STACK: 4194304
           RUSTFLAGS: -C target-cpu=native
@@ -95,7 +96,7 @@ jobs:
         run: cargo check --package privacy-circuit-verify
 
   coverage:
-    runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
+    runs-on: namespace-profile-starkware-libs-stwo-cairo-xlarge-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
         with:
