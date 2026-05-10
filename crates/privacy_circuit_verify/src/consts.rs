@@ -4,10 +4,10 @@ use stwo::core::pcs::PcsConfig;
 pub const NUM_OUTPUTS: usize = 1;
 
 /// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
-pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 621_431;
+pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 621_364;
 
 /// Uncompressed size in bytes of the serialized recursive circuit proof.
-pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 344_350;
+pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 373_108;
 
 /// Multiplicative safety factor applied to the proof size constants to derive decompression limits
 /// used in `verify_cairo` and `verify_recursive_circuit` as zip-bomb protection.
