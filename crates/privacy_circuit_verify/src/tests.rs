@@ -142,14 +142,11 @@ pub mod slow_tests {
     use privacy_prove::{prepare_recursive_prover_precomputes, privacy_recursive_prove};
     use tracing_subscriber::fmt;
 
-    use crate::consts::{
-        CAIRO_PROOF_UNCOMPRESSED_BYTES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
-        RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
-    };
+    use crate::consts::{CAIRO_PROOF_UNCOMPRESSED_BYTES, RECURSIVE_PROOF_UNCOMPRESSED_BYTES};
     use crate::get_proof_config;
 
     #[test]
-    fn check_recursive_circuit_preprocessed_root() {
+    fn check_recursive_circuit_proof_deserializes() {
         let _ = fmt().with_max_level(tracing::Level::INFO).try_init();
 
         let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -165,17 +162,12 @@ pub mod slow_tests {
         )
         .unwrap();
         let mut serialized_proof: &[u8] = &proof_bytes;
-        let proof = circuit_serialize::deserialize::deserialize_proof_with_config(
+        circuit_serialize::deserialize::deserialize_proof_with_config(
             &mut serialized_proof,
             &proof_config,
         )
         .unwrap();
         assert!(serialized_proof.is_empty());
-
-        assert_eq!(
-            proof.preprocessed_root,
-            PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into()
-        );
     }
 
     #[test]

@@ -8,11 +8,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use cairo_air::verifier::INTERACTION_POW_BITS;
 use cairo_vm::types::program::Program;
-use circuit_verifier::components::prelude::PreProcessedColumnId;
-use circuit_verifier::statement::{
-    INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
-};
-use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
 use circuit_cairo_verifier::all_components::all_components;
 use circuit_cairo_verifier::statement::PUBLIC_DATA_LEN;
 use circuit_cairo_verifier::verify::{
@@ -22,6 +17,11 @@ use circuit_cairo_verifier::verify::{
 use circuit_common::finalize::add_zk_blinding;
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_serialize::deserialize::deserialize_proof_with_config;
+use circuit_verifier::components::prelude::PreProcessedColumnId;
+use circuit_verifier::statement::{
+    INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
+};
+use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
 use circuits::blake::HashValue;
 use circuits::context::Context;
 use circuits::ivalue::{IValue, NoValue};
@@ -181,7 +181,12 @@ pub fn compute_privacy_bootloader_output(output_preimage: &[Felt]) -> [M31; FELT
 pub fn get_recursive_circuit_config() -> CircuitConfig {
     let preprocessed_column_log_sizes = PRIVACY_CIRCUIT_PREPROCESSED_IDS
         .iter()
-        .map(|&id| (PreProcessedColumnId { id: id.to_string() }, CIRCUIT_TRACE_LOG_SIZE))
+        .map(|&id| {
+            (
+                PreProcessedColumnId { id: id.to_string() },
+                CIRCUIT_TRACE_LOG_SIZE,
+            )
+        })
         .collect();
     CircuitConfig {
         config: CIRCUIT_PCS_CONFIG,
