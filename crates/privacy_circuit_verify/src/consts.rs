@@ -26,13 +26,13 @@ pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
-pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [220311, 220312, 1980612, 1980613];
-pub const CIRCUIT_N_BLAKE_GATES: usize = 4333;
+pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [219516, 219517, 1313884, 1313885];
+pub const CIRCUIT_N_BLAKE_GATES: usize = 4323;
 pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
-    1276461526, 1712851563, 2110156022, 1953610410, 1886055249, 1889539449, 2125668529, 1102300118,
+    948904865, 1013865927, 1691621174, 1359004537, 1079665249, 972218217, 194027643, 446968913,
 ];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    602341238, 1494955906, 1707152935, 354062375, 107517436, 1147733077, 453600859, 1504773373,
+    769538626, 1699461784, 553955328, 253599987, 1636161405, 481776338, 449380310, 1242127944,
 ];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
@@ -127,7 +127,7 @@ pub const PRIVACY_TRANSACTION_COMPONENTS: [&str; 57] = [
     "verify_bitwise_xor_9",
 ];
 
-pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 60] = [
+pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 79] = [
     "blake_sigma_0",
     "blake_sigma_1",
     "blake_sigma_2",
@@ -144,6 +144,25 @@ pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 60] = [
     "blake_sigma_13",
     "blake_sigma_14",
     "blake_sigma_15",
+    "triple_xor_input_addr_0",
+    "triple_xor_input_addr_1",
+    "triple_xor_input_addr_2",
+    "triple_xor_output_addr",
+    "triple_xor_multiplicity",
+    "m31_to_u32_input_addr",
+    "m31_to_u32_output_addr",
+    "m31_to_u32_multiplicity",
+    "blake_g_gate_input_addr_a",
+    "blake_g_gate_input_addr_b",
+    "blake_g_gate_input_addr_c",
+    "blake_g_gate_input_addr_d",
+    "blake_g_gate_input_addr_f0",
+    "blake_g_gate_input_addr_f1",
+    "blake_g_gate_output_addr_a",
+    "blake_g_gate_output_addr_b",
+    "blake_g_gate_output_addr_c",
+    "blake_g_gate_output_addr_d",
+    "blake_g_gate_multiplicity",
     "seq_4",
     "bitwise_xor_4_0",
     "bitwise_xor_4_1",

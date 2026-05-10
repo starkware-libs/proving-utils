@@ -1,4 +1,4 @@
-use circuit_cairo_air::all_components::all_components;
+use circuit_cairo_verifier::all_components::all_components;
 use circuits::blake::HashValue;
 use stwo::core::fields::qm31::QM31;
 use stwo::core::poly::circle::CanonicCoset;
