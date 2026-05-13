@@ -23,16 +23,24 @@ pub const MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
     RECURSIVE_PROOF_UNCOMPRESSED_BYTES * PROOF_MAX_DECOMPRESSED_RATIO;
 
+// Source code for this compiled privacy bootloader can be found at:
+// repo: https://github.com/starkware-industries/starkware
+// branch: "dev"
+// commit: "4d1ae5848dd49802ddd620601d2d1bb303d15c66"
+// md5sum: "0494f41365e482142d04b58bd64aa5fe"
+// Compiled by command:
+// `bazel build --config=rbe
+// //src/starkware/cairo/bootloaders/simple_bootloader:privacy_simple_bootloader_program`
 pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
-pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [219516, 219517, 1313884, 1313885];
-pub const CIRCUIT_N_BLAKE_GATES: usize = 4323;
+pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [222372, 222373, 1418200, 1418201];
+pub const CIRCUIT_N_BLAKE_GATES: usize = 4327;
 pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
-    948904865, 1013865927, 1691621174, 1359004537, 1079665249, 972218217, 194027643, 446968913,
+    1262599505, 1761375311, 966733758, 24433653, 462806157, 458397059, 2016738732, 1697204398,
 ];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    769538626, 1699461784, 553955328, 253599987, 1636161405, 481776338, 449380310, 1242127944,
+    1036375649, 765310355, 768777456, 1055729752, 1540511390, 1464994089, 1032034739, 885607068,
 ];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
