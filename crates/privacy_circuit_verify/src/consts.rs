@@ -4,7 +4,7 @@ use stwo::core::pcs::PcsConfig;
 pub const NUM_OUTPUTS: usize = 1;
 
 /// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
-pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 621_364;
+pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 627_076;
 
 /// Uncompressed size in bytes of the serialized recursive circuit proof.
 pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 373_108;
@@ -23,16 +23,24 @@ pub const MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
     RECURSIVE_PROOF_UNCOMPRESSED_BYTES * PROOF_MAX_DECOMPRESSED_RATIO;
 
+// Source code for this compiled privacy bootloader can be found at:
+// repo: https://github.com/starkware-industries/starkware
+// branch: "dev"
+// commit: "4d1ae5848dd49802ddd620601d2d1bb303d15c66"
+// md5sum: "0494f41365e482142d04b58bd64aa5fe"
+// Compiled by command:
+// `bazel build --config=rbe
+// //src/starkware/cairo/bootloaders/simple_bootloader:privacy_simple_bootloader_program`
 pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
-pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 3] = [219516, 219517, 2];
-pub const CIRCUIT_N_BLAKE_GATES: usize = 4321;
+pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 3] = [222372, 222373, 2];
+pub const CIRCUIT_N_BLAKE_GATES: usize = 4327;
 pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
-    2127134732, 1831404576, 1225142332, 731967355, 1735790602, 983545022, 997076566, 611254330,
+    837290355, 304184779, 934540983, 1030030586, 1068923910, 438446145, 1309815623, 423450064,
 ];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    815806628, 1454819978, 187196794, 656986448, 2136369996, 1869021173, 1949159440, 1880192274,
+    1787343855, 1667756218, 1239742483, 1200082828, 1596742667, 1869219239, 827237313, 1161827047,
 ];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
