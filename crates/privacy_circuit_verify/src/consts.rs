@@ -8,10 +8,10 @@ use stwo::core::pcs::PcsConfig;
 pub const NUM_OUTPUTS: usize = 1;
 
 /// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
-pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 621_431;
+pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 627_143;
 
 /// Uncompressed size in bytes of the serialized recursive circuit proof.
-pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 344_350;
+pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 355_550;
 
 /// Multiplicative safety factor applied to the proof size constants to derive decompression limits
 /// used in `verify_cairo` and `verify_recursive_circuit` as zip-bomb protection.
@@ -27,27 +27,35 @@ pub const MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
     RECURSIVE_PROOF_UNCOMPRESSED_BYTES * PROOF_MAX_DECOMPRESSED_RATIO;
 
+// Source code for this compiled privacy bootloader can be found at:
+// repo: https://github.com/starkware-industries/starkware
+// branch: "dev"
+// commit: "4d1ae5848dd49802ddd620601d2d1bb303d15c66"
+// md5sum: "0494f41365e482142d04b58bd64aa5fe"
+// Compiled by command:
+// `bazel build --config=rbe
+// //src/starkware/cairo/bootloaders/simple_bootloader:privacy_simple_bootloader_program`
 pub const PRIVACY_BOOTLOADER_BYTES: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
-pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [220311, 220312, 1980612, 1980613];
-pub const CIRCUIT_N_BLAKE_GATES: usize = 4333;
+pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 4] = [223167, 223168, 2084928, 2084929];
+pub const CIRCUIT_N_BLAKE_GATES: usize = 4321;
 pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
-    1276461526, 1712851563, 2110156022, 1953610410, 1886055249, 1889539449, 2125668529, 1102300118,
+    947655968, 1352982735, 307077869, 157851231, 1181775063, 202223344, 80751437, 1134219147,
 ];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    602341238, 1494955906, 1707152935, 354062375, 107517436, 1147733077, 453600859, 1504773373,
+    1034323387, 1624497245, 145623834, 318389874, 1327329387, 2064610007, 552333540, 1524840418,
 ];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
 pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 2;
-pub const CIRCUIT_TRACE_LOG_SIZE: u32 = 21;
+pub const CIRCUIT_TRACE_LOG_SIZE: u32 = 22;
 
 /// Per-component trace log sizes for the privacy circuit, in the order expected by the prover.
-/// Verified by `check_circuit_verifier_configs` against the actual circuit; on mismatch the test
-/// prints the expected value to paste here.
+/// Verified by `test_privacy_recursive_prove_and_verify` (by `verify_recursive_circuit`) against
+/// the actual circuit; on mismatch the test prints the expected value to paste here.
 pub const CIRCUIT_LOG_COMPONENT_SIZES: [u32; 15] =
-    [17, 21, 14, 17, 4, 20, 13, 17, 16, 20, 8, 14, 18, 15, 16];
+    [17, 22, 14, 17, 4, 20, 13, 17, 16, 20, 8, 14, 18, 15, 16];
 
 pub static CIRCUIT_PACKED_LOG_SIZES: LazyLock<Vec<QM31>> =
     LazyLock::new(|| pack_into_qm31s(CIRCUIT_LOG_COMPONENT_SIZES.iter().copied()));
@@ -79,7 +87,7 @@ pub const CIRCUIT_PCS_CONFIG: PcsConfig = PcsConfig {
 };
 
 // The set of components that are used to verify the privacy transaction.
-// The order of the components is determend by the order in circuit_cairo_air::all_components()
+// The order of the components is determined by the order in circuit_cairo_air::all_components()
 pub const PRIVACY_TRANSACTION_COMPONENTS: [&str; 57] = [
     "add_opcode",
     "add_opcode_small",

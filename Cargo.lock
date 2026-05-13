@@ -4147,35 +4147,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "stwo"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d400ae91acbeafa6f80070a03e1117a794a95f295050f44538a4c7dd55abd491"
-dependencies = [
- "blake2",
- "blake3",
- "bytemuck",
- "cfg-if",
- "dashmap",
- "educe 0.5.11",
- "fnv",
- "hashbrown 0.17.0",
- "hex",
- "indexmap",
- "itertools 0.12.1",
- "num-traits",
- "rand 0.8.6",
- "rayon",
- "serde",
- "starknet-crypto 0.6.2",
- "starknet-ff",
- "stwo-std-shims",
- "thiserror 2.0.18",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "stwo-air-utils"
 version = "2.1.0"
 source = "git+https://github.com/starkware-libs/stwo?rev=aeceb74c#aeceb74c58184d7886ebd7f34a7453fee714ca40"
@@ -4315,23 +4286,7 @@ dependencies = [
  "num-traits",
  "rand 0.8.6",
  "rayon",
- "stwo 2.1.0",
- "stwo-std-shims",
- "tracing",
-]
-
-[[package]]
-name = "stwo-constraint-framework"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47aca0d5d36d4b015703fb14f162a23cb685e67f8aa08dbe7faf39bd66fe93f1"
-dependencies = [
- "hashbrown 0.17.0",
- "itertools 0.12.1",
- "num-traits",
- "rand 0.8.6",
- "rayon",
- "stwo 2.2.0",
+ "stwo",
  "stwo-std-shims",
  "tracing",
 ]
