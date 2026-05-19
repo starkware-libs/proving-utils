@@ -28,6 +28,7 @@ use itertools::chain;
 use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
 use privacy_circuit_verify::{
     PrivacyProofOutput, compute_privacy_bootloader_output, get_cairo_preprocessed_circuit,
+    consts::PROOF_FORMAT_VERSION,
     get_cairo_proof_config, get_cairo_verifier_config, get_privacy_bootloader_program,
     get_proof_config, get_recursive_circuit_config,
 };
@@ -94,6 +95,7 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     let compressed = compress_proof(&combined_bytes)?;
 
     Ok(PrivacyProofOutput {
+        version: PROOF_FORMAT_VERSION,
         proof: compressed,
         output_preimage,
     })
@@ -238,6 +240,7 @@ pub fn privacy_recursive_prove(
     let compressed = compress_proof(&proof_bytes)?;
 
     Ok(PrivacyProofOutput {
+        version: PROOF_FORMAT_VERSION,
         proof: compressed,
         output_preimage,
     })

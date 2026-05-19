@@ -41,10 +41,12 @@ use crate::consts::{
     CIRCUIT_PCS_CONFIG, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
     NUM_OUTPUTS, PRIVACY_BOOTLOADER_JSON, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH,
     PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
-    PRIVACY_TRANSACTION_COMPONENTS,
+    PRIVACY_TRANSACTION_COMPONENTS, PROOF_FORMAT_VERSION,
 };
 
 pub struct PrivacyProofOutput {
+    /// Proof format version, must equal [`PROOF_FORMAT_VERSION`].
+    pub version: &'static str,
     /// Compressed proof bytes. The format must be consistent between the prover and verifier:
     /// - `privacy_prove` / `verify_cairo`
     /// - `privacy_recursive_prove` / `verify_recursive_circuit`
@@ -61,6 +63,14 @@ pub(crate) fn decompress_proof(
 
 pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Error>> {
     let _span = span!(Level::INFO, "verify_privacy_bootloader").entered();
+
+    if proof_output.version != PROOF_FORMAT_VERSION {
+        return Err(format!(
+            "Proof version mismatch: expected {PROOF_FORMAT_VERSION}, got {}",
+            proof_output.version
+        )
+        .into());
+    }
 
     let verifier_config = get_cairo_verifier_config()?;
 
@@ -97,6 +107,14 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
 
 pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Error>> {
     let _span = span!(Level::INFO, "verify_privacy_circuit").entered();
+
+    if proof_output.version != PROOF_FORMAT_VERSION {
+        return Err(format!(
+            "Proof version mismatch: expected {PROOF_FORMAT_VERSION}, got {}",
+            proof_output.version
+        )
+        .into());
+    }
 
     let circuit_config = get_recursive_circuit_config();
     let proof_config = get_proof_config();

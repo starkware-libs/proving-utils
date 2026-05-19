@@ -20,6 +20,15 @@ use circuits::ivalue::IValue;
 const CONJECTURED_SECURITY_BITS: u32 = 96;
 
 #[test]
+fn check_proof_format_version_matches_crate_version() {
+    assert_eq!(
+        crate::consts::PROOF_FORMAT_VERSION,
+        env!("CARGO_PKG_VERSION"),
+        "PROOF_FORMAT_VERSION in consts.rs must match the crate version in Cargo.toml"
+    );
+}
+
+#[test]
 fn check_components() {
     let all_components = all_components::<QM31>();
     for component_name in PRIVACY_TRANSACTION_COMPONENTS {

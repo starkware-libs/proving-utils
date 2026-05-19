@@ -1,6 +1,9 @@
 use stwo::core::fri::FriConfig;
 use stwo::core::pcs::PcsConfig;
 
+/// Version of the proof format. Must stay in sync with the workspace crate version in Cargo.toml.
+pub const PROOF_FORMAT_VERSION: &str = "1.2.2";
+
 pub const NUM_OUTPUTS: usize = 1;
 
 /// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
