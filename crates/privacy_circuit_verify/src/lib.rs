@@ -58,17 +58,14 @@ pub struct PrivacyProofOutput {
 
 /// Splits the version-prefixed proof bytes into the embedded [`Version`] and the remaining
 /// compressed proof bytes.
-pub(crate) fn split_proof_version(proof: &[u8]) -> Result<(Version, &[u8]), Box<dyn Error>> {
+pub fn split_proof_version(proof: &[u8]) -> Result<(Version, &[u8]), Box<dyn Error>> {
     let (version_bytes, compressed_proof) = proof
         .split_first_chunk::<VERSION_BYTES>()
         .ok_or("Proof is too short to contain a version")?;
     Ok((Version::deserialize(*version_bytes), compressed_proof))
 }
 
-pub(crate) fn decompress_proof(
-    compressed: &[u8],
-    max_bytes: usize,
-) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decompress_proof(compressed: &[u8], max_bytes: usize) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(zstd::bulk::decompress(compressed, max_bytes)?)
 }
 

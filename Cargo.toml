@@ -6,6 +6,7 @@ members = [
     "crates/vm_runner",
     "crates/privacy_prove",
     "crates/privacy_circuit_verify",
+    "crates/circuit_verifier_e2e",
 ]
 resolver = "2"
 
@@ -84,3 +85,30 @@ package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 },
 inherits = "release"
 debug = true
 
+# Force every dep on stwo / stwo-cairo / stwo-circuits to resolve to the SAME source.
+# Without this, two copies of (e.g.) stwo_cairo_common end up in the graph because
+# local privacy_* crates use local paths but stwo-circuits' workspace pulls stwo-cairo
+# from git, and trait impls then don't unify.
+
+[patch.crates-io]
+stwo = { path = "../stwo/crates/stwo" }
+stwo-constraint-framework = { path = "../stwo/crates/constraint-framework" }
+stwo-air-utils-derive = { path = "../stwo/crates/air-utils-derive" }
+stwo-air-utils = { path = "../stwo/crates/air-utils" }
+
+[patch."https://github.com/starkware-libs/stwo"]
+stwo = { path = "../stwo/crates/stwo" }
+stwo-constraint-framework = { path = "../stwo/crates/constraint-framework" }
+stwo-air-utils-derive = { path = "../stwo/crates/air-utils-derive" }
+stwo-air-utils = { path = "../stwo/crates/air-utils" }
+
+# Override the stwo-cairo git source (used by stwo-circuits workspace) to the local
+# checkout, so it agrees with the local-path stwo-cairo deps in privacy_*.
+[patch."https://github.com/starkware-libs/stwo-cairo"]
+cairo-air = { path = "../stwo-cairo/stwo_cairo_prover/crates/cairo-air" }
+stwo-cairo-prover = { path = "../stwo-cairo/stwo_cairo_prover/crates/prover" }
+stwo-cairo-common = { path = "../stwo-cairo/stwo_cairo_prover/crates/common" }
+stwo-cairo-utils = { path = "../stwo-cairo/stwo_cairo_prover/crates/utils" }
+stwo-cairo-adapter = { path = "../stwo-cairo/stwo_cairo_prover/crates/adapter" }
+stwo-cairo-serialize = { path = "../stwo-cairo/stwo_cairo_prover/crates/cairo-serialize" }
+stwo-cairo-dev-utils = { path = "../stwo-cairo/stwo_cairo_prover/crates/dev_utils" }

@@ -1,0 +1,63 @@
+[package]
+name = "circuit-verifier-e2e"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "End-to-end test driver: prove a Cairo program, run it through the circuit-cairo verifier, prove that, run through the circuit-circuit verifier, prove again, then dump the felt252 stream the new Cairo circuit verifier (in stwo-cairo) consumes via `scarb execute --arguments-file`."
+
+[features]
+slow-tests = []
+
+[[bin]]
+name = "dump_circuit_verifier_args"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+itertools.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+starknet-ff.workspace = true
+starknet-types-core.workspace = true
+tempfile.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# local crates
+privacy-prove = { path = "../privacy_prove" }
+privacy-circuit-verify.workspace = true
+cairo-program-runner-lib.workspace = true
+
+# stwo cairo (local; same paths as privacy_*)
+cairo-air = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-air" }
+stwo-cairo-prover = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/prover" }
+stwo-cairo-common = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/common" }
+stwo-cairo-serialize = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-serialize" }
+
+# stwo circuits (local)
+circuit-verifier = { path = "../../../stwo-circuits/crates/circuit_verifier" }
+circuit-cairo-verifier = { path = "../../../stwo-circuits/crates/cairo_verifier" }
+circuit-cairo-serialize = { path = "../../../stwo-circuits/crates/circuit_cairo_serialize" }
+circuit-common = { path = "../../../stwo-circuits/crates/circuit_common" }
+circuit-prover = { path = "../../../stwo-circuits/crates/circuit_prover" }
+circuit-serialize = { path = "../../../stwo-circuits/crates/circuit_serialize" }
+circuits = { path = "../../../stwo-circuits/crates/circuits" }
+circuits-stark-verifier = { path = "../../../stwo-circuits/crates/stark_verifier" }
+
+# stwo
+stwo = { version = "2.2.0", features = ["parallel", "prover"] }
+
+# cairo-vm
+cairo-vm = { workspace = true, features = [
+    "extensive_hints",
+    "mod_builtin",
+    "clap",
+] }
+
+[dev-dependencies]
+rstest.workspace = true
+tempfile.workspace = true
+tracing-subscriber.workspace = true

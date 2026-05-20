@@ -35,21 +35,21 @@ cairo-vm = { workspace = true, features = [
     "clap",
 ] }
 
-# stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
+# stwo cairo (local checkout, branch gali/circuit_verification)
+cairo-air = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-air" }
+stwo-cairo-adapter = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/adapter" }
+stwo-cairo-prover = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/prover" }
+stwo-cairo-serialize = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/cairo-serialize" }
+stwo-cairo-common = { path = "../../../stwo-cairo/stwo_cairo_prover/crates/common" }
 
-# stwo circuits
-circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
+# stwo circuits (local checkout, branch main)
+circuit-cairo-verifier = { path = "../../../stwo-circuits/crates/cairo_verifier" }
+circuits-stark-verifier = { path = "../../../stwo-circuits/crates/stark_verifier" }
+circuits = { path = "../../../stwo-circuits/crates/circuits" }
+circuit-serialize = { path = "../../../stwo-circuits/crates/circuit_serialize" }
+circuit-prover = { path = "../../../stwo-circuits/crates/circuit_prover" }
+circuit-common = { path = "../../../stwo-circuits/crates/circuit_common" }
+circuit-verifier = { path = "../../../stwo-circuits/crates/circuit_verifier" }
 
 # stwo
 stwo = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e", features = ["parallel"] }
