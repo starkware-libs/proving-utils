@@ -44,7 +44,7 @@ circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev 
 circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "c99a181" }
 
 # stwo
-stwo = { version = "2.2.0", features = ["parallel"] }
+stwo = { version = "2.2.0" }
 
 [dev-dependencies]
 ctor.workspace = true
