@@ -22,7 +22,6 @@ use circuit_verifier::statement::{
     INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
-use circuits::blake::HashValue;
 use circuits::context::Context;
 use circuits::ivalue::{IValue, NoValue};
 use circuits_stark_verifier::proof::ProofConfig;
@@ -39,8 +38,8 @@ use crate::consts::{
     CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES,
     CIRCUIT_PCS_CONFIG, CIRCUIT_TRACE_LOG_SIZE, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES,
     MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES, NUM_OUTPUTS, PRIVACY_BOOTLOADER_JSON,
-    PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
-    PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, PRIVACY_TRANSACTION_COMPONENTS,
+    PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
+    PRIVACY_TRANSACTION_COMPONENTS,
 };
 
 pub struct PrivacyProofOutput {
@@ -113,13 +112,10 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
     let output_qm31s = pack_into_qm31s(outputs.into_iter());
     let output_hash = QM31::blake(output_qm31s.as_slice(), output_qm31s.len() * 16);
-    let constants_hash: HashValue<QM31> = PRIVACY_CAIRO_VERIFIER_CONSTS_HASH.into();
-    let output_values = vec![
-        output_hash.0,
-        output_hash.1,
-        constants_hash.0,
-        constants_hash.1,
-    ];
+    // The circuit outputs: output_hash (2 QM31s) and the extension element u = (0,0,1,0).
+    // The u value is output by finalize_constants as a logup anchor (address 2 in the trace).
+    let u = QM31::from_u32_unchecked(0, 0, 1, 0);
+    let output_values = vec![output_hash.0, output_hash.1, u];
 
     info!("Call the verifier");
     verify_circuit(circuit_config, proof, CircuitPublicData { output_values })?;
