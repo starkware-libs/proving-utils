@@ -10,16 +10,14 @@ use stwo::prover::poly::circle::PolyOps;
 
 use crate::consts::{
     CAIRO_LOG_BLOWUP_FACTOR, CAIRO_PCS_CONFIG, CAIRO_TRACE_LOG_SIZE, CIRCUIT_LOG_BLOWUP_FACTOR,
-    CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG, CIRCUIT_TRACE_LOG_SIZE,
-    PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
-    PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
-    PRIVACY_TRANSACTION_COMPONENTS,
+    CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG, CIRCUIT_TRACE_LOG_SIZE,
+    PRIVACY_CIRCUIT_PREPROCESSED_IDS, PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES,
+    PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, PRIVACY_TRANSACTION_COMPONENTS,
 };
 use crate::{
-    get_cairo_novalue_context, get_cairo_preprocessed_circuit, get_cairo_verifier_config,
-    get_proof_config, get_recursive_circuit_config,
+    get_cairo_preprocessed_circuit, get_cairo_verifier_config, get_proof_config,
+    get_recursive_circuit_config,
 };
-use circuits::ivalue::IValue;
 
 const CONJECTURED_SECURITY_BITS: u32 = 96;
 
@@ -55,20 +53,6 @@ fn check_components() {
             "Component {component_name} is not in the all_components"
         );
     }
-}
-
-#[test]
-fn check_cairo_circuit_verifier_constants() {
-    let cairo_verifier_config = get_cairo_verifier_config().unwrap();
-    let novalue_context = get_cairo_novalue_context(&cairo_verifier_config);
-    let constants = novalue_context
-        .constants()
-        .keys()
-        .cloned()
-        .collect::<Vec<_>>();
-    let constants_hash = QM31::blake(constants.as_slice(), constants.len() * 16);
-
-    assert_eq!(constants_hash, PRIVACY_CAIRO_VERIFIER_CONSTS_HASH.into());
 }
 
 #[test]
@@ -117,10 +101,6 @@ fn check_circuit_verifier_configs() {
     assert_eq!(
         preprocessed_circuit.params.output_addresses,
         CIRCUIT_OUTPUT_ADDRESSES
-    );
-    assert_eq!(
-        preprocessed_circuit.params.n_blake_gates,
-        CIRCUIT_N_BLAKE_GATES
     );
     let preprocessed_column_ids: Vec<String> = preprocessed_circuit
         .preprocessed_trace

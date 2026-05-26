@@ -4,10 +4,10 @@ use stwo::core::pcs::PcsConfig;
 pub const NUM_OUTPUTS: usize = 1;
 
 /// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
-pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 627_076;
+pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 627_244;
 
 /// Uncompressed size in bytes of the serialized recursive circuit proof.
-pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 373_108;
+pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 263_796;
 
 /// Multiplicative safety factor applied to the proof size constants to derive decompression limits
 /// used in `verify_cairo` and `verify_recursive_circuit` as zip-bomb protection.
@@ -34,13 +34,9 @@ pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
-pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 3] = [222372, 222373, 2];
-pub const CIRCUIT_N_BLAKE_GATES: usize = 4327;
-pub const PRIVACY_CAIRO_VERIFIER_CONSTS_HASH: [u32; 8] = [
-    837290355, 304184779, 934540983, 1030030586, 1068923910, 438446145, 1309815623, 423450064,
-];
+pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 3] = [3, 4, 2];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    1787343855, 1667756218, 1239742483, 1200082828, 1596742667, 1869219239, 827237313, 1161827047,
+    660814213, 1644929400, 1719380572, 1563331739, 925907163, 437112022, 929302389, 574632232,
 ];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
@@ -138,45 +134,32 @@ pub const PRIVACY_TRANSACTION_COMPONENTS: [&str; 57] = [
 /// Log sizes (in size-sorted order, matching `PRIVACY_CIRCUIT_PREPROCESSED_IDS`) of the
 /// preprocessed columns in the recursive circuit. Each entry is the `ilog2` of the number of
 /// rows in the corresponding column.
-pub const PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES: [u32; 79] = [
-    // blake_sigma_0..15: 16 rows each
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    // triple_xor_{input_addr_0,1,2,output_addr,multiplicity}
-    4, 4, 4, 4, 4, // m31_to_u32_{input_addr,output_addr,multiplicity}
-    4, 4, 4, // blake_g_gate_{input_addr_a,b,c,d,f0,f1,output_addr_a,b,c,d,multiplicity}
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, // seq_4
-    4, // bitwise_xor_4_{0,1,2}: 2^(2*4) = 256 rows
-    8, 8, 8,
-    // final_state_addr, blake_output{0,1}_addr, blake_output{0,1}_mults: next_pow2(4321)=8192=2^13
-    13, 13, 13, 13, 13, // t0..message3_addr, compress_enabler (10 compress columns): 2^14
-    14, 14, 14, 14, 14, 14, 14, 14, 14, 14, // seq_14
-    14, // bitwise_xor_7_{0,1,2}: 2^(2*7) = 2^14
-    14, 14, 14, // seq_15
-    15, // seq_16, bitwise_xor_8_{0,1,2}: 2^(2*8)=2^16
-    16, 16, 16, 16, // eq_in{0,1}_address
-    17, 17, // bitwise_xor_9_{0,1,2}: 2^(2*9)=2^18
-    18, 18, 18, // bitwise_xor_10_{0,1,2}: 2^(2*10)=2^20
-    20, 20, 20, // qm31_ops_{add,sub,mul,pointwise_mul}_flag, in0/in1/out_address, mults
-    21, 21, 21, 21, 21, 21, 21, 21,
+pub const PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES: [u32; 45] = [
+    8, 8, 8, // bitwise_xor_4_{0,1,2}: 2^(2*4) = 2^8
+    14, 14, 14, //  bitwise_xor_7_{0,1,2}: 2^(2*7) = 2^14
+    16, 16, 16, 16, // bitwise_xor_8_{0,1,2}: 2^(2*8) = 2^16
+    17, 17, // eq
+    17, 17, 17, 17, 17, // triple_xor
+    18, 18, 18, // m31_to_u32
+    18, 18, 18, // bitwise_xor_9_{0,1,2}: 2^(2*9) = 2^18
+    20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, // blake_g_gate
+    20, 20, 20, // bitwise_xor_10_{0,1,2}: 2^(2*10) = 2^20
+    21, 21, 21, 21, 21, 21, 21, 21, // qm31 ops
 ];
 
-pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 79] = [
-    "blake_sigma_0",
-    "blake_sigma_1",
-    "blake_sigma_2",
-    "blake_sigma_3",
-    "blake_sigma_4",
-    "blake_sigma_5",
-    "blake_sigma_6",
-    "blake_sigma_7",
-    "blake_sigma_8",
-    "blake_sigma_9",
-    "blake_sigma_10",
-    "blake_sigma_11",
-    "blake_sigma_12",
-    "blake_sigma_13",
-    "blake_sigma_14",
-    "blake_sigma_15",
+pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 45] = [
+    "bitwise_xor_4_0",
+    "bitwise_xor_4_1",
+    "bitwise_xor_4_2",
+    "bitwise_xor_7_0",
+    "bitwise_xor_7_1",
+    "bitwise_xor_7_2",
+    "seq_16",
+    "bitwise_xor_8_0",
+    "bitwise_xor_8_1",
+    "bitwise_xor_8_2",
+    "eq_in0_address",
+    "eq_in1_address",
     "triple_xor_input_addr_0",
     "triple_xor_input_addr_1",
     "triple_xor_input_addr_2",
@@ -185,6 +168,9 @@ pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 79] = [
     "m31_to_u32_input_addr",
     "m31_to_u32_output_addr",
     "m31_to_u32_multiplicity",
+    "bitwise_xor_9_0",
+    "bitwise_xor_9_1",
+    "bitwise_xor_9_2",
     "blake_g_gate_input_addr_a",
     "blake_g_gate_input_addr_b",
     "blake_g_gate_input_addr_c",
@@ -196,39 +182,6 @@ pub const PRIVACY_CIRCUIT_PREPROCESSED_IDS: [&str; 79] = [
     "blake_g_gate_output_addr_c",
     "blake_g_gate_output_addr_d",
     "blake_g_gate_multiplicity",
-    "seq_4",
-    "bitwise_xor_4_0",
-    "bitwise_xor_4_1",
-    "bitwise_xor_4_2",
-    "final_state_addr",
-    "blake_output0_addr",
-    "blake_output1_addr",
-    "blake_output0_mults",
-    "blake_output1_mults",
-    "t0",
-    "t1",
-    "finalize_flag",
-    "state_before_addr",
-    "state_after_addr",
-    "message0_addr",
-    "message1_addr",
-    "message2_addr",
-    "message3_addr",
-    "compress_enabler",
-    "seq_14",
-    "bitwise_xor_7_0",
-    "bitwise_xor_7_1",
-    "bitwise_xor_7_2",
-    "seq_15",
-    "seq_16",
-    "bitwise_xor_8_0",
-    "bitwise_xor_8_1",
-    "bitwise_xor_8_2",
-    "eq_in0_address",
-    "eq_in1_address",
-    "bitwise_xor_9_0",
-    "bitwise_xor_9_1",
-    "bitwise_xor_9_2",
     "bitwise_xor_10_0",
     "bitwise_xor_10_1",
     "bitwise_xor_10_2",

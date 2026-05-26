@@ -9,6 +9,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
+use cairo_air::flat_claims::FlatClaim;
 use cairo_program_runner_lib::types::HashFunc;
 use cairo_program_runner_lib::types::{PrivacySimpleBootloaderInput, SimpleBootloaderInput};
 use cairo_program_runner_lib::{ProgramInput, Task, TaskSpec, cairo_run_program};
@@ -79,6 +80,12 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
 
     info!("Generate the cairo proof");
     let cairo_proof = prove_cairo::<Blake2sM31MerkleChannel>(prover_input, CAIRO_PROVER_PARAMS)?;
+    // TODO(Leo): remove once we have the log sizes from prepare_cairo_proof_for_circuit_verifier.
+    let FlatClaim {
+        component_enable_bits: _,
+        component_log_sizes,
+        public_data: _,
+    } = cairo_proof.claim.flatten_claim();
 
     info!("Prepare the proof for the circuit verifier");
     let proof_config = get_cairo_proof_config();
@@ -86,7 +93,8 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
         prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &proof_config);
 
     info!("Serialize and compress the proof and public data");
-    let (public_claim, _outputs, _program) = public_data.pack_into_u32s();
+    let (mut public_claim, _outputs, _program) = public_data.pack_into_u32s();
+    public_claim.extend(component_log_sizes);
     let mut proof_bytes: Vec<u8> = vec![];
     proof.serialize(&mut proof_bytes);
     let public_claim_bytes: Vec<u8> = public_claim.iter().flat_map(|x| x.to_le_bytes()).collect();
@@ -190,7 +198,12 @@ pub fn privacy_recursive_prove(
         prover_input,
         CAIRO_PROVER_PARAMS,
     )?;
-
+    // TODO(Leo): remove once we have the log sizes from prepare_cairo_proof_for_circuit_verifier.
+    let FlatClaim {
+        component_enable_bits: _,
+        component_log_sizes,
+        public_data: _,
+    } = cairo_proof.claim.flatten_claim();
     info!("Prepare the cairo proof for the cairo-circuit verifier");
     let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(
         &cairo_proof,
@@ -198,7 +211,8 @@ pub fn privacy_recursive_prove(
     );
 
     info!("Build the cairo-circuit verifier context");
-    let (public_claim, _outputs, _program) = public_data.pack_into_u32s();
+    let (mut public_claim, _outputs, _program) = public_data.pack_into_u32s();
+    public_claim.extend(component_log_sizes);
     let outputs = compute_privacy_bootloader_output(&output_preimage);
     let mut context = build_fixed_cairo_circuit(
         &precomputes.cairo_verifier_config,
