@@ -22,10 +22,11 @@ use circuit_verifier::statement::{
     INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
-use circuits::context::Context;
+use circuits::context::{Context, U_VALUE};
 use circuits::ivalue::{IValue, NoValue};
 use circuits_stark_verifier::proof::ProofConfig;
 use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
+use itertools::Itertools;
 use starknet_types_core::felt::Felt;
 use starknet_types_core::hash::Blake2Felt252;
 use stwo::core::fields::m31::M31;
@@ -35,9 +36,9 @@ use stwo_cairo_common::prover_types::cpu::{FELT252_N_WORDS, Felt252};
 use tracing::{Level, info, span};
 
 use crate::consts::{
-    CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES,
-    CIRCUIT_PCS_CONFIG, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
-    NUM_OUTPUTS, PRIVACY_BOOTLOADER_JSON, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
+    CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG,
+    MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES, NUM_OUTPUTS,
+    PRIVACY_BOOTLOADER_JSON, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
     PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
     PRIVACY_TRANSACTION_COMPONENTS,
 };
@@ -114,8 +115,7 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     let output_hash = QM31::blake(output_qm31s.as_slice(), output_qm31s.len() * 16);
     // The circuit outputs: output_hash (2 QM31s) and the extension element u = (0,0,1,0).
     // The u value is output by finalize_constants as a logup anchor (address 2 in the trace).
-    let u = QM31::from_u32_unchecked(0, 0, 1, 0);
-    let output_values = vec![output_hash.0, output_hash.1, u];
+    let output_values = vec![output_hash.0, output_hash.1, U_VALUE];
 
     info!("Call the verifier");
     verify_circuit(circuit_config, proof, CircuitPublicData { output_values })?;
@@ -177,13 +177,12 @@ pub fn compute_privacy_bootloader_output(output_preimage: &[Felt]) -> [M31; FELT
 pub fn get_recursive_circuit_config() -> CircuitConfig {
     let preprocessed_column_log_sizes = PRIVACY_CIRCUIT_PREPROCESSED_IDS
         .iter()
-        .zip(PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES.iter())
+        .zip_eq(PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES.iter())
         .map(|(&id, &log_size)| (PreProcessedColumnId { id: id.to_string() }, log_size))
         .collect();
     CircuitConfig {
         config: CIRCUIT_PCS_CONFIG,
         output_addresses: CIRCUIT_OUTPUT_ADDRESSES.to_vec(),
-        n_blake_gates: CIRCUIT_N_BLAKE_GATES,
         preprocessed_column_log_sizes,
         preprocessed_root: PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into(),
     }
