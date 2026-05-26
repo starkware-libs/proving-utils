@@ -1,4 +1,4 @@
-use circuit_cairo_air::all_components::all_components;
+use circuit_cairo_verifier::all_components::all_components;
 use circuits::blake::HashValue;
 use stwo::core::fields::qm31::QM31;
 use stwo::core::poly::circle::CanonicCoset;
@@ -12,12 +12,39 @@ use crate::consts::{
     CAIRO_LOG_BLOWUP_FACTOR, CAIRO_PCS_CONFIG, CAIRO_TRACE_LOG_SIZE, CIRCUIT_LOG_BLOWUP_FACTOR,
     CIRCUIT_N_BLAKE_GATES, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG, CIRCUIT_TRACE_LOG_SIZE,
     PRIVACY_CAIRO_VERIFIER_CONSTS_HASH, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
-    PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT, PRIVACY_TRANSACTION_COMPONENTS,
+    PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
+    PRIVACY_TRANSACTION_COMPONENTS,
 };
-use crate::{get_cairo_novalue_context, get_cairo_preprocessed_circuit, get_cairo_verifier_config};
+use crate::{
+    get_cairo_novalue_context, get_cairo_preprocessed_circuit, get_cairo_verifier_config,
+    get_proof_config, get_recursive_circuit_config,
+};
 use circuits::ivalue::IValue;
 
 const CONJECTURED_SECURITY_BITS: u32 = 96;
+
+#[test]
+fn check_proof_config() {
+    let proof_config = get_proof_config();
+    // All circuit components should be enabled.
+    assert!(
+        proof_config
+            .component_shapes
+            .iter()
+            .all(|s| s.trace_columns > 0)
+    );
+}
+
+#[test]
+fn check_recursive_circuit_config_log_sizes() {
+    let config = get_recursive_circuit_config();
+    let log_sizes: Vec<u32> = config
+        .preprocessed_column_log_sizes
+        .values()
+        .copied()
+        .collect();
+    assert_eq!(log_sizes.as_slice(), PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES);
+}
 
 #[test]
 fn check_components() {
@@ -105,6 +132,17 @@ fn check_circuit_verifier_configs() {
         preprocessed_column_ids.as_slice(),
         PRIVACY_CIRCUIT_PREPROCESSED_IDS
     );
+    let actual_log_sizes: Vec<u32> = preprocessed_circuit
+        .preprocessed_trace
+        .log_sizes()
+        .values()
+        .copied()
+        .collect();
+    assert_eq!(
+        actual_log_sizes.as_slice(),
+        PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES,
+        "Update PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES in consts.rs"
+    );
 
     // Check that the lifting log sizes are correct
     assert!(
@@ -142,14 +180,11 @@ pub mod slow_tests {
     use privacy_prove::{prepare_recursive_prover_precomputes, privacy_recursive_prove};
     use tracing_subscriber::fmt;
 
-    use crate::consts::{
-        CAIRO_PROOF_UNCOMPRESSED_BYTES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
-        RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
-    };
+    use crate::consts::{CAIRO_PROOF_UNCOMPRESSED_BYTES, RECURSIVE_PROOF_UNCOMPRESSED_BYTES};
     use crate::get_proof_config;
 
     #[test]
-    fn check_recursive_circuit_preprocessed_root() {
+    fn check_recursive_circuit_proof_deserializes() {
         let _ = fmt().with_max_level(tracing::Level::INFO).try_init();
 
         let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -165,17 +200,12 @@ pub mod slow_tests {
         )
         .unwrap();
         let mut serialized_proof: &[u8] = &proof_bytes;
-        let proof = circuit_serialize::deserialize::deserialize_proof_with_config(
+        circuit_serialize::deserialize::deserialize_proof_with_config(
             &mut serialized_proof,
             &proof_config,
         )
         .unwrap();
         assert!(serialized_proof.is_empty());
-
-        assert_eq!(
-            proof.preprocessed_root,
-            PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into()
-        );
     }
 
     #[test]
