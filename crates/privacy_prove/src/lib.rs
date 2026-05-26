@@ -13,16 +13,16 @@ use cairo_program_runner_lib::types::HashFunc;
 use cairo_program_runner_lib::types::{PrivacySimpleBootloaderInput, SimpleBootloaderInput};
 use cairo_program_runner_lib::{ProgramInput, Task, TaskSpec, cairo_run_program};
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use circuit_air::verify::CircuitConfig;
-use circuit_cairo_air::verify::CairoVerifierConfig;
-use circuit_cairo_air::verify::build_fixed_cairo_circuit;
-use circuit_cairo_air::verify::prepare_cairo_proof_for_circuit_verifier;
+use circuit_cairo_verifier::verify::CairoVerifierConfig;
+use circuit_cairo_verifier::verify::build_fixed_cairo_circuit;
+use circuit_cairo_verifier::verify::prepare_cairo_proof_for_circuit_verifier;
 use circuit_common::finalize::{add_zk_blinding, finalize_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
     prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
 };
 use circuit_serialize::serialize::CircuitSerialize;
+use circuit_verifier::verify::CircuitConfig;
 use circuits_stark_verifier::proof::ProofConfig;
 use itertools::chain;
 use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
@@ -226,7 +226,7 @@ pub fn privacy_recursive_prove(
         MaybeOwned::Borrowed(&precomputes.circuit_preprocessed_tree),
         context_values,
         precomputes.circuit_config.config,
-    );
+    )?;
 
     info!("Prepare the circuit proof for the circuit verifier");
     let (proof_qm31s, _public_data) =
