@@ -27,7 +27,7 @@ use circuits_stark_verifier::proof::ProofConfig;
 use itertools::chain;
 use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
 use privacy_circuit_verify::{
-    PrivacyProofOutput, compute_privacy_bootloader_output, get_cairo_preprocessed_circuit,
+    PrivacyProofOutput, Version, compute_privacy_bootloader_output, get_cairo_preprocessed_circuit,
     get_cairo_proof_config, get_cairo_verifier_config, get_privacy_bootloader_program,
     get_proof_config, get_recursive_circuit_config,
 };
@@ -96,6 +96,7 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     Ok(PrivacyProofOutput {
         proof: compressed,
         output_preimage,
+        version: Version::current(),
     })
 }
 
@@ -240,6 +241,7 @@ pub fn privacy_recursive_prove(
     Ok(PrivacyProofOutput {
         proof: compressed,
         output_preimage,
+        version: Version::current(),
     })
 }
 
