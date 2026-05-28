@@ -2,7 +2,7 @@ name: check
 
 env:
   NIGHTLY_VERSION: "nightly-2025-07-14"
-  STABLE_VERSION: "1.89.0"
+  STABLE_VERSION: "1.93.0"
 
 on:
   push:
@@ -62,7 +62,7 @@ jobs:
           cargo +${{ env.NIGHTLY_VERSION }} run --example run_pie_object_with_simple_bl
 
   slow-tests:
-    runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
+    runs-on: namespace-profile-starkware-libs-stwo-cairo-xlarge-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -122,9 +122,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
+      - run: rustup toolchain install ${{ env.STABLE_VERSION }} --profile minimal
       - run: rustup toolchain install ${{ env.NIGHTLY_VERSION }} --profile minimal
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - run: cargo install cargo-udeps --locked --version 0.1.60
+      - run: cargo +${{ env.STABLE_VERSION }} install cargo-udeps --locked
       - run: cargo +${{ env.NIGHTLY_VERSION }} udeps
