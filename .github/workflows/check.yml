@@ -107,9 +107,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
       - name: Generate coverage report
         run: |
-          cargo +${{ env.NIGHTLY_VERSION }} llvm-cov --workspace --all-targets --lcov --output-path lcov.info
+          cargo +${{ env.NIGHTLY_VERSION }} llvm-cov nextest --workspace --features slow-tests --cargo-profile witness-opt-1 -j 1 --lcov --output-path lcov.info
+        env:
+          RUST_MIN_STACK: 4194304
+          RUSTFLAGS: -C target-cpu=native
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
