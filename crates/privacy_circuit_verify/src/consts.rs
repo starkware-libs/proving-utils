@@ -23,14 +23,8 @@ pub const MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES: usize =
 pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
     RECURSIVE_PROOF_UNCOMPRESSED_BYTES * PROOF_MAX_DECOMPRESSED_RATIO;
 
-// Source code for this compiled privacy bootloader can be found at:
-// repo: https://github.com/starkware-industries/starkware
-// branch: "dev"
-// commit: "4d1ae5848dd49802ddd620601d2d1bb303d15c66"
-// md5sum: "0494f41365e482142d04b58bd64aa5fe"
-// Compiled by command:
-// `bazel build --config=rbe
-// //src/starkware/cairo/bootloaders/simple_bootloader:privacy_simple_bootloader_program`
+// See comment in privacy_prove::tests::test_privacy_bootloader_program_hash_snapshot for more
+// details on how this file was compiled.
 pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
     "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
 );
