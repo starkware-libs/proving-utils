@@ -22,6 +22,7 @@ Optional:
 
 - `--program_input <PATH>`: absolute path to program input
 - `--output_prover_input_path <PATH>`: absolute path to write prover input JSON
+- `--output_vm_execution_resources_path <PATH>`: absolute path to write the Cairo VM's `ExecutionResources` (n_steps, n_memory_holes, and unrounded per-builtin instance counts as observed by the VM before the adapter's power-of-two padding) as JSON
 - `--secure_run`: enable Cairo VM secure_run mode
 
 Example:

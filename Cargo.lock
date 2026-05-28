@@ -4473,6 +4473,7 @@ dependencies = [
  "serde_json",
  "stwo-cairo-adapter 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "stwo-cairo-utils",
+ "tempfile",
  "thiserror 1.0.69",
  "tracing",
 ]
