@@ -8,6 +8,7 @@ use cairo_vm::cairo_run;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
+use cairo_vm::vm::errors::runner_errors::RunnerError;
 use clap::Parser;
 use stwo_cairo_adapter::adapter::adapt;
 use stwo_cairo_adapter::{ExecutionResources, ProverInput};
@@ -42,6 +43,14 @@ struct Args {
     )]
     output_prover_input_path: Option<PathBuf>,
 
+    #[clap(
+        long = "output_vm_execution_resources_path",
+        help = "Absolute path to dump the Cairo VM's ExecutionResources (n_steps, \
+                n_memory_holes, and unrounded per-builtin instance counts) as observed by the \
+                VM before the adapter's power-of-two padding (output file)."
+    )]
+    output_vm_execution_resources_path: Option<PathBuf>,
+
     #[clap(long = "secure_run", help = "Enable secure_run mode in the Cairo VM.")]
     secure_run: bool,
 }
@@ -58,6 +67,8 @@ enum Error {
     ProgramRunner(#[from] ProgramError),
     #[error("Failed executing the program: {0}")]
     Runner(#[from] CairoRunError),
+    #[error("Runner error: {0}")]
+    RunnerError(#[from] RunnerError),
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -91,6 +102,13 @@ fn run() -> Result<ProverInput, Error> {
     };
 
     let cairo_runner = cairo_run_program(&program, program_input, cairo_run_config, None)?;
+
+    // In case we want the unrounded builtin counts straight from the runner.
+    if let Some(path) = args.output_vm_execution_resources_path {
+        let vm_execution_resources = cairo_runner.get_execution_resources()?;
+        std::fs::write(path, serde_json::to_string(&vm_execution_resources)?)?;
+    }
+
     let prover_input = adapt(&cairo_runner)?;
 
     if let Some(prover_input_path) = args.output_prover_input_path {
