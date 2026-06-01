@@ -2,6 +2,7 @@
 members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
+    "crates/leaf_prover",
     "crates/stwo_run_and_prove_common",
     "crates/stwo_run_and_prove",
     "crates/stwo_run_and_prove_recursive_tree",
@@ -68,6 +69,14 @@ stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev 
 stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "68b4af6d" }
 stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "68b4af6d" }
 
+# stwo circuits
+# Pinned to match the stwo-cairo rev above (this stwo-circuits rev depends on stwo-cairo 68b4af6d).
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
@@ -86,4 +95,3 @@ package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 },
 [profile.samply]
 inherits = "release"
 debug = true
-
