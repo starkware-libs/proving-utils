@@ -1,0 +1,33 @@
+[package]
+name = "leaf_prover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Run Cairo programs, prove their runs, verify that proof with a circuit-cairo verifier and output a proof of the run of that circuit"
+
+
+[dependencies]
+cairo-program-runner-lib.workspace = true
+cairo-vm.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_with.workspace = true
+serde_json.workspace = true
+sonic-rs.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+indexmap = { version = "2.10.0", default-features = false, features = ["std"] }
+
+# Pin a specific stwo-circuits revision to keep the verifier circuit stable
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a8483" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a8483" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a8483" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a8483" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a8483" }
+
+# Use the same stwo-cairo commit as used by the above stwo-circuits
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
