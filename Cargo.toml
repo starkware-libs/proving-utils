@@ -2,6 +2,7 @@
 members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
+    "crates/leaf_prover",
     "crates/stwo_run_and_prove_common",
     "crates/stwo_run_and_prove",
     "crates/stwo_run_and_prove_recursive_tree",
@@ -32,6 +33,7 @@ num-traits = "0.2.19"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
+serde_with = { version = "3.21.0", features = ["base64"] }
 sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
@@ -61,13 +63,20 @@ cairo-lang-execute-utils = "2.19.0-rc.0"
 cairo-lang-utils = "2.19.0-rc.0"
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e8d101abbf916db1977e2ac32b52b0fbe9" }
-stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e8d101abbf916db1977e2ac32b52b0fbe9" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e8d101abbf916db1977e2ac32b52b0fbe9" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e8d101abbf916db1977e2ac32b52b0fbe9" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e8d101abbf916db1977e2ac32b52b0fbe9" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e8d101abbf916db1977e2ac32b52b0fbe9" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "ffd4a4e" }
 
+# stwo circuits
+# Pinned to match the stwo-cairo rev above.
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "ee9b130" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "ee9b130" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "ee9b130" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "ee9b130" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "ee9b130" }
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
