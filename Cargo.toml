@@ -2,6 +2,7 @@
 members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
+    "crates/leaf_prover",
     "crates/stwo_run_and_prove_common",
     "crates/stwo_run_and_prove",
     "crates/stwo_run_and_prove_recursive_tree",
