@@ -1,0 +1,36 @@
+[package]
+name = "leaf-prover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Run Cairo programs, prove their runs, verify that proof with a circuit-cairo verifier and output a proof of the run of that circuit"
+
+[features]
+slow-tests = []
+
+[dependencies]
+cairo-program-runner-lib.workspace = true
+cairo-vm.workspace = true
+clap.workspace = true
+num-bigint.workspace = true
+serde.workspace = true
+serde_with.workspace = true
+serde_json.workspace = true
+sonic-rs.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+indexmap = { version = "2.10.0", default-features = false, features = ["std"] }
+
+leaf-proof-format.workspace = true
+
+circuit-cairo-verifier.workspace = true
+circuits-stark-verifier.workspace = true
+circuit-prover.workspace = true
+circuit-common.workspace = true
+circuit-serialize.workspace = true
+
+cairo-air.workspace = true
+stwo-cairo-adapter.workspace = true
+stwo-cairo-common.workspace = true
+stwo-cairo-prover.workspace = true
+stwo-cairo-utils.workspace = true
