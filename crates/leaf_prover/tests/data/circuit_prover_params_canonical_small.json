@@ -1,0 +1,10 @@
+{
+    "pow_bits": 26,
+    "fri_config": {
+        "log_blowup_factor": 1,
+        "log_last_layer_degree_bound": 0,
+        "n_queries": 35,
+        "fold_step": 4
+    },
+    "min_lifting_log_size": 24
+}

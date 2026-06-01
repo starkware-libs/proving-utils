@@ -2,6 +2,8 @@
 members = [
     "crates/cairo-program-runner",
     "crates/cairo-program-runner-lib",
+    "crates/leaf_proof_format",
+    "crates/leaf_prover",
     "crates/stwo_run_and_prove_common",
     "crates/stwo_run_and_prove",
     "crates/stwo_run_and_prove_recursive_tree",
@@ -32,6 +34,7 @@ num-traits = "0.2.19"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
+serde_with = { version = "3.21.0", features = ["base64"] }
 sonic-rs = "0.3.17"
 starknet-crypto = "=0.8.1"
 starknet-ff = "0.3.7"
@@ -68,9 +71,17 @@ stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev 
 stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8d32fb5" }
 stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "8d32fb5" }
 
+# stwo circuits
+# Pinned to match the stwo-cairo rev above.
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
+leaf-proof-format = { path = "crates/leaf_proof_format" }
 privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
 stwo-run-and-prove-common = { path = "crates/stwo_run_and_prove_common", version = "1.2.2" }
 
