@@ -1,0 +1,14 @@
+[package]
+name = "circuit-unpacker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Unpacker for a perfect-binary-tree recursion of circuit_verifier proofs."
+
+[dependencies]
+# stwo circuits
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "618db0a" }
+
+# stwo
+stwo = { version = "2.2.0" }
