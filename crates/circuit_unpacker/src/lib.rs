@@ -77,9 +77,10 @@
 #[cfg(test)]
 mod tests;
 
-use circuits::blake::HashValue;
+use circuits::blake::{HashValue, blake};
 use circuits::context::{Context, Var};
 use circuits::ivalue::{IValue, qm31_from_u32s};
+use circuits::ops::{eq, guess};
 use stwo::core::fields::qm31::QM31;
 
 /// Marker value for an unused (dummy) leaf slot.
@@ -182,11 +183,70 @@ pub fn dummy_hash_at_depth(_pp_root: HashValue<QM31>, _depth: u32) -> HashValue<
 /// Dummy positions are pinned to [`dummy_hash_at_depth`] constants via `Eq` gates and cannot be
 /// substituted by the prover for real (potentially-malicious) subtrees.
 pub fn run_unpacker<Value: IValue>(
-    _ctx: &mut Context<Value>,
-    _root_hash: HashValue<Var>,
-    _preprocessed_root: HashValue<Var>,
-    _hints: &UnpackerHints,
+    ctx: &mut Context<Value>,
+    root_hash: HashValue<Var>,
+    preprocessed_root: HashValue<Var>,
+    hints: &UnpackerHints,
 ) -> Vec<Vec<Var>> {
-    // Implementation arrives with the first test.
-    todo!()
+    assert!(
+        hints.n_real_leaves().is_power_of_two(),
+        "Non-power-of-two N (dummies) not yet supported by this impl.",
+    );
+
+    let mut leaf_vars_out: Vec<Vec<Var>> = Vec::with_capacity(hints.n_real_leaves());
+    let computed_root = compute_subtree_hash(
+        ctx,
+        preprocessed_root,
+        &hints.leaf_outputs,
+        &mut leaf_vars_out,
+    );
+
+    // Bind the computed root hash to the caller-supplied root_hash.
+    eq(ctx, computed_root.0, root_hash.0);
+    eq(ctx, computed_root.1, root_hash.1);
+
+    leaf_vars_out
+}
+
+/// Recursively builds the subtree of Blake gates for the slice of leaves and returns the
+/// subtree's hash. As a side-effect, appends each visited leaf's guessed-output Vars to
+/// `leaf_vars_out` in tree position order.
+///
+/// `leaves.len()` must be a power of two. At a single-leaf subtree, the function guesses the
+/// leaf's output into the circuit and emits the leaf-hash Blake gate; at multi-leaf subtrees, it
+/// splits the slice in half, recurses, and emits the combiner Blake gate over the two child
+/// hashes.
+fn compute_subtree_hash<Value: IValue>(
+    ctx: &mut Context<Value>,
+    preprocessed_root: HashValue<Var>,
+    leaves: &[Vec<QM31>],
+    leaf_vars_out: &mut Vec<Vec<Var>>,
+) -> HashValue<Var> {
+    if leaves.len() == 1 {
+        // Leaf: guess each output value as a Var, build the preimage with pp_root prefix, blake.
+        let leaf_output = &leaves[0];
+        let leaf_vars: Vec<Var> = leaf_output
+            .iter()
+            .map(|qm31| guess(ctx, Value::from_qm31(*qm31)))
+            .collect();
+        let mut preimage = vec![preprocessed_root.0, preprocessed_root.1];
+        preimage.extend(&leaf_vars);
+        let leaf_hash = blake(ctx, &preimage, 16 * preimage.len());
+        leaf_vars_out.push(leaf_vars);
+        return leaf_hash;
+    }
+
+    let mid = leaves.len() / 2;
+    let left_hash = compute_subtree_hash(ctx, preprocessed_root, &leaves[..mid], leaf_vars_out);
+    let right_hash = compute_subtree_hash(ctx, preprocessed_root, &leaves[mid..], leaf_vars_out);
+
+    let preimage = vec![
+        preprocessed_root.0,
+        preprocessed_root.1,
+        left_hash.0,
+        left_hash.1,
+        right_hash.0,
+        right_hash.1,
+    ];
+    blake(ctx, &preimage, 16 * preimage.len())
 }
