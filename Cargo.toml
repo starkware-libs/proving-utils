@@ -6,6 +6,7 @@ members = [
     "crates/vm_runner",
     "crates/privacy_prove",
     "crates/privacy_circuit_verify",
+    "crates/circuit_unpacker",
 ]
 resolver = "2"
 
