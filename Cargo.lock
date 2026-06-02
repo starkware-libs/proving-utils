@@ -1459,6 +1459,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit-unpacker"
+version = "1.2.2"
+dependencies = [
+ "circuits",
+ "stwo",
+]
+
+[[package]]
 name = "circuit-verifier"
 version = "0.1.0"
 source = "git+https://github.com/starkware-libs/stwo-circuits?rev=618db0a#618db0a21e68fdf91db8b839227bf7258a543cf7"
