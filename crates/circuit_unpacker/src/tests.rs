@@ -16,6 +16,19 @@ fn hash_with_pp_root(pp_root: HashValue<QM31>, payload: &[QM31]) -> HashValue<QM
     QM31::blake(&preimage, preimage.len() * 16)
 }
 
+/// Recursively computes the expected hash of a subtree of `leaves`, off-circuit. Mirrors the
+/// in-circuit recursion done by `compute_subtree_hash`, so the test's expected value is
+/// guaranteed to match whatever shape of recursion the unpacker emits.
+fn expected_subtree_hash(pp_root: HashValue<QM31>, leaves: &[Vec<QM31>]) -> HashValue<QM31> {
+    if leaves.len() == 1 {
+        return hash_with_pp_root(pp_root, &leaves[0]);
+    }
+    let mid = leaves.len() / 2;
+    let left = expected_subtree_hash(pp_root, &leaves[..mid]);
+    let right = expected_subtree_hash(pp_root, &leaves[mid..]);
+    hash_with_pp_root(pp_root, &[left.0, left.1, right.0, right.1])
+}
+
 /// Test 1: `N = 2` real leaves, no dummies (`N` is already a power of two).
 /// Tree height = 1; the root has two leaf children, each with a distinct output length.
 ///
@@ -66,5 +79,48 @@ fn unpacker_n2_no_dummies() {
     }
     for (var, expected) in result[1].iter().zip(leaf_1_output.iter()) {
         assert_eq!(ctx.get(*var), *expected);
+    }
+}
+
+/// Test 2: `N = 4` real leaves, no dummies. Tree height = 2.
+///
+/// Exercises the internal-node recursion below the root that test 1's depth-1 case does not
+/// reach: each of the root's two children is itself an internal node combining two leaf hashes.
+/// Leaf output sizes vary to keep the test honest about per-leaf k_i.
+#[test]
+fn unpacker_n4_no_dummies() {
+    let pp_root: HashValue<QM31> =
+        HashValue(qm31_from_u32s(7, 0, 0, 0), qm31_from_u32s(8, 0, 0, 0));
+
+    // Four leaves with varying output sizes (3, 2, 4, 1 QM31s).
+    let leaf_outputs: Vec<Vec<QM31>> = vec![
+        (10..13).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        (20..22).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        (30..34).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        vec![qm31_from_u32s(40, 0, 0, 0)],
+    ];
+
+    let root_hash = expected_subtree_hash(pp_root, &leaf_outputs);
+
+    let mut ctx: Context<QM31> = Context::default();
+    let pp_root_vars = HashValue(ctx.constant(pp_root.0), ctx.constant(pp_root.1));
+    let root_hash_vars = HashValue(ctx.constant(root_hash.0), ctx.constant(root_hash.1));
+    let hints = UnpackerHints {
+        leaf_outputs: leaf_outputs.clone(),
+    };
+
+    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root_vars, &hints);
+
+    assert!(
+        ctx.is_circuit_valid(),
+        "circuit constraints failed for valid input"
+    );
+
+    assert_eq!(result.len(), leaf_outputs.len());
+    for (got, expected) in result.iter().zip(leaf_outputs.iter()) {
+        assert_eq!(got.len(), expected.len());
+        for (var, expected_value) in got.iter().zip(expected.iter()) {
+            assert_eq!(ctx.get(*var), *expected_value);
+        }
     }
 }
