@@ -61,16 +61,15 @@ fn unpacker_n2_no_dummies() {
     let root_payload = vec![leaf_0_hash.0, leaf_0_hash.1, leaf_1_hash.0, leaf_1_hash.1];
     let root_hash = hash_with_pp_root(pp_root, &root_payload);
 
-    // Build the unpacker circuit with witness values, wire pp_root and root_hash as constant
-    // Vars, then invoke the unpacker.
+    // Build the unpacker circuit with witness values. pp_root is passed by value; root_hash is
+    // wired as constant Vars.
     let mut ctx: Context<QM31> = Context::default();
-    let pp_root_vars = HashValue(ctx.constant(pp_root.0), ctx.constant(pp_root.1));
     let root_hash_vars = HashValue(ctx.constant(root_hash.0), ctx.constant(root_hash.1));
     let hints = UnpackerHints {
         leaf_outputs: vec![leaf_0_output.clone(), leaf_1_output.clone()],
     };
 
-    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root_vars, &hints);
+    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root, &hints);
 
     // (1) The constraints must hold for the chosen witness.
     assert!(
@@ -113,13 +112,12 @@ fn unpacker_n4_no_dummies() {
     let root_hash = expected_subtree_hash(pp_root, &leaf_outputs);
 
     let mut ctx: Context<QM31> = Context::default();
-    let pp_root_vars = HashValue(ctx.constant(pp_root.0), ctx.constant(pp_root.1));
     let root_hash_vars = HashValue(ctx.constant(root_hash.0), ctx.constant(root_hash.1));
     let hints = UnpackerHints {
         leaf_outputs: leaf_outputs.clone(),
     };
 
-    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root_vars, &hints);
+    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root, &hints);
 
     assert!(
         ctx.is_circuit_valid(),
@@ -154,13 +152,12 @@ fn unpacker_n3_one_dummy() {
     let root_hash = expected_subtree_hash(pp_root, &leaf_outputs);
 
     let mut ctx: Context<QM31> = Context::default();
-    let pp_root_vars = HashValue(ctx.constant(pp_root.0), ctx.constant(pp_root.1));
     let root_hash_vars = HashValue(ctx.constant(root_hash.0), ctx.constant(root_hash.1));
     let hints = UnpackerHints {
         leaf_outputs: leaf_outputs.clone(),
     };
 
-    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root_vars, &hints);
+    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root, &hints);
 
     assert!(
         ctx.is_circuit_valid(),
@@ -168,6 +165,51 @@ fn unpacker_n3_one_dummy() {
     );
 
     // Output should expose exactly the 3 real leaves; the dummy at slot 3 must not appear.
+    assert_eq!(result.len(), leaf_outputs.len());
+    for (got, expected) in result.iter().zip(leaf_outputs.iter()) {
+        assert_eq!(got.len(), expected.len());
+        for (var, expected_value) in got.iter().zip(expected.iter()) {
+            assert_eq!(ctx.get(*var), *expected_value);
+        }
+    }
+}
+
+/// Test 4: `N = 5` real leaves, three dummies at slots 5..8. `N_total = 8`, tree height = 3.
+///
+/// Exercises the dummy short-circuit at *two* depths simultaneously:
+/// - Slot 5 is a single dummy leaf — short-circuited at depth 0 via `dummy_hash_vars[0]`.
+/// - Slots 6,7 form an all-dummy depth-1 subtree — short-circuited at depth 1 via
+///   `dummy_hash_vars[1]`, with no recursion into the two dummy leaves underneath.
+///
+/// The unpacker must still expose exactly 5 entries in the output Vec, all real.
+#[test]
+fn unpacker_n5_dummies_short_circuit_at_two_depths() {
+    let pp_root: HashValue<QM31> =
+        HashValue(qm31_from_u32s(11, 0, 0, 0), qm31_from_u32s(12, 0, 0, 0));
+
+    let leaf_outputs: Vec<Vec<QM31>> = vec![
+        (10..13).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        (20..22).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        (30..34).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        vec![qm31_from_u32s(40, 0, 0, 0)],
+        (50..52).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+    ];
+
+    let root_hash = expected_subtree_hash(pp_root, &leaf_outputs);
+
+    let mut ctx: Context<QM31> = Context::default();
+    let root_hash_vars = HashValue(ctx.constant(root_hash.0), ctx.constant(root_hash.1));
+    let hints = UnpackerHints {
+        leaf_outputs: leaf_outputs.clone(),
+    };
+
+    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root, &hints);
+
+    assert!(
+        ctx.is_circuit_valid(),
+        "circuit constraints failed for valid input"
+    );
+
     assert_eq!(result.len(), leaf_outputs.len());
     for (got, expected) in result.iter().zip(leaf_outputs.iter()) {
         assert_eq!(got.len(), expected.len());

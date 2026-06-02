@@ -13,7 +13,7 @@
 //! The tree is a **complete perfect binary tree** of `N_total = next_power_of_2(N)` slots, where
 //! `N` is the number of *real* leaves the caller provides via [`UnpackerHints::leaf_outputs`]. The
 //! last `N_total - N` slots are *dummy* leaves with a canonical empty output (see
-//! [`DUMMY_LEAF_OUTPUT`]). Tree height is `log2(N_total)`. Every internal node has exactly two
+//! [`dummy_leaf_output`]). Tree height is `log2(N_total)`. Every internal node has exactly two
 //! children.
 //!
 //! Because the shape is fully determined by `N`, this crate does *not* embed `n_subtasks` / `size`
@@ -43,12 +43,23 @@
 //!
 //! # Dummy leaves
 //!
-//! When `N` is not a power of two, the unpacker pads the leaves vector on the right with
+//! When `N` is not a power of two, slots `N..N_total` are *dummies* with the canonical output
 //! [`dummy_leaf_output()`] — a single-QM31 sequence carrying the marker `0xDEAD`
-//! ([`DUMMY_LEAF_MARKER`]) — up to `N_total = next_power_of_2(N)`. The padded slots are then
-//! treated like any other leaf: their (constant) outputs are guessed into the circuit and
-//! Blake-bound just like real leaves. The prover cannot substitute different values without
-//! falsifying the root Blake assertion.
+//! ([`DUMMY_LEAF_MARKER`]).
+//!
+//! Because dummies' outputs are fixed, every *fully-dummy* subtree has a hash that depends only
+//! on `pp_root` and depth — not on `N`. The unpacker precomputes the chain
+//! `dummy_hash[d]` for `d ∈ 0..=tree_height` **off-circuit** (one `QM31::blake` per depth) and
+//! wires the result as `ctx.constant`s. During the recursive walk, when a subtree is determined
+//! statically to be fully-dummy (its leaf range starts at or after `N`), the unpacker returns
+//! the cached constant directly — **no Blake gate is emitted on the dummy side**, no recursion
+//! happens, and no `Var`s are guessed for dummy outputs. Mixed subtrees (one real child, one
+//! dummy) recurse only on the real side and combine with the cached dummy constant under one
+//! Blake gate.
+//!
+//! Soundness: the dummy constants are bound by being included in the root's preimage at fixed
+//! positions; any prover-supplied substitution would change the root Blake hash and falsify the
+//! `eq` check against `root_hash`.
 //!
 //! Dummy leaves are *not* emitted in the unpacker's output: the returned `Vec<Vec<Var>>` has
 //! exactly `N` entries (one per real leaf, in tree position order). The internal padding is
@@ -74,7 +85,7 @@
 //! | Tree shape                      | Free (per-call, runtime-walked)      | Complete perfect binary, fixed by `N`       |
 //! | Layout headers in preimage      | `[n_subtasks, size, program_hash]`   | None (positions are compile-time-known)     |
 //! | Walking                         | Dynamic (size headers in preimage)   | Static (offsets known from `N` and `k_i`)   |
-//! | Dummies                         | Not applicable                       | Right-aligned, padded with `dummy_leaf_output()` |
+//! | Dummies                         | Not applicable                       | Right-aligned, off-circuit-precomputed hashes short-circuit fully-dummy subtrees |
 
 #[cfg(test)]
 mod tests;
@@ -160,70 +171,148 @@ impl UnpackerHints {
 /// via a continuous Blake hash binding. The prover cannot supply differing
 /// `hints.leaf_outputs` without falsifying one of the Blake assertions.
 ///
-/// Dummy slots carry [`dummy_leaf_output()`] — a deterministic constant. Because that value is
-/// fixed by the unpacker (not by the prover), any prover-supplied substitution for a dummy slot
-/// would change the root Blake hash and falsify the binding.
+/// Dummy slots carry [`dummy_leaf_output()`] — a deterministic constant. The hash of every
+/// fully-dummy subtree is precomputed off-circuit (via [`precompute_dummy_hashes`]) and wired
+/// in-circuit as `ctx.constant`s, so the recursion **short-circuits** at all-dummy subtrees: no
+/// Blake gate is emitted there. Any prover-supplied substitution for a dummy slot would change
+/// the root Blake hash and falsify the binding.
 pub fn run_unpacker<Value: IValue>(
     ctx: &mut Context<Value>,
     root_hash: HashValue<Var>,
-    preprocessed_root: HashValue<Var>,
+    preprocessed_root: HashValue<QM31>,
     hints: &UnpackerHints,
 ) -> Vec<Vec<Var>> {
     let n_real = hints.n_real_leaves();
     let n_total = hints.n_total_leaves();
+    let tree_height = hints.tree_height() as usize;
+
+    // Wire pp_root as constant Vars so the in-circuit recursion can read them.
+    let pp_root_vars = HashValue(
+        ctx.constant(preprocessed_root.0),
+        ctx.constant(preprocessed_root.1),
+    );
+
+    // Precompute the dummy-hash chain off-circuit, then wire each entry as a `ctx.constant`.
+    // `dummy_hash_vars[d]` is the hash of an all-dummy subtree of height `d`.
+    let dummy_hashes_qm31 = precompute_dummy_hashes(preprocessed_root, tree_height);
+    let dummy_hash_vars: Vec<HashValue<Var>> = dummy_hashes_qm31
+        .iter()
+        .map(|h| HashValue(ctx.constant(h.0), ctx.constant(h.1)))
+        .collect();
 
     // Right-pad with dummies to the next power of two so the recursion sees a perfect tree.
+    // Padded positions are never visited by the in-circuit recursion (the short-circuit catches
+    // them at their containing all-dummy subtree root), but we keep them in `padded_outputs` so
+    // a flat tree-position index lines up with leaf positions.
     let mut padded_outputs: Vec<Vec<QM31>> = hints.leaf_outputs.clone();
     padded_outputs.resize(n_total, dummy_leaf_output());
 
-    let mut leaf_vars_out: Vec<Vec<Var>> = Vec::with_capacity(n_total);
-    let computed_root =
-        compute_subtree_hash(ctx, preprocessed_root, &padded_outputs, &mut leaf_vars_out);
+    let mut leaf_vars_out: Vec<Vec<Var>> = Vec::with_capacity(n_real);
+    let computed_root = compute_subtree_hash(
+        ctx,
+        pp_root_vars,
+        &padded_outputs,
+        0,
+        n_real,
+        tree_height,
+        &dummy_hash_vars,
+        &mut leaf_vars_out,
+    );
 
     // Bind the computed root hash to the caller-supplied root_hash.
     eq(ctx, computed_root.0, root_hash.0);
     eq(ctx, computed_root.1, root_hash.1);
 
-    // Expose only the real leaves' outputs; dummies stay internal.
-    leaf_vars_out.truncate(n_real);
     leaf_vars_out
 }
 
-/// Recursively builds the subtree of Blake gates for the slice of leaves and returns the
-/// subtree's hash. As a side-effect, appends each visited leaf's guessed-output Vars to
-/// `leaf_vars_out` in tree position order.
+/// Off-circuit computation of `dummy_hash_at_depth(d)` for every `d ∈ 0..=tree_height`.
 ///
-/// `leaves.len()` must be a power of two. At a single-leaf subtree, the function guesses the
-/// leaf's output into the circuit and emits the leaf-hash Blake gate; at multi-leaf subtrees, it
-/// splits the slice in half, recurses, and emits the combiner Blake gate over the two child
-/// hashes.
+/// `dummy_hashes[0] = blake(pp_root.0 || pp_root.1 || ...dummy_leaf_output())`, and for `d > 0`
+/// `dummy_hashes[d] = blake(pp_root.0 || pp_root.1 || h_{d-1}.0 || h_{d-1}.1 || h_{d-1}.0 ||
+/// h_{d-1}.1)`. The doubled child encodes that both children of an all-dummy subtree are identical.
+fn precompute_dummy_hashes(pp_root: HashValue<QM31>, tree_height: usize) -> Vec<HashValue<QM31>> {
+    let mut result = Vec::with_capacity(tree_height + 1);
+
+    let dummy = dummy_leaf_output();
+    let mut preimage = vec![pp_root.0, pp_root.1];
+    preimage.extend(&dummy);
+    result.push(QM31::blake(&preimage, preimage.len() * 16));
+
+    for d in 1..=tree_height {
+        let prev = result[d - 1];
+        let preimage = vec![pp_root.0, pp_root.1, prev.0, prev.1, prev.0, prev.1];
+        result.push(QM31::blake(&preimage, preimage.len() * 16));
+    }
+
+    result
+}
+
+/// Recursively builds the subtree of Blake gates and returns the subtree's hash. Side-effect:
+/// appends each *real* leaf's guessed-output Vars to `leaf_vars_out` in tree position order.
+///
+/// All-dummy subtrees are short-circuited to a precomputed constant from `dummy_hash_vars`;
+/// they emit no Blake gates and contribute nothing to `leaf_vars_out`.
+///
+/// `leaves.len()` must be a power of two; `depth` must equal `log2(leaves.len())`; `leaf_offset`
+/// is the position of `leaves[0]` in the full padded array.
+#[allow(clippy::too_many_arguments)]
 fn compute_subtree_hash<Value: IValue>(
     ctx: &mut Context<Value>,
-    preprocessed_root: HashValue<Var>,
+    pp_root: HashValue<Var>,
     leaves: &[Vec<QM31>],
+    leaf_offset: usize,
+    n_real: usize,
+    depth: usize,
+    dummy_hash_vars: &[HashValue<Var>],
     leaf_vars_out: &mut Vec<Vec<Var>>,
 ) -> HashValue<Var> {
+    // All-dummy subtree: every position in this subtree is a dummy (the entire range starts at
+    // or after `n_real`). Return the precomputed constant; no recursion, no Blake gate.
+    if leaf_offset >= n_real {
+        return dummy_hash_vars[depth];
+    }
+
+    // Single-leaf subtree (depth 0). The all-dummy guard above means this must be a real leaf.
     if leaves.len() == 1 {
-        // Leaf: guess each output value as a Var, build the preimage with pp_root prefix, blake.
         let leaf_output = &leaves[0];
         let leaf_vars: Vec<Var> = leaf_output
             .iter()
             .map(|qm31| guess(ctx, Value::from_qm31(*qm31)))
             .collect();
-        let mut preimage = vec![preprocessed_root.0, preprocessed_root.1];
+        let mut preimage = vec![pp_root.0, pp_root.1];
         preimage.extend(&leaf_vars);
         let leaf_hash = blake(ctx, &preimage, 16 * preimage.len());
         leaf_vars_out.push(leaf_vars);
         return leaf_hash;
     }
 
+    // Internal (mixed or all-real): split, recurse, combine.
     let mid = leaves.len() / 2;
-    let left_hash = compute_subtree_hash(ctx, preprocessed_root, &leaves[..mid], leaf_vars_out);
-    let right_hash = compute_subtree_hash(ctx, preprocessed_root, &leaves[mid..], leaf_vars_out);
+    let left_hash = compute_subtree_hash(
+        ctx,
+        pp_root,
+        &leaves[..mid],
+        leaf_offset,
+        n_real,
+        depth - 1,
+        dummy_hash_vars,
+        leaf_vars_out,
+    );
+    let right_hash = compute_subtree_hash(
+        ctx,
+        pp_root,
+        &leaves[mid..],
+        leaf_offset + mid,
+        n_real,
+        depth - 1,
+        dummy_hash_vars,
+        leaf_vars_out,
+    );
 
     let preimage = vec![
-        preprocessed_root.0,
-        preprocessed_root.1,
+        pp_root.0,
+        pp_root.1,
         left_hash.0,
         left_hash.1,
         right_hash.0,
