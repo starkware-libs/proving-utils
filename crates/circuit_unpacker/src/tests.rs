@@ -3,7 +3,7 @@ use circuits::context::Context;
 use circuits::ivalue::{IValue, qm31_from_u32s};
 use stwo::core::fields::qm31::QM31;
 
-use crate::{UnpackerHints, run_unpacker};
+use crate::{UnpackerHints, dummy_leaf_output, run_unpacker};
 
 /// Builds the preimage `[pp_root.0, pp_root.1, ...payload]` and Blake-hashes it off-circuit.
 /// Mirrors the in-circuit hash construction used by both `circuit_verifier::verify` and the
@@ -19,7 +19,17 @@ fn hash_with_pp_root(pp_root: HashValue<QM31>, payload: &[QM31]) -> HashValue<QM
 /// Recursively computes the expected hash of a subtree of `leaves`, off-circuit. Mirrors the
 /// in-circuit recursion done by `compute_subtree_hash`, so the test's expected value is
 /// guaranteed to match whatever shape of recursion the unpacker emits.
+///
+/// If `leaves.len()` is not a power of two, the slice is padded on the right with
+/// [`dummy_leaf_output()`] up to the next power of two — the tree shape the unpacker is
+/// contracted to materialize.
 fn expected_subtree_hash(pp_root: HashValue<QM31>, leaves: &[Vec<QM31>]) -> HashValue<QM31> {
+    let n_total = leaves.len().next_power_of_two().max(1);
+    if leaves.len() < n_total {
+        let mut padded: Vec<Vec<QM31>> = leaves.to_vec();
+        padded.resize(n_total, dummy_leaf_output());
+        return expected_subtree_hash(pp_root, &padded);
+    }
     if leaves.len() == 1 {
         return hash_with_pp_root(pp_root, &leaves[0]);
     }
@@ -116,6 +126,48 @@ fn unpacker_n4_no_dummies() {
         "circuit constraints failed for valid input"
     );
 
+    assert_eq!(result.len(), leaf_outputs.len());
+    for (got, expected) in result.iter().zip(leaf_outputs.iter()) {
+        assert_eq!(got.len(), expected.len());
+        for (var, expected_value) in got.iter().zip(expected.iter()) {
+            assert_eq!(ctx.get(*var), *expected_value);
+        }
+    }
+}
+
+/// Test 3: `N = 3` real leaves, one dummy at slot 3. `N_total = 4`, tree height = 2.
+///
+/// Exercises the dummy-leaf path. Slot 3 is padded with [`dummy_leaf_output()`]; the right
+/// internal node combines a real-leaf hash (L2) with the dummy-leaf hash. The unpacker must
+/// produce exactly 3 entries in the returned `Vec<Vec<Var>>` — the dummy is not surfaced.
+#[test]
+fn unpacker_n3_one_dummy() {
+    let pp_root: HashValue<QM31> =
+        HashValue(qm31_from_u32s(5, 0, 0, 0), qm31_from_u32s(6, 0, 0, 0));
+
+    let leaf_outputs: Vec<Vec<QM31>> = vec![
+        (10..13).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        (20..22).map(|i| qm31_from_u32s(i, 0, 0, 0)).collect(),
+        vec![qm31_from_u32s(30, 0, 0, 0)],
+    ];
+
+    let root_hash = expected_subtree_hash(pp_root, &leaf_outputs);
+
+    let mut ctx: Context<QM31> = Context::default();
+    let pp_root_vars = HashValue(ctx.constant(pp_root.0), ctx.constant(pp_root.1));
+    let root_hash_vars = HashValue(ctx.constant(root_hash.0), ctx.constant(root_hash.1));
+    let hints = UnpackerHints {
+        leaf_outputs: leaf_outputs.clone(),
+    };
+
+    let result = run_unpacker(&mut ctx, root_hash_vars, pp_root_vars, &hints);
+
+    assert!(
+        ctx.is_circuit_valid(),
+        "circuit constraints failed for valid input"
+    );
+
+    // Output should expose exactly the 3 real leaves; the dummy at slot 3 must not appear.
     assert_eq!(result.len(), leaf_outputs.len());
     for (got, expected) in result.iter().zip(leaf_outputs.iter()) {
         assert_eq!(got.len(), expected.len());

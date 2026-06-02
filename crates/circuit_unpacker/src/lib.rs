@@ -43,14 +43,16 @@
 //!
 //! # Dummy leaves
 //!
-//! Dummies are pinned to known constants throughout: [`DUMMY_LEAF_OUTPUT`] is a 1-QM31 marker
-//! `0xDEAD`. The hash of each "all-dummy subtree at depth d" is precomputed off-circuit and
-//! pinned in-circuit with `Eq` gates — there is no recursion into
-//! dummy subtrees and no Blake gate spent on them. Mixed subtrees (one real child, one dummy)
-//! recurse only on the real side.
+//! When `N` is not a power of two, the unpacker pads the leaves vector on the right with
+//! [`dummy_leaf_output()`] — a single-QM31 sequence carrying the marker `0xDEAD`
+//! ([`DUMMY_LEAF_MARKER`]) — up to `N_total = next_power_of_2(N)`. The padded slots are then
+//! treated like any other leaf: their (constant) outputs are guessed into the circuit and
+//! Blake-bound just like real leaves. The prover cannot substitute different values without
+//! falsifying the root Blake assertion.
 //!
 //! Dummy leaves are *not* emitted in the unpacker's output: the returned `Vec<Vec<Var>>` has
-//! exactly `N` entries (one per real leaf, in tree position order).
+//! exactly `N` entries (one per real leaf, in tree position order). The internal padding is
+//! invisible to the caller.
 //!
 //! # Inputs the unpacker does *not* take
 //!
@@ -72,7 +74,7 @@
 //! | Tree shape                      | Free (per-call, runtime-walked)      | Complete perfect binary, fixed by `N`       |
 //! | Layout headers in preimage      | `[n_subtasks, size, program_hash]`   | None (positions are compile-time-known)     |
 //! | Walking                         | Dynamic (size headers in preimage)   | Static (offsets known from `N` and `k_i`)   |
-//! | Dummies                         | Not applicable                       | Right-aligned, precomputed-constant hashes  |
+//! | Dummies                         | Not applicable                       | Right-aligned, padded with `dummy_leaf_output()` |
 
 #[cfg(test)]
 mod tests;
@@ -158,31 +160,32 @@ impl UnpackerHints {
 /// via a continuous Blake hash binding. The prover cannot supply differing
 /// `hints.leaf_outputs` without falsifying one of the Blake assertions.
 ///
-/// Dummy positions are pinned to precomputed constants via `Eq` gates and cannot be
-/// substituted by the prover for real (potentially-malicious) subtrees.
+/// Dummy slots carry [`dummy_leaf_output()`] — a deterministic constant. Because that value is
+/// fixed by the unpacker (not by the prover), any prover-supplied substitution for a dummy slot
+/// would change the root Blake hash and falsify the binding.
 pub fn run_unpacker<Value: IValue>(
     ctx: &mut Context<Value>,
     root_hash: HashValue<Var>,
     preprocessed_root: HashValue<Var>,
     hints: &UnpackerHints,
 ) -> Vec<Vec<Var>> {
-    assert!(
-        hints.n_real_leaves().is_power_of_two(),
-        "Non-power-of-two N (dummies) not yet supported by this impl.",
-    );
+    let n_real = hints.n_real_leaves();
+    let n_total = hints.n_total_leaves();
 
-    let mut leaf_vars_out: Vec<Vec<Var>> = Vec::with_capacity(hints.n_real_leaves());
-    let computed_root = compute_subtree_hash(
-        ctx,
-        preprocessed_root,
-        &hints.leaf_outputs,
-        &mut leaf_vars_out,
-    );
+    // Right-pad with dummies to the next power of two so the recursion sees a perfect tree.
+    let mut padded_outputs: Vec<Vec<QM31>> = hints.leaf_outputs.clone();
+    padded_outputs.resize(n_total, dummy_leaf_output());
+
+    let mut leaf_vars_out: Vec<Vec<Var>> = Vec::with_capacity(n_total);
+    let computed_root =
+        compute_subtree_hash(ctx, preprocessed_root, &padded_outputs, &mut leaf_vars_out);
 
     // Bind the computed root hash to the caller-supplied root_hash.
     eq(ctx, computed_root.0, root_hash.0);
     eq(ctx, computed_root.1, root_hash.1);
 
+    // Expose only the real leaves' outputs; dummies stay internal.
+    leaf_vars_out.truncate(n_real);
     leaf_vars_out
 }
 
