@@ -98,9 +98,11 @@ fn check_circuit_verifier_configs() {
         preprocessed_circuit.params.trace_log_size + CIRCUIT_LOG_BLOWUP_FACTOR,
         CIRCUIT_PCS_CONFIG.lifting_log_size.unwrap()
     );
+    // `params.n_outputs` counts the circuit output gates excluding the `u` constant wire, while
+    // `CIRCUIT_OUTPUT_ADDRESSES` includes the `u` anchor address.
     assert_eq!(
-        preprocessed_circuit.params.output_addresses,
-        CIRCUIT_OUTPUT_ADDRESSES
+        preprocessed_circuit.params.n_outputs,
+        CIRCUIT_OUTPUT_ADDRESSES.len() - 1
     );
     let preprocessed_column_ids: Vec<String> = preprocessed_circuit
         .preprocessed_trace
