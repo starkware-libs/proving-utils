@@ -22,7 +22,7 @@ use circuit_verifier::statement::{
     INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
-use circuits::context::{Context, U_VALUE};
+use circuits::context::Context;
 use circuits::ivalue::{IValue, NoValue};
 use circuits_stark_verifier::proof::ProofConfig;
 use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
@@ -109,9 +109,10 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
     let output_qm31s = pack_into_qm31s(outputs.into_iter());
     let output_hash = QM31::blake(output_qm31s.as_slice(), output_qm31s.len() * 16);
-    // The circuit outputs: output_hash (2 QM31s) and the extension element u = (0,0,1,0).
-    // The u value is output by finalize_constants as a logup anchor (address 2 in the trace).
-    let output_values = vec![output_hash.0, output_hash.1, U_VALUE];
+    // The circuit outputs the output_hash (2 QM31s) at addresses 3 and 4. The extension element
+    // u = (0,0,1,0) (the logup anchor at address 2) is appended internally by the verifier, so it
+    // must not be part of `output_values`.
+    let output_values = vec![output_hash.0, output_hash.1];
 
     info!("Call the verifier");
     verify_circuit(circuit_config, proof, CircuitPublicData { output_values })?;
@@ -119,19 +120,23 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     Ok(())
 }
 
+/// Returns, for each component in `all_components()` order, whether it is enabled in the privacy
+/// transaction.
+fn get_cairo_enabled_bits() -> Vec<bool> {
+    all_components::<NoValue>()
+        .keys()
+        .map(|name| PRIVACY_TRANSACTION_COMPONENTS.contains(name))
+        .collect()
+}
+
 pub fn get_cairo_proof_config() -> ProofConfig {
-    let (enabled_bits, components): (Vec<bool>, Vec<_>) = all_components::<NoValue>()
+    let enabled_components = all_components::<NoValue>()
         .into_iter()
-        .map(|(name, component)| {
-            let enabled = PRIVACY_TRANSACTION_COMPONENTS.contains(&name);
-            (enabled, enabled.then_some((name, component)))
-        })
-        .unzip();
-    let enabled_components = components.into_iter().flatten().collect();
+        .filter(|(name, _)| PRIVACY_TRANSACTION_COMPONENTS.contains(name))
+        .collect();
 
     ProofConfig::new(
         &enabled_components,
-        enabled_bits,
         PreProcessedTraceVariant::CanonicalSmall.n_columns(),
         &CAIRO_PCS_CONFIG,
         INTERACTION_POW_BITS,
@@ -140,6 +145,7 @@ pub fn get_cairo_proof_config() -> ProofConfig {
 
 pub fn get_cairo_verifier_config() -> Result<CairoVerifierConfig, Box<dyn Error>> {
     let cairo_proof_config = get_cairo_proof_config();
+    let enabled_bits = get_cairo_enabled_bits();
 
     let bootloader_program = get_privacy_bootloader_program()?;
     let mut program_entries = vec![];
@@ -153,6 +159,7 @@ pub fn get_cairo_verifier_config() -> Result<CairoVerifierConfig, Box<dyn Error>
 
     Ok(CairoVerifierConfig {
         proof_config: cairo_proof_config,
+        enabled_bits,
         program: Arc::from(program_entries.as_slice()),
         n_outputs: NUM_OUTPUTS,
         preprocessed_root: get_preprocessed_root(cairo_lifting_log_size),
@@ -178,7 +185,9 @@ pub fn get_recursive_circuit_config() -> CircuitConfig {
         .collect();
     CircuitConfig {
         config: CIRCUIT_PCS_CONFIG,
-        output_addresses: CIRCUIT_OUTPUT_ADDRESSES.to_vec(),
+        // `n_outputs` counts only the real output gates (the hash at addresses 3 and 4); the `u`
+        // anchor wire (address 2, also in `CIRCUIT_OUTPUT_ADDRESSES`) is appended by the verifier.
+        n_outputs: CIRCUIT_OUTPUT_ADDRESSES.len() - 1,
         preprocessed_column_log_sizes,
         preprocessed_root: PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT.into(),
     }
@@ -186,10 +195,8 @@ pub fn get_recursive_circuit_config() -> CircuitConfig {
 
 pub fn get_proof_config() -> ProofConfig {
     let components = all_circuit_components::<QM31>();
-    let n = components.len();
     ProofConfig::new(
         &components,
-        vec![true; n],
         PRIVACY_CIRCUIT_PREPROCESSED_IDS.len(),
         &CIRCUIT_PCS_CONFIG,
         CIRCUIT_INTERACTION_POW_BITS,

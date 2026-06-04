@@ -82,15 +82,18 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     let cairo_proof = prove_cairo::<Blake2sM31MerkleChannel>(prover_input, CAIRO_PROVER_PARAMS)?;
     // TODO(Leo): remove once we have the log sizes from prepare_cairo_proof_for_circuit_verifier.
     let FlatClaim {
-        component_enable_bits: _,
+        component_enable_bits,
         component_log_sizes,
         public_data: _,
     } = cairo_proof.claim.flatten_claim();
 
     info!("Prepare the proof for the circuit verifier");
     let proof_config = get_cairo_proof_config();
-    let (proof, public_data) =
-        prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &proof_config);
+    let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(
+        &cairo_proof,
+        &proof_config,
+        &component_enable_bits,
+    );
 
     info!("Serialize and compress the proof and public data");
     let (mut public_claim, _outputs, _program) = public_data.pack_into_u32s();
@@ -200,7 +203,7 @@ pub fn privacy_recursive_prove(
     )?;
     // TODO(Leo): remove once we have the log sizes from prepare_cairo_proof_for_circuit_verifier.
     let FlatClaim {
-        component_enable_bits: _,
+        component_enable_bits,
         component_log_sizes,
         public_data: _,
     } = cairo_proof.claim.flatten_claim();
@@ -208,6 +211,7 @@ pub fn privacy_recursive_prove(
     let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(
         &cairo_proof,
         &precomputes.cairo_verifier_config.proof_config,
+        &component_enable_bits,
     );
 
     info!("Build the cairo-circuit verifier context");
