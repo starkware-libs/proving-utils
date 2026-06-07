@@ -1,6 +1,7 @@
 pub mod consts;
 #[cfg(test)]
 mod tests;
+pub mod utils;
 
 use std::error::Error;
 use std::sync::Arc;
@@ -43,12 +44,16 @@ use crate::consts::{
     PRIVACY_TRANSACTION_COMPONENTS,
 };
 
+pub use utils::Version;
+
 pub struct PrivacyProofOutput {
     /// Compressed proof bytes. The format must be consistent between the prover and verifier:
     /// - `privacy_prove` / `verify_cairo`
     /// - `privacy_recursive_prove` / `verify_recursive_circuit`
     pub proof: Vec<u8>,
     pub output_preimage: Vec<Felt>,
+    /// Version of the `privacy-prove` crate that generated this proof.
+    pub version: Version,
 }
 
 pub(crate) fn decompress_proof(
