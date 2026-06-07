@@ -1,0 +1,41 @@
+name: Build and upload arch-specific binary
+description: Builds a Rust binary for a specific CPU architecture and uploads it to GCS.
+
+inputs:
+  arch:
+    description: CPU architecture target (e.g. znver5, sapphirerapids)
+    required: true
+  binary_name:
+    description: Binary crate name with hyphens (e.g. stwo-run-and-prove)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup environment variables
+      shell: bash
+      env:
+        BINARY_NAME_ORIGINAL: ${{ inputs.binary_name }}
+        ARCH_NAME: ${{ inputs.arch }}
+      run: |
+        echo "BINARY_NAME_ORIGINAL=${BINARY_NAME_ORIGINAL}" >> $GITHUB_ENV
+        echo "BINARY_NAME_DEST=${BINARY_NAME_ORIGINAL//-/_}" >> $GITHUB_ENV
+        echo "ARCH_NAME=${ARCH_NAME}" >> $GITHUB_ENV
+
+    - name: Build ${{ env.BINARY_NAME_ORIGINAL }} for ${{ env.ARCH_NAME }}
+      shell: bash
+      run: |
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-cpu=${{ env.ARCH_NAME }}" \
+          cargo build --release --target x86_64-unknown-linux-gnu --bin ${{ env.BINARY_NAME_ORIGINAL }}
+
+    - name: Rename ${{ env.BINARY_NAME_ORIGINAL }} to ${{ env.BINARY_NAME_DEST }} (${{ env.ARCH_NAME }})
+      shell: bash
+      run: |
+        mv "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_ORIGINAL }}" \
+          "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_DEST }}"
+
+    - name: Upload ${{ env.BINARY_NAME_DEST }} (${{ env.ARCH_NAME }}) to GCP
+      uses: google-github-actions/upload-cloud-storage@v2
+      with:
+        path: "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_DEST }}"
+        destination: "${{ env.BINARY_NAME_DEST }}_${{ env.ARCH_NAME }}_artifacts/${{ env.SHORT_HASH }}/release"
