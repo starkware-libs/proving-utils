@@ -23,7 +23,7 @@ use circuit_verifier::statement::{
     INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
-use circuits::context::Context;
+use circuits::context::FinalizedContext;
 use circuits::ivalue::{IValue, NoValue};
 use circuits_stark_verifier::proof::ProofConfig;
 use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
@@ -215,7 +215,9 @@ pub fn get_cairo_preprocessed_circuit(
     PreprocessedCircuit::preprocess_circuit(&mut novalue_context)
 }
 
-fn get_cairo_novalue_context(cairo_verifier_config: &CairoVerifierConfig) -> Context<NoValue> {
+fn get_cairo_novalue_context(
+    cairo_verifier_config: &CairoVerifierConfig,
+) -> FinalizedContext<NoValue> {
     let mut novalue_context = build_cairo_verifier_circuit(cairo_verifier_config);
     // [0; 32] is a stub seed to get the correct circuit structure. In practice, we will use a
     // random seed.
