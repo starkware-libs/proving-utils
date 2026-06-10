@@ -1,8 +1,8 @@
 name: check
 
 env:
-  NIGHTLY_VERSION: "nightly-2025-07-14"
-  STABLE_VERSION: "1.93.0"
+  NIGHTLY_VERSION: "nightly-2026-01-15"
+  STABLE_VERSION: "1.94.0"
 
 on:
   push:

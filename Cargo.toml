@@ -58,12 +58,14 @@ cairo-lang-execute-utils = "2.19.0-rc.0"
 cairo-lang-utils = "2.19.0-rc.0"
 
 # stwo cairo
-cairo-air = "1.2.2"
-stwo-cairo-utils = "1.2.2"
-stwo-cairo-adapter = "1.2.2"
-stwo-cairo-prover = "1.2.2"
-stwo-cairo-serialize = "1.2.2"
-stwo-cairo-common = "1.2.2"
+# TODO: rev points at the pre-merge branch (starkware-libs/stwo-cairo#1787); bump to the merge commit once it lands.
+# (Git, not the published 1.2.2, because that crates.io release doesn't compile on Rust 1.94.)
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
 
 
 # local crates
