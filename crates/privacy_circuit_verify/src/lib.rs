@@ -44,16 +44,25 @@ use crate::consts::{
     PRIVACY_TRANSACTION_COMPONENTS,
 };
 
-pub use utils::Version;
+pub use utils::{VERSION_BYTES, Version};
 
 pub struct PrivacyProofOutput {
-    /// Compressed proof bytes. The format must be consistent between the prover and verifier:
+    /// Proof bytes, laid out as the serialized [`Version`] of the `privacy-prove` crate that
+    /// generated the proof, followed by the compressed proof. The format must be consistent
+    /// between the prover and verifier:
     /// - `privacy_prove` / `verify_cairo`
     /// - `privacy_recursive_prove` / `verify_recursive_circuit`
     pub proof: Vec<u8>,
     pub output_preimage: Vec<Felt>,
-    /// Version of the `privacy-prove` crate that generated this proof.
-    pub version: Version,
+}
+
+/// Splits the version-prefixed proof bytes into the embedded [`Version`] and the remaining
+/// compressed proof bytes.
+pub(crate) fn split_proof_version(proof: &[u8]) -> Result<(Version, &[u8]), Box<dyn Error>> {
+    let (version_bytes, compressed_proof) = proof
+        .split_first_chunk::<VERSION_BYTES>()
+        .ok_or("Proof is too short to contain a version")?;
+    Ok((Version::deserialize(*version_bytes), compressed_proof))
 }
 
 pub(crate) fn decompress_proof(
@@ -69,7 +78,8 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let verifier_config = get_cairo_verifier_config()?;
 
     info!("Decompress and deserialize the proof");
-    let proof_bytes = decompress_proof(&proof_output.proof, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES)?;
+    let (_version, compressed_proof) = split_proof_version(&proof_output.proof)?;
+    let proof_bytes = decompress_proof(compressed_proof, MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES)?;
     let bootloader_program = get_privacy_bootloader_program()?;
     let program_len = bootloader_program.data_len();
     let n_components = verifier_config.proof_config.n_components();
@@ -102,8 +112,8 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     let proof_config = get_proof_config();
 
     info!("Decompress and deserialize the proof");
-    let proof_bytes =
-        decompress_proof(&proof_output.proof, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES)?;
+    let (_version, compressed_proof) = split_proof_version(&proof_output.proof)?;
+    let proof_bytes = decompress_proof(compressed_proof, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES)?;
     let mut serialized_proof: &[u8] = &proof_bytes;
     let proof = deserialize_proof_with_config(&mut serialized_proof, &proof_config)?;
     if !serialized_proof.is_empty() {

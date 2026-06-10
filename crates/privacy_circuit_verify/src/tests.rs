@@ -176,8 +176,9 @@ pub mod slow_tests {
         let proof_output = privacy_recursive_prove(pie, precomputes).unwrap();
 
         let proof_config = get_proof_config();
+        let (_version, compressed_proof) = crate::split_proof_version(&proof_output.proof).unwrap();
         let proof_bytes = crate::decompress_proof(
-            &proof_output.proof,
+            compressed_proof,
             crate::consts::MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
         )
         .unwrap();
@@ -199,7 +200,8 @@ pub mod slow_tests {
         let pie = CairoPie::read_zip_file(&pie_path).unwrap();
         let proof_output = privacy_prove::privacy_prove(pie).unwrap();
 
-        let proof_bytes = zstd::decode_all(proof_output.proof.as_slice()).unwrap();
+        let (_version, compressed_proof) = crate::split_proof_version(&proof_output.proof).unwrap();
+        let proof_bytes = zstd::decode_all(compressed_proof).unwrap();
         assert_eq!(
             proof_bytes.len(),
             CAIRO_PROOF_UNCOMPRESSED_BYTES,
@@ -218,7 +220,8 @@ pub mod slow_tests {
         let precomputes = prepare_recursive_prover_precomputes().unwrap();
         let proof_output = privacy_recursive_prove(pie, precomputes).unwrap();
 
-        let proof_bytes = zstd::decode_all(proof_output.proof.as_slice()).unwrap();
+        let (_version, compressed_proof) = crate::split_proof_version(&proof_output.proof).unwrap();
+        let proof_bytes = zstd::decode_all(compressed_proof).unwrap();
         assert_eq!(
             proof_bytes.len(),
             RECURSIVE_PROOF_UNCOMPRESSED_BYTES,

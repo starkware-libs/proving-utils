@@ -70,6 +70,12 @@ fn compress_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(zstd::encode_all(proof_bytes, 3)?)
 }
 
+/// Prepends the serialized current [`Version`] to the compressed proof bytes. The verifier strips
+/// this prefix before decompressing (see `split_proof_version`).
+fn prepend_version(compressed_proof: Vec<u8>) -> Vec<u8> {
+    chain!(Version::current().serialize(), compressed_proof).collect()
+}
+
 /// Runs the program and generates a proof for it with params, bootloader and output format suitable
 /// for the privacy circuit verifier.
 pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>> {
@@ -103,11 +109,11 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     let public_claim_bytes: Vec<u8> = public_claim.iter().flat_map(|x| x.to_le_bytes()).collect();
     let combined_bytes: Vec<u8> = chain!(public_claim_bytes, proof_bytes).collect();
     let compressed = compress_proof(&combined_bytes)?;
+    let proof = prepend_version(compressed);
 
     Ok(PrivacyProofOutput {
-        proof: compressed,
+        proof,
         output_preimage,
-        version: Version::current(),
     })
 }
 
@@ -255,11 +261,11 @@ pub fn privacy_recursive_prove(
     let mut proof_bytes: Vec<u8> = vec![];
     proof_qm31s.serialize(&mut proof_bytes);
     let compressed = compress_proof(&proof_bytes)?;
+    let proof = prepend_version(compressed);
 
     Ok(PrivacyProofOutput {
-        proof: compressed,
+        proof,
         output_preimage,
-        version: Version::current(),
     })
 }
 
