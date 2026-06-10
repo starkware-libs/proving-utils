@@ -38,12 +38,12 @@ stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev 
 
 # stwo circuits
 # TODO: rev points at the pre-merge branch (starkware-libs/stwo-circuits#560); bump to the merge commit once it lands.
-circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "043c78e" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "043c78e" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "043c78e" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "043c78e" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "043c78e" }
-circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "043c78e" }
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
 
 # stwo
 stwo = { version = "2.2.0" }
