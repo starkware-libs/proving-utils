@@ -59,12 +59,12 @@ cairo-lang-utils = "2.19.0-rc.0"
 
 # stwo cairo
 # (Git, not the published 1.2.2, because that crates.io release doesn't compile on Rust 1.94.)
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
-stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
 
 
 # local crates
