@@ -31,22 +31,20 @@ cairo-vm = { workspace = true, features = [
 ] }
 
 # stwo cairo
-# TODO: rev points at the pre-merge branch (starkware-libs/stwo-cairo#1787); bump to the merge commit once it lands.
 cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
 stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
 stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
 
 # stwo circuits
-# TODO: rev points at the pre-merge branch (starkware-libs/stwo-circuits#560); bump to the merge commit once it lands.
-circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
-circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "38f6936" }
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "634d3858" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "634d3858" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "634d3858" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "634d3858" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "634d3858" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "634d3858" }
 
 # stwo
-stwo = { version = "2.2.0" }
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e" }
 
 [dev-dependencies]
 ctor.workspace = true
@@ -55,4 +53,4 @@ rstest.workspace = true
 tempfile.workspace = true
 tracing-subscriber.workspace = true
 privacy-prove = { path = "../privacy_prove" }
-stwo = { version = "2.2.0", features = ["parallel"] }
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e", features = ["parallel"] }

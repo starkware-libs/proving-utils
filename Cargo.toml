@@ -58,7 +58,6 @@ cairo-lang-execute-utils = "2.19.0-rc.0"
 cairo-lang-utils = "2.19.0-rc.0"
 
 # stwo cairo
-# TODO: rev points at the pre-merge branch (starkware-libs/stwo-cairo#1787); bump to the merge commit once it lands.
 # (Git, not the published 1.2.2, because that crates.io release doesn't compile on Rust 1.94.)
 cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
 stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "97460b8f" }
@@ -85,11 +84,3 @@ package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 },
 inherits = "release"
 debug = true
 
-# Use the Rust 1.94-compatible stwo (v2.2.0 + 1.94 compile fixes). Unifies the direct stwo deps with
-# the stwo pulled in transitively via stwo-cairo / stwo-circuits onto a single version.
-# TODO: rev points at the stwo fix branch (gil/rust-1.94-nightly); bump to the merge commit once it lands.
-[patch.crates-io]
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e" }
-stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e" }
-stwo-air-utils = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e" }
-stwo-air-utils-derive = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e" }
