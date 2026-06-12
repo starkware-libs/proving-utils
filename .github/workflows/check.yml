@@ -25,13 +25,13 @@ jobs:
   clippy:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-          - uses: actions/checkout@v4
-          - uses: dtolnay/rust-toolchain@master
-            with:
-              components: clippy
-              toolchain: ${{ env.NIGHTLY_VERSION }}
-          - uses: Swatinem/rust-cache@v2
-          - run: scripts/clippy.sh
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          components: clippy
+          toolchain: ${{ env.NIGHTLY_VERSION }}
+      - uses: Swatinem/rust-cache@v2
+      - run: scripts/clippy.sh
 
   tests:
     runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
@@ -62,7 +62,7 @@ jobs:
           cargo +${{ env.NIGHTLY_VERSION }} run --example run_pie_object_with_simple_bl
 
   slow-tests:
-    runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
+    runs-on: namespace-profile-starkware-libs-stwo-cairo-xlarge-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -96,7 +96,7 @@ jobs:
         run: cargo check --package privacy-circuit-verify
 
   coverage:
-    runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
+    runs-on: namespace-profile-starkware-libs-stwo-cairo-xlarge-ubuntu-24-04-amd64
     steps:
       - uses: actions/checkout@v4
         with:
