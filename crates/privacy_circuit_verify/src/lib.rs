@@ -10,7 +10,7 @@ use anyhow::Result;
 use cairo_air::verifier::INTERACTION_POW_BITS;
 use cairo_vm::types::program::Program;
 use circuit_cairo_verifier::all_components::all_components;
-use circuit_cairo_verifier::statement::PUBLIC_DATA_LEN;
+use circuit_cairo_verifier::statement::AUX_DATA_FIXED_LEN;
 use circuit_cairo_verifier::verify::{
     CairoVerifierConfig, build_cairo_verifier_circuit, get_preprocessed_root,
     verify_fixed_cairo_circuit,
@@ -84,7 +84,7 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let program_len = bootloader_program.data_len();
     let n_components = verifier_config.proof_config.n_components();
     let (flat_public_claim_bytes, serialized_proof_bytes) =
-        proof_bytes.split_at((PUBLIC_DATA_LEN + NUM_OUTPUTS + program_len + n_components) * 4);
+        proof_bytes.split_at((AUX_DATA_FIXED_LEN + NUM_OUTPUTS + program_len + n_components) * 4);
     let public_claim: Vec<u32> = flat_public_claim_bytes
         .chunks_exact(4)
         .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
