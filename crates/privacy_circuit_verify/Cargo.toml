@@ -31,20 +31,20 @@ cairo-vm = { workspace = true, features = [
 ] }
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "9b6be271" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
 
 # stwo circuits
-circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
-circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "5ef951a1" }
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b8eff952b6feb9a250a83a0ebbf9be8891f2ff10" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b8eff952b6feb9a250a83a0ebbf9be8891f2ff10" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b8eff952b6feb9a250a83a0ebbf9be8891f2ff10" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b8eff952b6feb9a250a83a0ebbf9be8891f2ff10" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b8eff952b6feb9a250a83a0ebbf9be8891f2ff10" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b8eff952b6feb9a250a83a0ebbf9be8891f2ff10" }
 
 # stwo
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e" }
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "bf02400c0a7b822fcd40a00dea4a5281a1346828" }
 
 [dev-dependencies]
 ctor.workspace = true
@@ -53,4 +53,4 @@ rstest.workspace = true
 tempfile.workspace = true
 tracing-subscriber.workspace = true
 privacy-prove = { path = "../privacy_prove" }
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e", features = ["parallel"] }
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "bf02400c0a7b822fcd40a00dea4a5281a1346828", features = ["parallel"] }
