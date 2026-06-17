@@ -17,7 +17,7 @@ use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use circuit_cairo_verifier::verify::CairoVerifierConfig;
 use circuit_cairo_verifier::verify::build_fixed_cairo_circuit;
 use circuit_cairo_verifier::verify::prepare_cairo_proof_for_circuit_verifier;
-use circuit_common::finalize::{add_zk_blinding, finalize_context};
+use circuit_common::finalize::{add_zk_blinding, pad_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
     prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
@@ -29,7 +29,7 @@ use itertools::chain;
 use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
 use privacy_circuit_verify::{
     PrivacyProofOutput, Version, compute_privacy_bootloader_output, get_cairo_preprocessed_circuit,
-    get_cairo_proof_config, get_cairo_verifier_config, get_privacy_bootloader_program,
+    get_cairo_verifier_config, get_privacy_bootloader_program,
     get_proof_config, get_recursive_circuit_config,
 };
 use serde_json::from_str;
@@ -94,10 +94,8 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     } = cairo_proof.claim.flatten_claim();
 
     info!("Prepare the proof for the circuit verifier");
-    let proof_config = get_cairo_proof_config();
     let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(
         &cairo_proof,
-        &proof_config,
         &component_enable_bits,
     );
 
@@ -217,7 +215,6 @@ pub fn privacy_recursive_prove(
     info!("Prepare the cairo proof for the cairo-circuit verifier");
     let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(
         &cairo_proof,
-        &precomputes.cairo_verifier_config.proof_config,
         &component_enable_bits,
     );
 
@@ -240,7 +237,7 @@ pub fn privacy_recursive_prove(
         zk_blinding_seed,
         precomputes.circuit_config.config.fri_config.n_queries,
     );
-    finalize_context(&mut context);
+    pad_context(&mut context);
     let context_values = context.values();
 
     info!("Prove the cairo-circuit verifier");
@@ -255,7 +252,7 @@ pub fn privacy_recursive_prove(
 
     info!("Prepare the circuit proof for the circuit verifier");
     let (proof_qm31s, _public_data) =
-        prepare_circuit_proof_for_circuit_verifier(circuit_proof, &precomputes.proof_config);
+        prepare_circuit_proof_for_circuit_verifier(circuit_proof);
 
     info!("Serialize and compress the proof");
     let mut proof_bytes: Vec<u8> = vec![];
