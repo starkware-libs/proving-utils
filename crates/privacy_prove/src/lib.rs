@@ -29,8 +29,8 @@ use itertools::chain;
 use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
 use privacy_circuit_verify::{
     PrivacyProofOutput, Version, compute_privacy_bootloader_output, get_cairo_preprocessed_circuit,
-    get_cairo_verifier_config, get_privacy_bootloader_program,
-    get_proof_config, get_recursive_circuit_config,
+    get_cairo_verifier_config, get_privacy_bootloader_program, get_proof_config,
+    get_recursive_circuit_config,
 };
 use serde_json::from_str;
 use starknet_types_core::felt::Felt;
@@ -94,10 +94,8 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     } = cairo_proof.claim.flatten_claim();
 
     info!("Prepare the proof for the circuit verifier");
-    let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(
-        &cairo_proof,
-        &component_enable_bits,
-    );
+    let (proof, public_data) =
+        prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &component_enable_bits);
 
     info!("Serialize and compress the proof and public data");
     let (mut public_claim, _outputs, _program) = public_data.pack_into_u32s();
@@ -213,10 +211,8 @@ pub fn privacy_recursive_prove(
         public_data: _,
     } = cairo_proof.claim.flatten_claim();
     info!("Prepare the cairo proof for the cairo-circuit verifier");
-    let (proof, public_data) = prepare_cairo_proof_for_circuit_verifier(
-        &cairo_proof,
-        &component_enable_bits,
-    );
+    let (proof, public_data) =
+        prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &component_enable_bits);
 
     info!("Build the cairo-circuit verifier context");
     let (mut public_claim, _outputs, _program) = public_data.pack_into_u32s();
@@ -251,8 +247,7 @@ pub fn privacy_recursive_prove(
     )?;
 
     info!("Prepare the circuit proof for the circuit verifier");
-    let (proof_qm31s, _public_data) =
-        prepare_circuit_proof_for_circuit_verifier(circuit_proof);
+    let (proof_qm31s, _public_data) = prepare_circuit_proof_for_circuit_verifier(circuit_proof);
 
     info!("Serialize and compress the proof");
     let mut proof_bytes: Vec<u8> = vec![];
