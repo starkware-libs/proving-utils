@@ -25,7 +25,7 @@ pub const CAIRO_PROVER_PARAMS: ProverParameters = ProverParameters {
     channel_salt: 0,
     store_polynomials_coefficients: true,
     include_all_preprocessed_columns: true,
-    opt_n_id_to_big_components: None,
+    opt_n_id_to_big_components: Some(1),
 };
 
 pub const CIRCUIT_STORE_POLYNOMIALS_COEFFICIENTS: bool = true;
