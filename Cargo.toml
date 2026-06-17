@@ -58,12 +58,12 @@ cairo-lang-execute-utils = "2.19.0-rc.0"
 cairo-lang-utils = "2.19.0-rc.0"
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
-stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568fb4ed5aaeaf1335cfedba0706a0acca7" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "850a7568" }
 
 
 # local crates
