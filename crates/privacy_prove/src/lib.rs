@@ -86,24 +86,24 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
 
     info!("Generate the cairo proof");
     let cairo_proof = prove_cairo::<Blake2sM31MerkleChannel>(prover_input, CAIRO_PROVER_PARAMS)?;
-    // TODO(Leo): remove once we have the log sizes from prepare_cairo_proof_for_circuit_verifier.
     let FlatClaim {
         component_enable_bits,
-        component_log_sizes,
+        component_log_sizes: _,
         public_data: _,
     } = cairo_proof.claim.flatten_claim();
 
     info!("Prepare the proof for the circuit verifier");
-    let (proof, public_data) =
+    let (proof, serialized_aux_data) =
         prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &component_enable_bits);
 
     info!("Serialize and compress the proof and public data");
-    let (mut public_claim, _outputs, _program) = public_data.pack_into_u32s();
-    public_claim.extend(component_log_sizes);
     let mut proof_bytes: Vec<u8> = vec![];
     proof.serialize(&mut proof_bytes);
-    let public_claim_bytes: Vec<u8> = public_claim.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let combined_bytes: Vec<u8> = chain!(public_claim_bytes, proof_bytes).collect();
+    let serialized_aux_bytes: Vec<u8> = serialized_aux_data
+        .iter()
+        .flat_map(|x| x.0.to_le_bytes())
+        .collect();
+    let combined_bytes: Vec<u8> = chain!(serialized_aux_bytes, proof_bytes).collect();
     let compressed = compress_proof(&combined_bytes)?;
     let proof = prepend_version(compressed);
 
@@ -204,24 +204,21 @@ pub fn privacy_recursive_prove(
         prover_input,
         CAIRO_PROVER_PARAMS,
     )?;
-    // TODO(Leo): remove once we have the log sizes from prepare_cairo_proof_for_circuit_verifier.
     let FlatClaim {
         component_enable_bits,
-        component_log_sizes,
+        component_log_sizes: _,
         public_data: _,
     } = cairo_proof.claim.flatten_claim();
     info!("Prepare the cairo proof for the cairo-circuit verifier");
-    let (proof, public_data) =
+    let (proof, serialized_aux_data) =
         prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &component_enable_bits);
 
     info!("Build the cairo-circuit verifier context");
-    let (mut public_claim, _outputs, _program) = public_data.pack_into_u32s();
-    public_claim.extend(component_log_sizes);
     let outputs = compute_privacy_bootloader_output(&output_preimage);
     let mut context = build_fixed_cairo_circuit(
         &precomputes.cairo_verifier_config,
         proof,
-        public_claim,
+        serialized_aux_data,
         vec![outputs],
     );
     if !context.is_circuit_valid() {
