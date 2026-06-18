@@ -83,11 +83,11 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let bootloader_program = get_privacy_bootloader_program()?;
     let program_len = bootloader_program.data_len();
     let n_components = verifier_config.proof_config.n_components();
-    let (flat_public_claim_bytes, serialized_proof_bytes) =
+    let (serialized_aux_data_bytes, serialized_proof_bytes) =
         proof_bytes.split_at((AUX_DATA_FIXED_LEN + NUM_OUTPUTS + program_len + n_components) * 4);
-    let public_claim: Vec<u32> = flat_public_claim_bytes
+    let serialized_aux_data: Vec<M31> = serialized_aux_data_bytes
         .chunks_exact(4)
-        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .map(|c| M31::from(u32::from_le_bytes(c.try_into().unwrap())))
         .collect();
     let mut serialized_proof: &[u8] = serialized_proof_bytes;
     let proof =
@@ -100,7 +100,7 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
 
     info!("Call the verifier");
-    verify_fixed_cairo_circuit(&verifier_config, proof, public_claim, vec![outputs])?;
+    verify_fixed_cairo_circuit(&verifier_config, proof, serialized_aux_data, vec![outputs])?;
 
     Ok(())
 }
