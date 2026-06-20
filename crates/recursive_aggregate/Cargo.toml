@@ -1,0 +1,27 @@
+[package]
+name = "recursive-aggregate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fold an N-leaf 2-to-1 multiverifier recursion tree into a single zk-blinded root proof, then unpack leaf outputs."
+
+[dependencies]
+# stwo circuits (rev pinned to the multiverifier merge on main)
+circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9", features = ["prover"] }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+# get_pcs_config (used to size the wrapper's own prove config).
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+
+# stwo (the git source circuits@041ec610 uses; must match for type identity)
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "74951f79", features = ["prover"] }
+num-traits = "0.2"
+rayon = "1"
+
+[dev-dependencies]
+stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "74951f79" }

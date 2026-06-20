@@ -1467,6 +1467,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit-multiverifier"
+version = "0.1.0"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=041ec6101ba782aa00e325433929cda6ef15c1b9#041ec6101ba782aa00e325433929cda6ef15c1b9"
+dependencies = [
+ "circuit-common",
+ "circuit-verifier",
+ "circuits",
+ "circuits-stark-verifier",
+ "itertools 0.12.1",
+ "stwo",
+ "stwo-constraint-framework",
+]
+
+[[package]]
 name = "circuit-prover"
 version = "0.1.0"
 source = "git+https://github.com/starkware-libs/stwo-circuits?rev=041ec6101ba782aa00e325433929cda6ef15c1b9#041ec6101ba782aa00e325433929cda6ef15c1b9"
@@ -3492,6 +3506,24 @@ checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "recursive-aggregate"
+version = "1.2.2"
+dependencies = [
+ "circuit-cairo-verifier",
+ "circuit-common",
+ "circuit-multiverifier",
+ "circuit-prover",
+ "circuit-serialize",
+ "circuit-verifier",
+ "circuits",
+ "circuits-stark-verifier",
+ "num-traits",
+ "rayon",
+ "stwo",
+ "stwo-constraint-framework",
 ]
 
 [[package]]
