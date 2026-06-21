@@ -19,7 +19,11 @@ jobs:
 
       - name: Build all generic binaries
         run: |
-          cargo build --release
+          cargo build --release \
+            -p cairo-program-runner \
+            -p stwo-vm-runner \
+            -p stwo-run-and-prove \
+            -p stwo-run-and-prove-recursive-tree
 
       - name: Authenticate with GCS
         uses: "google-github-actions/auth@v2"
