@@ -61,12 +61,14 @@ cairo-lang-execute-utils = "2.19.0-rc.0"
 cairo-lang-utils = "2.19.0-rc.0"
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
-stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
+# Pinned to branch fix/revert-1723 (reverts PR #1723 to fix the base-trace rayon deadlock).
+# Once a stable fix lands, move back to a mainline rev.
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "bb95d9763918177e205edeae85f0d62927d30ee4" }
+stwo-cairo-utils = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "bb95d9763918177e205edeae85f0d62927d30ee4" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "bb95d9763918177e205edeae85f0d62927d30ee4" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "bb95d9763918177e205edeae85f0d62927d30ee4" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "bb95d9763918177e205edeae85f0d62927d30ee4" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "bb95d9763918177e205edeae85f0d62927d30ee4" }
 
 
 # local crates
