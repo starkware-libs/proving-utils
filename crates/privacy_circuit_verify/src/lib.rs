@@ -23,8 +23,9 @@ use circuit_verifier::statement::{
     INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
+use circuits::blake::blake_qm31;
 use circuits::context::FinalizedContext;
-use circuits::ivalue::{IValue, NoValue};
+use circuits::ivalue::NoValue;
 use circuits_stark_verifier::proof::ProofConfig;
 use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
 use itertools::Itertools;
@@ -85,9 +86,9 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let n_components = verifier_config.proof_config.n_components();
     let (flat_public_claim_bytes, serialized_proof_bytes) =
         proof_bytes.split_at((AUX_DATA_FIXED_LEN + NUM_OUTPUTS + program_len + n_components) * 4);
-    let public_claim: Vec<u32> = flat_public_claim_bytes
+    let public_claim: Vec<M31> = flat_public_claim_bytes
         .chunks_exact(4)
-        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .map(|c| M31::from_u32_unchecked(u32::from_le_bytes(c.try_into().unwrap())))
         .collect();
     let mut serialized_proof: &[u8] = serialized_proof_bytes;
     let proof =
@@ -123,7 +124,7 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     info!("Compute the output values");
     let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
     let output_qm31s = pack_into_qm31s(outputs.into_iter());
-    let output_hash = QM31::blake(output_qm31s.as_slice(), output_qm31s.len() * 16);
+    let output_hash = blake_qm31(output_qm31s.as_slice(), output_qm31s.len() * 16);
     // The circuit outputs the output_hash (2 QM31s) at addresses 3 and 4. The extension element
     // u = (0,0,1,0) (the logup anchor at address 2) is appended internally by the verifier, so it
     // must not be part of `output_values`.
