@@ -45,7 +45,7 @@ use stwo::prover::poly::twiddles::TwiddleTree;
 use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapt;
 use stwo_cairo_common::preprocessed_columns::preprocessed_trace::PreProcessedTrace;
-use stwo_cairo_prover::prover::{prove_cairo, prove_cairo_with_precompute};
+use stwo_cairo_prover::prover::{prove_cairo, prove_cairo_with_precompute, warm_pedersen_pp_trace};
 use stwo_cairo_prover::witness::preprocessed_trace::gen_trace;
 use tempfile::NamedTempFile;
 use tracing::{Level, info, span};
@@ -146,6 +146,8 @@ pub fn prepare_recursive_prover_precomputes()
             .preprocessed_trace
             .to_preprocessed_trace(),
     );
+    // Warm the Pedersen points table before gen_trace reads it.
+    warm_pedersen_pp_trace(CAIRO_PROVER_PARAMS.preprocessed_trace);
     let cairo_preprocessed_trace_polys =
         SimdBackend::interpolate_columns(gen_trace(cairo_preprocessed_trace.clone()), &twiddles);
     let cairo_preprocessed_tree = CommitmentTreeProver::<SimdBackend, Blake2sM31MerkleChannel>::new(

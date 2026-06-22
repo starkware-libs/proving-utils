@@ -31,17 +31,17 @@ cairo-vm = { workspace = true, features = [
 ] }
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "b0b74007" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "a837f0eaa40db776f39f2677885d7059ced867ba" }
+stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "a837f0eaa40db776f39f2677885d7059ced867ba" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "a837f0eaa40db776f39f2677885d7059ced867ba" }
 
 # stwo circuits
-circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a84839" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a84839" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a84839" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a84839" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a84839" }
-circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b0a84839" }
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
 
 # stwo
 stwo = { git = "https://github.com/starkware-libs/stwo", rev = "74951f79" }

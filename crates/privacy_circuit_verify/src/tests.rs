@@ -1,5 +1,5 @@
 use circuit_cairo_verifier::all_components::all_components;
-use circuits::blake::HashValue;
+use circuits::blake::ReducedHashValue;
 use stwo::core::fields::qm31::QM31;
 use stwo::core::poly::circle::CanonicCoset;
 use stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
@@ -79,7 +79,7 @@ fn check_privacy_recursion_circuit_preprocessed_root() {
         CIRCUIT_PCS_CONFIG.lifting_log_size,
         &base_column_pool,
     );
-    let expected_root: HashValue<QM31> = preprocessed_tree.commitment.root().into();
+    let expected_root: ReducedHashValue<QM31> = preprocessed_tree.commitment.root().into();
 
     assert_eq!(
         expected_root,
