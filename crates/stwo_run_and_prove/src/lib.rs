@@ -140,12 +140,19 @@ fn prove(
 ) -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "prove").entered();
 
+    let ProveConfig {
+        verify: _,
+        proof_path,
+        proof_format,
+        prover_params_json,
+    } = prove_config;
+
     match prover.create_and_serialize_proof(
-        prover_input.clone(),
+        prover_input,
         prove_config.verify,
-        prove_config.proof_path.clone(),
-        prove_config.proof_format.clone(),
-        prove_config.prover_params_json.clone(),
+        proof_path.clone(),
+        proof_format,
+        prover_params_json,
     ) {
         Ok(()) => {
             info!("Proof generated and verified successfully.");
@@ -153,7 +160,7 @@ fn prove(
         }
 
         Err(e) => {
-            if file_missing_or_empty(&prove_config.proof_path)? {
+            if file_missing_or_empty(&proof_path)? {
                 error!("Proving failed with error {e}");
             } else {
                 error!(
