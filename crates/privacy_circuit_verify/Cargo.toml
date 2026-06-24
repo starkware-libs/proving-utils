@@ -4,7 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "Verifies a proof with a cairo-circuit verifier"
+keywords = ["cairo", "stwo", "stark", "zero-knowledge", "privacy"]
+categories = ["cryptography"]
 
 [features]
 slow-tests = []
