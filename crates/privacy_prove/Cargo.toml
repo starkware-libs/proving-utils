@@ -4,7 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "Run Cairo programs and generate STWO proofs that can be verified with a cairo-circuit verifier"
+keywords = ["cairo", "stwo", "stark", "zero-knowledge", "privacy"]
+categories = ["cryptography", "command-line-utilities"]
 
 [features]
 slow-tests = []
