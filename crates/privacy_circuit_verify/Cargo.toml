@@ -6,8 +6,6 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 description = "Verifies a proof with a cairo-circuit verifier"
-keywords = ["cairo", "stwo", "stark", "zero-knowledge", "privacy"]
-categories = ["cryptography"]
 
 [lib]
 name = "privacy_circuit_verify"
