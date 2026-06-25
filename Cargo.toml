@@ -69,7 +69,7 @@ stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev 
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
-privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
+privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0", package = "stwo-privacy-circuit-verify" }
 
 
 # Optimize witness generation and FFTs. This is usually enough to run the tests without stack overflows,
@@ -78,7 +78,7 @@ privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.
 # See cairo-ci.yaml for an example command.
 [profile.witness-opt-1]
 inherits = "dev"
-package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 }, "circuit-prover" = { opt-level = 1 }, "privacy-prove" = { opt-level = 1 } }
+package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 }, "circuit-prover" = { opt-level = 1 }, "stwo-privacy-prove" = { opt-level = 1 } }
 
 [profile.samply]
 inherits = "release"

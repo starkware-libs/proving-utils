@@ -1,5 +1,5 @@
 [package]
-name = "privacy-circuit-verify"
+name = "stwo-privacy-circuit-verify"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,6 +8,9 @@ homepage.workspace = true
 description = "Verifies a proof with a cairo-circuit verifier"
 keywords = ["cairo", "stwo", "stark", "zero-knowledge", "privacy"]
 categories = ["cryptography"]
+
+[lib]
+name = "privacy_circuit_verify"
 
 [features]
 slow-tests = []
@@ -55,5 +58,5 @@ mockall.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
 tracing-subscriber.workspace = true
-privacy-prove = { path = "../privacy_prove" }
+privacy-prove = { path = "../privacy_prove", package = "stwo-privacy-prove" }
 stwo = { git = "https://github.com/starkware-libs/stwo", rev = "489a0f3e", features = ["parallel"] }

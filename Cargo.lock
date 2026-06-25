@@ -3101,80 +3101,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "privacy-circuit-verify"
-version = "1.2.2"
-dependencies = [
- "anyhow",
- "cairo-air",
- "cairo-vm",
- "circuit-cairo-verifier",
- "circuit-common",
- "circuit-serialize",
- "circuit-verifier",
- "circuits",
- "circuits-stark-verifier",
- "clap",
- "ctor",
- "itertools 0.12.1",
- "log",
- "mockall",
- "num-traits",
- "privacy-prove",
- "rstest 0.21.0",
- "serde",
- "serde_json",
- "sonic-rs",
- "starknet-ff",
- "starknet-types-core",
- "stwo",
- "stwo-cairo-common",
- "stwo-cairo-serialize",
- "tempfile",
- "tracing",
- "tracing-subscriber",
- "zstd",
-]
-
-[[package]]
-name = "privacy-prove"
-version = "1.2.2"
-dependencies = [
- "anyhow",
- "cairo-air",
- "cairo-program-runner-lib",
- "cairo-vm",
- "circuit-cairo-verifier",
- "circuit-common",
- "circuit-prover",
- "circuit-serialize",
- "circuit-verifier",
- "circuits",
- "circuits-stark-verifier",
- "clap",
- "ctor",
- "itertools 0.12.1",
- "log",
- "mockall",
- "privacy-circuit-verify",
- "rstest 0.21.0",
- "serde",
- "serde_json",
- "sonic-rs",
- "starknet-ff",
- "starknet-types-core",
- "stwo",
- "stwo-cairo-adapter",
- "stwo-cairo-common",
- "stwo-cairo-prover",
- "stwo-cairo-serialize",
- "tempfile",
- "thiserror 1.0.69",
- "tracing",
- "tracing-subscriber",
- "zstd",
-]
-
-[[package]]
 name = "proc-macro-crate"
 version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4292,6 +4218,80 @@ dependencies = [
  "stwo",
  "stwo-std-shims",
  "tracing",
+]
+
+[[package]]
+name = "stwo-privacy-circuit-verify"
+version = "1.2.2"
+dependencies = [
+ "anyhow",
+ "cairo-air",
+ "cairo-vm",
+ "circuit-cairo-verifier",
+ "circuit-common",
+ "circuit-serialize",
+ "circuit-verifier",
+ "circuits",
+ "circuits-stark-verifier",
+ "clap",
+ "ctor",
+ "itertools 0.12.1",
+ "log",
+ "mockall",
+ "num-traits",
+ "rstest 0.21.0",
+ "serde",
+ "serde_json",
+ "sonic-rs",
+ "starknet-ff",
+ "starknet-types-core",
+ "stwo",
+ "stwo-cairo-common",
+ "stwo-cairo-serialize",
+ "stwo-privacy-prove",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+ "zstd",
+]
+
+[[package]]
+name = "stwo-privacy-prove"
+version = "1.2.2"
+dependencies = [
+ "anyhow",
+ "cairo-air",
+ "cairo-program-runner-lib",
+ "cairo-vm",
+ "circuit-cairo-verifier",
+ "circuit-common",
+ "circuit-prover",
+ "circuit-serialize",
+ "circuit-verifier",
+ "circuits",
+ "circuits-stark-verifier",
+ "clap",
+ "ctor",
+ "itertools 0.12.1",
+ "log",
+ "mockall",
+ "rstest 0.21.0",
+ "serde",
+ "serde_json",
+ "sonic-rs",
+ "starknet-ff",
+ "starknet-types-core",
+ "stwo",
+ "stwo-cairo-adapter",
+ "stwo-cairo-common",
+ "stwo-cairo-prover",
+ "stwo-cairo-serialize",
+ "stwo-privacy-circuit-verify",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tracing",
+ "tracing-subscriber",
+ "zstd",
 ]
 
 [[package]]
