@@ -23,8 +23,8 @@ use circuit_verifier::statement::{
     INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
-use circuits::blake::blake_qm31;
 use circuits::context::FinalizedContext;
+use circuits::ivalue::IValue;
 use circuits::ivalue::NoValue;
 use circuits_stark_verifier::proof::ProofConfig;
 use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
@@ -124,11 +124,11 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     info!("Compute the output values");
     let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
     let output_qm31s = pack_into_qm31s(outputs.into_iter());
-    let output_hash = blake_qm31(output_qm31s.as_slice(), output_qm31s.len() * 16);
-    // The circuit outputs the output_hash (2 QM31s) at addresses 3 and 4. The extension element
-    // u = (0,0,1,0) (the logup anchor at address 2) is appended internally by the verifier, so it
-    // must not be part of `output_values`.
-    let output_values = vec![output_hash.0, output_hash.1];
+    let output_hash = QM31::blake2s(&output_qm31s, output_qm31s.len() * 16);
+    // The circuit outputs the full unreduced Blake2s digest (8 words) at the reserved output
+    // wires. The `u` anchor wire is appended internally by the verifier, so it must not be part
+    // of `output_values`.
+    let output_values: Vec<QM31> = output_hash.iter().map(|w| *w.get()).collect();
 
     info!("Call the verifier");
     verify_circuit(circuit_config, proof, CircuitPublicData { output_values })?;
