@@ -27,6 +27,9 @@ starknet-types-core.workspace = true
 tracing.workspace = true
 zstd.workspace = true
 
+# local crates
+cairo-program-runner-lib.workspace = true
+
 # cairo-vm
 cairo-vm = { workspace = true, features = [
     "extensive_hints",
