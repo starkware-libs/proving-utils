@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::types::ConcatAggregatorInput;
+use super::types::{ConcatAggregatorInput, BOOTLOADER_CONFIG_SIZE};
 use super::utils::get_program_input_value;
 use cairo_vm::{
     hint_processor::{
@@ -25,8 +25,8 @@ const TASKS_OUTPUTS: &str = "tasks_outputs";
 ///         Parses the output of the bootloader, returning the raw outputs of the tasks.
 ///         """
 ///         output_iter = iter(output)
-///         # Skip the bootloader_config.
-///         [next(output_iter) for _ in range(3)]
+///         # Skip the bootloader_config (a single felt; must match BOOTLOADER_CONFIG_SIZE).
+///         [next(output_iter) for _ in range(1)]
 ///
 ///         n_tasks = next(output_iter)
 ///         tasks_outputs = []
@@ -75,7 +75,7 @@ pub fn concat_aggregator_parse_task(
         }
     };
 
-    for _ in 0..3 {
+    for _ in 0..BOOTLOADER_CONFIG_SIZE {
         next_item()?;
     }
 
@@ -136,4 +136,59 @@ pub fn concat_aggregator_get_handle_task_output(
         ids_data,
         ap_tracking,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::fill_ids_data_for_test;
+    use crate::{ProgramInput, PROGRAM_INPUT};
+
+    #[test]
+    fn test_concat_aggregator_parse_task() {
+        // bootloader_output layout: [bootloader_config (BOOTLOADER_CONFIG_SIZE=1 felt), n_tasks,
+        // (task_output_size, *task_output) per task]. The leading config felt (111) is skipped,
+        // then two tasks are parsed: sizes 3 and 2 -> outputs [100, 101] and [200].
+        let input_json = r#"{"bootloader_output": [111, 2, 3, 100, 101, 2, 200]}"#;
+
+        let trace_enabled = false;
+        let disable_trace_padding = false;
+        let mut vm = VirtualMachine::new(trace_enabled, disable_trace_padding);
+        // Segment 0 (program) and segment 1 (execution, where fp lives and `n_tasks` is written).
+        vm.segments.add();
+        vm.segments.add();
+        vm.set_fp(1);
+
+        let mut exec_scopes = ExecutionScopes::new();
+        exec_scopes.insert_value(PROGRAM_INPUT, ProgramInput::Json(input_json.to_string()));
+
+        let ids_data = fill_ids_data_for_test(&["n_tasks"]);
+        let ap_tracking = ApTracking::new();
+
+        concat_aggregator_parse_task(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking)
+            .expect("Hint failed unexpectedly");
+
+        // n_tasks is written to the `n_tasks` id.
+        assert_eq!(
+            get_integer_from_var_name("n_tasks", &vm, &ids_data, &ap_tracking)
+                .unwrap()
+                .to_usize(),
+            Some(2)
+        );
+
+        // The config felt is skipped; each task's output (task_output_size - 1 felts) is collected.
+        let tasks_outputs: Vec<Vec<MaybeRelocatable>> = exec_scopes
+            .get(TASKS_OUTPUTS)
+            .expect("tasks_outputs not found in execution scope");
+        assert_eq!(
+            tasks_outputs,
+            vec![
+                vec![
+                    MaybeRelocatable::from(Felt252::from(100)),
+                    MaybeRelocatable::from(Felt252::from(101)),
+                ],
+                vec![MaybeRelocatable::from(Felt252::from(200))],
+            ]
+        );
+    }
 }

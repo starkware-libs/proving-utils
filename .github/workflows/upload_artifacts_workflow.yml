@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - yairv/fix_hints_after_making_bl_config_a_single_felt
 
 jobs:
   artifacts-push:
