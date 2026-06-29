@@ -73,8 +73,8 @@ jobs:
         uses: taiki-e/install-action@nextest
       - name: "Slow tests"
         run: |
-          cargo +${{ env.NIGHTLY_VERSION }} nextest run --package privacy-prove --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
-          cargo +${{ env.NIGHTLY_VERSION }} nextest run --package privacy-circuit-verify --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
+          cargo +${{ env.NIGHTLY_VERSION }} nextest run --package stwo-privacy-prove --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
+          cargo +${{ env.NIGHTLY_VERSION }} nextest run --package stwo-privacy-circuit-verify --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
         env:
           RUST_MIN_STACK: 4194304
           RUSTFLAGS: -C target-cpu=native
@@ -92,7 +92,7 @@ jobs:
       - name: Check verifier compiles on stable
         env:
           RUSTUP_TOOLCHAIN: ${{ env.STABLE_VERSION }}
-        run: cargo check --package privacy-circuit-verify
+        run: cargo check --package stwo-privacy-circuit-verify
 
   coverage:
     runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
