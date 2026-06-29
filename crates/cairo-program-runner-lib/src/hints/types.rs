@@ -36,7 +36,7 @@ pub struct BootloaderConfig {
     pub supported_cairo_verifier_program_hashes: Vec<Felt252>,
 }
 
-pub const BOOTLOADER_CONFIG_SIZE: usize = 3;
+pub const BOOTLOADER_CONFIG_SIZE: usize = 1;
 #[derive(Deserialize, Serialize, Debug, Default, Clone, PartialEq)]
 /// Represents a composite packed output, which consists of a set of outputs,
 /// subtasks (which could be plain or composite themselves), and associated fact topologies of the

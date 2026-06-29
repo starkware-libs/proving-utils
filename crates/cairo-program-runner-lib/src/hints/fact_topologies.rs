@@ -542,15 +542,14 @@ mod tests {
             applicative_bootloader_program_hash,
         )
         .expect("Composite packed output should be supported and return subtask fact topologies");
-
         let expected_subtask_fact_topologies = vec![
             FactTopology {
                 tree_structure: vec![1, 0],
-                page_sizes: vec![1],
+                page_sizes: vec![3],
             },
             FactTopology {
                 tree_structure: vec![1, 0],
-                page_sizes: vec![3],
+                page_sizes: vec![5],
             },
         ];
         assert_eq!(result, expected_subtask_fact_topologies);
