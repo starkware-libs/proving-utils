@@ -21,7 +21,7 @@ thiserror.workspace = true
 thiserror-no-std.workspace = true
 regex.workspace = true
 num-bigint.workspace = true
-cairo-program-runner-lib = { path = "../cairo-program-runner-lib", version = "1.0.0" }
+cairo-program-runner-lib.workspace = true
 stwo-cairo-utils.workspace = true
 
 [dev-dependencies]
