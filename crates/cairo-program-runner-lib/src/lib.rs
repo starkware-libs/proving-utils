@@ -13,6 +13,18 @@ pub mod test_utils;
 pub mod utils;
 pub use utils::ProgramInput;
 
+// Source code for this compiled privacy bootloader can be found at:
+// repo: https://github.com/starkware-industries/starkware
+// branch: "dev"
+// commit: "4d1ae5848dd49802ddd620601d2d1bb303d15c66"
+// md5sum: "0494f41365e482142d04b58bd64aa5fe"
+// Compiled by command:
+// `bazel build --config=rbe
+// //src/starkware/cairo/bootloaders/simple_bootloader:privacy_simple_bootloader_program`
+pub const PRIVACY_SIMPLE_BOOTLOADER_COMPILED_JSON: &[u8] = include_bytes!(
+    "../resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
+);
+
 /// Executes a Cairo program with the given configuration, optionally handling program input and
 /// proof mode.
 ///

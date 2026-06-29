@@ -178,14 +178,12 @@ mod tests {
     #[test]
     fn test_privacy_simple_bootloader_output_hash() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let privacy_bl_path = manifest_dir.join(
-            "resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json",
-        );
         let simple_output_path = manifest_dir
             .join("resources/compiled_programs/test_programs/simple_output_compiled.json");
 
-        let privacy_bl_program = Program::from_file(privacy_bl_path.as_path(), Some("main"))
-            .expect("Could not load privacy simple bootloader program.");
+        let privacy_bl_program =
+            Program::from_bytes(crate::PRIVACY_SIMPLE_BOOTLOADER_COMPILED_JSON, Some("main"))
+                .expect("Could not load privacy simple bootloader program.");
         let simple_output_program = Program::from_file(simple_output_path.as_path(), Some("main"))
             .expect("Could not load simple output program.");
         let stripped_program = simple_output_program
