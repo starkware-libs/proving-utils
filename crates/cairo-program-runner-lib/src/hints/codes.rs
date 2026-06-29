@@ -456,28 +456,7 @@ memory[ids.res_96_felts] = num % (2**96)
 memory[ids.res_96_felts+1] = (num>>96) % (2**96)
 memory[ids.res_96_felts+2] = (num>>(2*96)) % (2**96)";
 
-pub const CONCAT_AGGREGATOR_PARSE_TASKS_OUTPUTS: &str =
-    "def parse_bootloader_tasks_outputs(output):
-    \"\"\"
-    Parses the output of the bootloader, returning the raw outputs of the tasks.
-    \"\"\"
-    output_iter = iter(output)
-    # Skip the bootloader_config.
-    [next(output_iter) for _ in range(3)]
-
-    n_tasks = next(output_iter)
-    tasks_outputs = []
-    for _ in range(n_tasks):
-        task_output_size = next(output_iter)
-        tasks_outputs.append([next(output_iter) for _ in range(task_output_size - 1)])
-
-    assert next(output_iter, None) is None, \"Bootloader output wasn't fully consumed.\"
-
-    return tasks_outputs
-
-tasks_outputs = parse_bootloader_tasks_outputs(program_input[\"bootloader_output\"])
-assert len(tasks_outputs) > 0, \"No tasks found in the bootloader output.\"
-ids.n_tasks = len(tasks_outputs)";
+pub const CONCAT_AGGREGATOR_PARSE_TASKS_OUTPUTS: &str = "CONCAT_AGGREGATOR_PARSE_TASKS_OUTPUTS";
 
 pub const CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITH_SIZE: &str =
     "task_index = len(tasks_outputs) - ids.n_tasks

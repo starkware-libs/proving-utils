@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::types::ConcatAggregatorInput;
+use super::types::{ConcatAggregatorInput, BOOTLOADER_CONFIG_SIZE};
 use super::utils::get_program_input_value;
 use cairo_vm::{
     hint_processor::{
@@ -25,8 +25,8 @@ const TASKS_OUTPUTS: &str = "tasks_outputs";
 ///         Parses the output of the bootloader, returning the raw outputs of the tasks.
 ///         """
 ///         output_iter = iter(output)
-///         # Skip the bootloader_config.
-///         [next(output_iter) for _ in range(3)]
+///         # Skip the bootloader_config (a single felt; must match BOOTLOADER_CONFIG_SIZE).
+///         [next(output_iter) for _ in range(1)]
 ///
 ///         n_tasks = next(output_iter)
 ///         tasks_outputs = []
@@ -75,7 +75,7 @@ pub fn concat_aggregator_parse_task(
         }
     };
 
-    for _ in 0..3 {
+    for _ in 0..BOOTLOADER_CONFIG_SIZE {
         next_item()?;
     }
 
