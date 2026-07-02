@@ -1501,6 +1501,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit-multiverifier"
+version = "0.1.0"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216#8d6b216c6552994b8aa7492422da62bddc931151"
+dependencies = [
+ "circuit-common 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuit-verifier 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuits 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuits-stark-verifier 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "itertools 0.12.1",
+ "stwo",
+ "stwo-constraint-framework",
+]
+
+[[package]]
 name = "circuit-prover"
 version = "0.1.0"
 source = "git+https://github.com/starkware-libs/stwo-circuits?rev=0451681a86cc4755b848d342f6edbf3a240f2627#0451681a86cc4755b848d342f6edbf3a240f2627"
@@ -2538,9 +2552,9 @@ checksum = "3d3067d79b975e8844ca9eb072e16b31c3c1c36928edf9c6789548c524d0d954"
 
 [[package]]
 name = "ignore"
-version = "0.4.26"
+version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b915661dd01db3f05050265b2477bcc6527b3792388e2749b41623cc592be67d"
+checksum = "fe112b004901c62c2faa11f4f75e9864e0cc5af8da71c9115d184a3aa888749f"
 dependencies = [
  "crossbeam-deque",
  "globset",
@@ -4606,26 +4620,25 @@ dependencies = [
 name = "stwo-run-and-prove-recursive-tree"
 version = "1.2.2"
 dependencies = [
- "anyhow",
- "cairo-air",
- "cairo-program-runner-lib",
- "cairo-vm",
+ "blake2",
+ "circuit-cairo-verifier 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuit-common 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuit-multiverifier",
+ "circuit-prover 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuit-serialize 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuit-verifier 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuits 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
+ "circuits-stark-verifier 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=8d6b216)",
  "clap",
- "ctor",
- "env_logger",
- "log",
- "rstest 0.21.0",
  "serde",
  "serde_json",
  "sonic-rs",
- "starknet-ff",
- "stwo-cairo-adapter",
- "stwo-cairo-serialize",
+ "stwo",
  "stwo-cairo-utils",
- "stwo-run-and-prove-common",
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4802,9 +4815,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.52"
+version = "0.3.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e48db7b415311b615f910b3dcaa4557bcd4bf1982379c95c223fd8c2a20e210"
+checksum = "18dfaaeddcb932337b5e7866ee7d0ce9b76d2fd092997146f187ec09b4558a50"
 dependencies = [
  "deranged",
  "num-conv",
@@ -5240,9 +5253,9 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xxhash-rust"
-version = "0.8.15"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
+checksum = "4d93c89cdc2d3a63c3ec48ffe926931bdc069eafa8e4402fe6d8f790c9d1e576"
 
 [[package]]
 name = "yansi"

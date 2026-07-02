@@ -76,6 +76,13 @@ circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circui
 circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
 circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
 circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8d6b216" }
+
+# stwo (used directly by the recursive-tree circuit folding; rev must match what the stwo-circuits
+# rev above depends on — see Cargo.lock).
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "5ea05973", default-features = false, features = ["parallel", "prover"] }
 
 
 # local crates
