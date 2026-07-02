@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - omri/temp-branch
 
 jobs:
   artifacts-push:
@@ -13,7 +13,7 @@ jobs:
 
       - name: Get commit hash prefix for PR update
         env:
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: c82f9170592ad918c84ec206be99aa895578f5a5
         run: |
           echo "SHORT_HASH=${COMMIT_SHA:0:7}" >> $GITHUB_ENV
 
