@@ -18,27 +18,39 @@ name = "stwo_run_and_prove_recursive_tree"
 path = "src/lib.rs"
 
 [features]
-# Gates the end-to-end integration test (real Cairo VM bootloader run over the mock proof),
-# which is too memory/time-heavy for the regular `tests` CI job.
+# Gates the end-to-end fold test: it proves a real multiverifier circuit per pair (over a
+# pre-generated leaf-proof fixture), too time/memory-heavy for the regular `tests` CI job.
 slow-tests = []
 
 [dependencies]
-anyhow.workspace = true
-cairo-air.workspace = true
-cairo-program-runner-lib.workspace = true
-cairo-vm.workspace = true
 clap.workspace = true
+leaf-proof-format.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sonic-rs.workspace = true
 stwo-cairo-utils.workspace = true
-stwo-cairo-adapter.workspace = true
-stwo-run-and-prove-common.workspace = true
-tempfile.workspace = true
+
 thiserror.workspace = true
 tracing.workspace = true
 
+# stwo-circuits crates, version-managed by the workspace so leaf proofs (de)serialize and verify
+# against the exact same types they were produced with.
+circuit-cairo-serialize.workspace = true
+circuit-cairo-verifier.workspace = true
+circuit-multiverifier.workspace = true
+circuit-verifier.workspace = true
+circuit-common = { workspace = true, features = ["prover"] }
+circuit-prover.workspace = true
+circuit-serialize.workspace = true
+circuits.workspace = true
+circuits-stark-verifier.workspace = true
+stwo.workspace = true
+
 [dev-dependencies]
-ctor.workspace = true
-rstest.workspace = true
-stwo-run-and-prove-common = { workspace = true, features = ["mock"] }
+# The e2e test (slow-tests) folds a pre-generated leaf circuit proof fixture; it does not run
+# leaf_prover, so it needs no Cairo VM / bootloader dependencies.
+tracing-subscriber.workspace = true
+# Tests stage leaf-proof fixtures and collect outputs under a throwaway directory.
+tempfile.workspace = true
+# Host Blake2s to independently recompute the multiverifier's expected outputs in the e2e test.
+blake2 = "0.10"
