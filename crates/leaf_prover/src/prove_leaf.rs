@@ -204,6 +204,9 @@ pub fn prove_leaf(
         .collect_vec();
     SerializedLeafProof {
         program_output,
+        // The hashed-output preimage is dumped by the leaf simple bootloader to its
+        // `output_preimage_dump_path`; the backend injects it, not this binary.
+        output_preimage: vec![],
         circuit_output,
         circuit_preprocessed_root,
         proof: proof_bytes,
