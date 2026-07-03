@@ -516,7 +516,13 @@ pub fn recursive_aggregate_prove_streaming(
                             st = cv.wait(st).unwrap();
                         }
                     };
-                    // Take ownership of this task's resolved inputs and prove off-lock.
+                    // Take ownership of this task's resolved inputs and prove off-lock. Both child
+                    // `TreeProof`s are `take()`n out of `inputs` here, so once this node's result is
+                    // delivered to its parent the two children have no remaining references and are
+                    // freed (dropped when `a`/`b` leave scope). Nothing retains proved node proofs:
+                    // peak host memory therefore holds only the N leaves (owned by the caller for
+                    // `prove_root_verification`) + the O(log N) in-flight fold path, never all N-1
+                    // node proofs.
                     let (a, b) = {
                         let mut st = state.lock().unwrap();
                         let ins = &mut st.inputs[ti];
