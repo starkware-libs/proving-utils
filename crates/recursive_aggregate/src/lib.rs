@@ -339,33 +339,92 @@ pub fn recursive_aggregate_prove(
     }
 }
 
+/// A reference to one input of a streaming fold node: either a base/leaf proof (by shard index, the
+/// canonical arrival order) or the output of an earlier fold node (by node index).
+#[derive(Clone, Copy)]
+enum Child {
+    Leaf(usize),
+    Node(usize),
+}
+
+/// One 2-to-1 fold in the fixed tree: `prove_node(a, b)`, with `a` the left child and `b` the right.
+struct FoldTask {
+    a: Child,
+    b: Child,
+    /// Height above the leaves of this node's output (leaves are height 0).
+    height: usize,
+}
+
+/// Computes the FIXED fold topology for `n_leaves`, decided up front and independent of completion
+/// order, **byte-identical** to the tree [`recursive_aggregate_prove`]'s level loop builds.
+///
+/// It runs the level loop's algorithm over *indices* instead of proofs: each level pairs entries
+/// left-to-right into `prove_node(pair[0], pair[1])` and carries an odd trailing entry up unchanged.
+/// The returned `Vec<FoldTask>` is in the same order the level loop would prove them (level by level,
+/// left to right); the returned [`Child`] is the root (a `Node` for `n_leaves > 1`, else `Leaf(0)`).
+///
+/// Equivalent to the binary-counter merge (push leaf at height 0, fold equal-height tops, then
+/// finish-from-smallest) the inline streaming MVP used, but materialized explicitly so the scheduler
+/// can dispatch folds eagerly. The left/right child order matches `prove_node(&pair[0], &pair[1])`
+/// exactly, so each node sees the same `(a, b)` inputs as the sequential fold ⇒ same proof bytes.
+fn build_fold_topology(n_leaves: usize) -> (Vec<FoldTask>, Child) {
+    if n_leaves == 1 {
+        return (Vec::new(), Child::Leaf(0));
+    }
+    let mut tasks: Vec<FoldTask> = Vec::with_capacity(n_leaves - 1);
+    // Current level as (height, child-ref), mirroring the level loop's `Vec<TreeProof>`.
+    let mut level: Vec<(usize, Child)> = (0..n_leaves).map(|i| (0, Child::Leaf(i))).collect();
+    while level.len() > 1 {
+        let carry = if level.len() % 2 == 1 {
+            level.pop()
+        } else {
+            None
+        };
+        let mut next: Vec<(usize, Child)> = Vec::with_capacity(level.len() / 2 + 1);
+        for pair in level.chunks(2) {
+            let (ha, a) = pair[0];
+            let (hb, b) = pair[1];
+            let idx = tasks.len();
+            let height = ha.max(hb) + 1;
+            tasks.push(FoldTask { a, b, height });
+            next.push((height, Child::Node(idx)));
+        }
+        if let Some(c) = carry {
+            next.push(c);
+        }
+        level = next;
+    }
+    (tasks, level[0].1)
+}
+
 /// Streaming variant of [`recursive_aggregate_prove`]: folds leaves as they arrive over a channel,
-/// producing a tree **byte-identical** to [`recursive_aggregate_prove`] for the same ordered leaves.
+/// dispatching each fold to a [`PoolSet`] worker the instant both its children are ready — so the
+/// fold/recursion runs concurrently with (and overlaps) the base-proof producer that feeds `rx`.
 ///
 /// This exists so the GPU base-proving producer can overlap with the CPU leaf-wrap + fold consumer
-/// (see the `GATE_AIR_PIPELINE` path in gate-air-leaf). Because [`prove_node`] is a pure function of
-/// `(a, b)`, an identical tree *topology* yields an identical root, and the unchanged
-/// [`prove_root_verification`] unpacker (which reconstructs the same carry-odd shape) still binds it.
+/// (see the `GATE_AIR_PIPELINE` path in gate-air-leaf). The base producer is modelled as a stream of
+/// completed leaf proofs sent over `rx` in **canonical shard order** (leaf `i` is the `i`-th
+/// `recv()`), NOT as GPU calls — this crate stays leaf-type-agnostic.
 ///
-/// TOPOLOGY INVARIANT — this MUST reproduce the balanced+odd-carry tree of
-/// [`recursive_aggregate_prove`] exactly (e.g. for N=7 the root is
-/// `node(node(node(0,1),node(2,3)), node(node(4,5),6))`). The streaming equivalent is a
-/// **binary-counter merge**:
-///   - Maintain a stack of `(height, TreeProof)` with heights non-increasing toward the top.
-///   - On each arriving leaf: push it at height 0; then while the top TWO entries have EQUAL height,
-///     pop both and push `prove_node(left, right)` at `height+1`, where `left` is the
-///     earlier-arriving (deeper) entry and `right` the later (top) one — matching the
-///     `prove_node(&pair[0], &pair[1])` argument order of the existing `chunks(2)` loop.
-///   - After all `n_leaves` are consumed (finish): repeatedly fold the TWO SMALLEST-height (top-most)
-///     remaining entries — `prove_node(left, right)` with the lower-height (later, top) one as the
-///     RIGHT child `b` — until one entry remains. This finish-from-the-smallest order reproduces the
-///     odd-carry shape exactly. (Hand-verified against the level loop for N = 5, 6, 7.)
+/// BYTE-IDENTITY: the result is byte-identical to [`recursive_aggregate_prove`] for the same ordered
+/// leaves. The topology is FIXED up front by [`build_fold_topology`] (the level loop's balanced+carry
+/// tree, e.g. for N=7 the root is `node(node(node(0,1),node(2,3)), node(node(4,5),6))`) and does not
+/// depend on completion order; every [`FoldTask`] sees the same `(a, b)` left/right inputs the
+/// sequential fold gives its matching `prove_node`. Because [`prove_node`] is a pure function of
+/// `(a, b)`, identical topology + identical per-node inputs ⇒ identical root proof and
+/// `recursion_fingerprint`, which the unchanged [`prove_root_verification`] unpacker still binds.
+///
+/// Streaming schedule: one coordinator owns the dataflow state; `pools.n_pools()` workers (one per
+/// pool) pull ready folds and run `prove_node` via [`ThreadPool::install`] (so each fold gets its own
+/// pool's cores, matching the sequential fold's per-prove parallelism). As leaves arrive on `rx`,
+/// any fold whose two children are now available becomes ready; a fold completing makes its parent's
+/// child available in turn. Up to `n_pools()` folds run at once while later leaves are still being
+/// produced. Folds never starve: the tree is CPU-fold-bound, so a backlog of ready folds always
+/// exists once base proofs outpace the single CPU consumer.
 ///
 /// Consumes exactly `n_leaves` from `rx` in arrival order. Returns the same [`AggregateOutput`] as
-/// the level loop (root + `n_levels = ceil(log2(n_leaves))`, i.e. the root's height). For `n_leaves
-/// == 1` returns the single leaf as root with `n_levels = 0`, mirroring the level loop's single-leaf
-/// behavior. Folds run inline on the calling thread (each [`prove_node`] parallelizes internally);
-/// no thread pool is added inside this fn (MVP).
+/// the level loop (root + `n_levels = ceil(log2(n_leaves))`). For `n_leaves == 1` returns the single
+/// leaf as root with `n_levels = 0`.
 ///
 /// # Panics
 /// If `n_leaves == 0`, or if `rx` yields fewer than `n_leaves` entries.
@@ -373,41 +432,138 @@ pub fn recursive_aggregate_prove_streaming(
     rx: std::sync::mpsc::Receiver<TreeProof>,
     n_leaves: usize,
     config: &AggregateConfig,
-    _pools: &PoolSet,
+    pools: &PoolSet,
 ) -> AggregateOutput {
     assert!(n_leaves >= 1, "need at least one leaf");
 
+    let (tasks, root_ref) = build_fold_topology(n_leaves);
+
     if n_leaves == 1 {
         let root = rx.recv().expect("streaming fold: missing leaf 0");
-        return AggregateOutput {
-            root,
-            n_levels: 0,
-        };
+        return AggregateOutput { root, n_levels: 0 };
     }
 
-    // Stack of (height, proof), heights non-increasing toward the top.
-    let mut stack: Vec<(usize, TreeProof)> = Vec::new();
-    for _ in 0..n_leaves {
-        let leaf = rx.recv().expect("streaming fold: fewer leaves than n_leaves");
-        stack.push((0, leaf));
-        // Merge equal-height tops: the deeper entry (earlier arrival) is the left child `a`.
-        while stack.len() >= 2 && stack[stack.len() - 1].0 == stack[stack.len() - 2].0 {
-            let (hr, right) = stack.pop().unwrap();
-            let (_hl, left) = stack.pop().unwrap();
-            stack.push((hr + 1, prove_node(&left, &right, config)));
+    // For each task, count its not-yet-available children and record which task consumes each
+    // produced value, so completing a fold (or receiving a leaf) can decrement the right parent.
+    //   parent_of[Leaf i] / parent_of_node[Node j] = Some((task_idx, slot)), slot 0=a, 1=b.
+    let mut leaf_parent: Vec<Option<(usize, u8)>> = vec![None; n_leaves];
+    let mut node_parent: Vec<Option<(usize, u8)>> = vec![None; tasks.len()];
+    let mut pending: Vec<u8> = vec![0; tasks.len()];
+    for (ti, t) in tasks.iter().enumerate() {
+        for (slot, ch) in [(0u8, t.a), (1u8, t.b)] {
+            pending[ti] += 1;
+            match ch {
+                Child::Leaf(i) => leaf_parent[i] = Some((ti, slot)),
+                Child::Node(j) => node_parent[j] = Some((ti, slot)),
+            }
         }
     }
 
-    // Finish: fold the two smallest-height (top-most) entries, lower-height one as the RIGHT
-    // child `b`, until one entry remains. Reproduces the level loop's odd-carry exactly.
-    while stack.len() > 1 {
-        let (hr, right) = stack.pop().unwrap();
-        let (hl, left) = stack.pop().unwrap();
-        stack.push((hl.max(hr) + 1, prove_node(&left, &right, config)));
+    // Dataflow state shared between the coordinator and the worker threads.
+    struct State {
+        // Resolved (a, b) inputs for each task, filled as children become available.
+        inputs: Vec<[Option<TreeProof>; 2]>,
+        pending: Vec<u8>,
+        ready: std::collections::VecDeque<usize>,
+        done: usize,
+        // The root proof, captured when the root fold (the one with no parent) completes.
+        root: Option<TreeProof>,
     }
+    let n_tasks = tasks.len();
+    let state = std::sync::Mutex::new(State {
+        inputs: (0..n_tasks).map(|_| [None, None]).collect(),
+        pending,
+        ready: std::collections::VecDeque::new(),
+        done: 0,
+        root: None,
+    });
+    // Signalled when a fold becomes ready or all folds are done (so idle workers wake up).
+    let cv = std::sync::Condvar::new();
 
-    let (n_levels, root) = stack.into_iter().next().unwrap();
-    AggregateOutput { root, n_levels }
+    // Records that `proof` is the value of `child`, wiring it into the consuming task and enqueuing
+    // that task if both its inputs are now present. Returns nothing; mutates `st` under its lock.
+    let deliver = |st: &mut State, parent: Option<(usize, u8)>, proof: TreeProof| {
+        if let Some((ti, slot)) = parent {
+            st.inputs[ti][slot as usize] = Some(proof);
+            st.pending[ti] -= 1;
+            if st.pending[ti] == 0 {
+                st.ready.push_back(ti);
+            }
+        }
+        // No parent ⇒ this is the root value; the root is always a Node here (n_leaves > 1).
+    };
+
+    let n_workers = pools.n_pools().max(1);
+    std::thread::scope(|s| {
+        // Workers: one per pool. Each pulls a ready task, proves it on its pool's cores, then
+        // delivers the result to the parent and signals.
+        for pool in pools.pools.iter().take(n_workers) {
+            let state = &state;
+            let cv = &cv;
+            let deliver = &deliver;
+            let node_parent = &node_parent;
+            s.spawn(move || {
+                loop {
+                    let ti = {
+                        let mut st = state.lock().unwrap();
+                        loop {
+                            if let Some(ti) = st.ready.pop_front() {
+                                break ti;
+                            }
+                            if st.done == n_tasks {
+                                return;
+                            }
+                            st = cv.wait(st).unwrap();
+                        }
+                    };
+                    // Take ownership of this task's resolved inputs and prove off-lock.
+                    let (a, b) = {
+                        let mut st = state.lock().unwrap();
+                        let ins = &mut st.inputs[ti];
+                        (ins[0].take().unwrap(), ins[1].take().unwrap())
+                    };
+                    let result = pool.install(|| prove_node(&a, &b, config));
+                    {
+                        let mut st = state.lock().unwrap();
+                        match node_parent[ti] {
+                            Some(parent) => deliver(&mut st, Some(parent), result),
+                            None => st.root = Some(result), // the root fold (no parent)
+                        }
+                        st.done += 1;
+                        // Wake idle workers: either a new fold is ready, or all folds are done.
+                        cv.notify_all();
+                    }
+                }
+            });
+        }
+
+        // Coordinator: drain leaves in canonical shard order, delivering each to its consumer. A
+        // leaf that completes a fold's inputs enqueues it; workers pick it up immediately, so folds
+        // overlap with the still-arriving later leaves.
+        for i in 0..n_leaves {
+            let leaf = rx
+                .recv()
+                .expect("streaming fold: fewer leaves than n_leaves");
+            let mut st = state.lock().unwrap();
+            deliver(&mut st, leaf_parent[i], leaf);
+            cv.notify_all();
+        }
+    });
+
+    // All folds complete; pull the root the root fold captured.
+    let root_idx = match root_ref {
+        Child::Node(j) => j,
+        Child::Leaf(_) => unreachable!("n_leaves > 1 ⇒ root is a fold node"),
+    };
+    let root = state
+        .into_inner()
+        .unwrap()
+        .root
+        .expect("root not produced");
+    AggregateOutput {
+        root,
+        n_levels: tasks[root_idx].height,
+    }
 }
 
 /// The published root-verification proof.
@@ -564,6 +720,7 @@ fn prove_with_precompute(
 
 /// Proves one 2-to-1 node verifying children `a` and `b`.
 fn prove_node(a: &TreeProof, b: &TreeProof, config: &AggregateConfig) -> TreeProof {
+    let _t_node = std::time::Instant::now();
     let input = |c: &TreeProof| MultiverifierInput {
         proof: c.proof.clone(),
         preprocessed_root: c.preprocessed_root,
@@ -595,6 +752,10 @@ fn prove_node(a: &TreeProof, b: &TreeProof, config: &AggregateConfig) -> TreePro
         .try_into()
         .expect("node must emit exactly N_RESERVED output values");
 
+    eprintln!(
+        "recursive_aggregate: MEASURE t_node={:.3}s",
+        _t_node.elapsed().as_secs_f64()
+    );
     TreeProof {
         proof,
         preprocessed_root: config.node_preprocessed_root,
@@ -726,4 +887,101 @@ pub fn multiverifier_node_preprocessed(
         PreprocessedCircuit::preprocess_circuit(&mut ctx),
         unpadded_sizes,
     )
+}
+
+#[cfg(test)]
+mod topology_tests {
+    use super::{Child, build_fold_topology};
+
+    /// A symbolic tree shape, leaf-index aware — the byte-identity-relevant structure of a fold tree
+    /// (which leaf/node is each node's left vs right child, and the resulting nesting).
+    #[derive(PartialEq, Eq, Debug)]
+    enum Shape {
+        Leaf(usize),
+        Node(Box<Shape>, Box<Shape>),
+    }
+
+    /// The shape `recursive_aggregate_prove`'s level loop builds, computed over indices — the exact
+    /// `prove_node(&pair[0], &pair[1])` pairing with an odd trailing entry carried up unchanged.
+    fn sequential_shape(n: usize) -> Shape {
+        let mut level: Vec<Shape> = (0..n).map(Shape::Leaf).collect();
+        while level.len() > 1 {
+            let carry = if level.len() % 2 == 1 {
+                level.pop()
+            } else {
+                None
+            };
+            let mut next = Vec::with_capacity(level.len() / 2 + 1);
+            let mut iter = level.into_iter();
+            while let (Some(a), Some(b)) = (iter.next(), iter.next()) {
+                next.push(Shape::Node(Box::new(a), Box::new(b)));
+            }
+            if let Some(c) = carry {
+                next.push(c);
+            }
+            level = next;
+        }
+        level.into_iter().next().unwrap()
+    }
+
+    /// The shape the streaming scheduler realizes, reconstructed from `build_fold_topology`'s task
+    /// list + root reference. Each task's `(a, b)` children resolve to the same `Shape` nodes,
+    /// proving the streaming dataflow folds the identical tree with the identical left/right inputs.
+    fn streaming_shape(n: usize) -> Shape {
+        let (tasks, root) = build_fold_topology(n);
+        fn resolve(c: Child, tasks: &[super::FoldTask]) -> Shape {
+            match c {
+                Child::Leaf(i) => Shape::Leaf(i),
+                Child::Node(j) => Shape::Node(
+                    Box::new(resolve(tasks[j].a, tasks)),
+                    Box::new(resolve(tasks[j].b, tasks)),
+                ),
+            }
+        }
+        resolve(root, &tasks)
+    }
+
+    /// The streamed tree is byte-identical to the sequential one because it has the IDENTICAL shape:
+    /// same nesting, same leaf-index-to-(left/right)-slot assignment for every node. Since
+    /// `prove_node` is a pure function of `(a, b)`, identical shape + identical per-node inputs ⇒
+    /// identical proof bytes and `recursion_fingerprint`. Checks every N up to 130 (covers all
+    /// odd-carry cases and several power-of-two boundaries) plus the doc's N=7 example.
+    #[test]
+    fn streaming_topology_matches_sequential() {
+        for n in 1..=130usize {
+            assert_eq!(
+                streaming_shape(n),
+                sequential_shape(n),
+                "fold topology diverges from the level loop at n={n}"
+            );
+        }
+    }
+
+    /// Pins the documented N=7 root: node(node(node(0,1),node(2,3)), node(node(4,5),6)).
+    #[test]
+    fn streaming_topology_n7_example() {
+        use Shape::{Leaf, Node};
+        let n = |a: Shape, b: Shape| Node(Box::new(a), Box::new(b));
+        let expected = n(
+            n(n(Leaf(0), Leaf(1)), n(Leaf(2), Leaf(3))),
+            n(n(Leaf(4), Leaf(5)), Leaf(6)),
+        );
+        assert_eq!(streaming_shape(7), expected);
+    }
+
+    /// Every fold tree over N>1 leaves has exactly N-1 internal nodes; the root height equals
+    /// ceil(log2(N)) (the level loop's `n_levels`).
+    #[test]
+    fn topology_node_count_and_height() {
+        for n in 2..=130usize {
+            let (tasks, root) = build_fold_topology(n);
+            assert_eq!(tasks.len(), n - 1, "n={n}: expected N-1 folds");
+            let h = match root {
+                Child::Node(j) => tasks[j].height,
+                Child::Leaf(_) => 0,
+            };
+            let expected_levels = (usize::BITS - (n - 1).leading_zeros()) as usize;
+            assert_eq!(h, expected_levels, "n={n}: root height = ceil(log2 N)");
+        }
+    }
 }
