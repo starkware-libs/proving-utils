@@ -3,7 +3,7 @@ name: Upload-Artifacts
 on:
   push:
     branches:
-      - main
+      - noa/update-commit-upload_artifacts_workflow
 
 jobs:
   artifacts-push:
@@ -13,7 +13,7 @@ jobs:
 
       - name: Get commit hash prefix for PR update
         env:
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: 89155aade81a2727937d1734a117b118ec97540b
         run: |
           echo "SHORT_HASH=${COMMIT_SHA:0:7}" >> $GITHUB_ENV
 
