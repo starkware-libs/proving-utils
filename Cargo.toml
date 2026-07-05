@@ -88,3 +88,23 @@ package = { "stwo-cairo-prover" = { opt-level = 1 }, "stwo" = { opt-level = 1 },
 inherits = "release"
 debug = true
 
+# WIP dep-graph alignment (uncommitted, laptop-only): point every stwo-circuits git dep
+# (pinned at 041ec61 in the member crates) at the LOCAL stwo-circuits checkout carrying the
+# uncommitted k-ary `build_multiverifier_circuit(inputs: Vec<..>)` node circuit, and redirect the
+# `stwo` git source to the single vendored stwo (5ea05973-equivalent) so there is exactly ONE stwo
+# in the graph. recursive_aggregate pins stwo 74951f79 but the local stwo-circuits branch pins
+# 5ea05973 (#1425 "Blake2sM31MerkleChannel uses the standard MerkleHasherLifted"). We align ALL
+# stwo consumers onto 5ea05973 -- the rev the stwo-circuits branch + k-ary node circuit were
+# written against. (The vendored stwo-cuda-backend copy is still pre-#1425 / 74951f79-shaped, so
+# it does NOT type-check against this stwo-circuits branch and would also change the proof; it is
+# the GPU/box concern, out of scope for the CPU build.)
+[patch."https://github.com/starkware-libs/stwo-circuits"]
+circuits = { path = "../stwo-circuits/crates/circuits" }
+circuit-common = { path = "../stwo-circuits/crates/circuit_common" }
+circuit-prover = { path = "../stwo-circuits/crates/circuit_prover" }
+circuit-verifier = { path = "../stwo-circuits/crates/circuit_verifier" }
+circuit-serialize = { path = "../stwo-circuits/crates/circuit_serialize" }
+circuit-multiverifier = { path = "../stwo-circuits/crates/circuit_multiverifier" }
+circuits-stark-verifier = { path = "../stwo-circuits/crates/stark_verifier" }
+circuit-cairo-verifier = { path = "../stwo-circuits/crates/cairo_verifier" }
+
