@@ -103,6 +103,28 @@ pub const BASE_LOG_BLOWUP: u32 = 1;
 /// ceil(samples / shots_per_shard)`.
 pub const SHOTS_PER_SHARD: usize = 2;
 
+/// Which bottom-layer recursion topology the pipeline uses. The up-tree node-node (R2) fold above the
+/// bottom layer is SHARED and identical in both modes — only the bottom layer (and the config /
+/// unpacker reconstruction that binds it) differs.
+///
+/// - [`FoldMode::BaseFanning`] (DEFAULT): the current production topology. gate-air-leaf proves
+///   **base-nodes** upstream (one circuit verifies `b` gate_air bases and folds them), and
+///   `recursive_aggregate` folds those height-1 base-nodes up the tree with `FOLD_ARITY`. See
+///   [`recursive_aggregate_prove`] / [`prove_root_verification`] (`BaseFanBottom`).
+/// - [`FoldMode::LeafR1R2`]: the PREVIOUS (pre-base-fanning) topology. gate-air-leaf proves one
+///   standalone **leaf** per shard; `recursive_aggregate` consumes ALL leaves at level 0 into height-1
+///   **leaf-verifying (R1)** nodes ([`recursive_aggregate_prove_leaves`]) and then folds those up with
+///   the SAME shared R2 fold. The unpacker reconstructs from the raw leaves
+///   ([`prove_root_verification_leaves`], `LeafBottom`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum FoldMode {
+    /// Base-fanning bottom (base-nodes proved upstream). The default.
+    #[default]
+    BaseFanning,
+    /// Standalone-leaf bottom with a level-0 leaf-verifying (R1) layer.
+    LeafR1R2,
+}
+
 /// All FREE topology parameters, in one place, threaded through the recursion + base-proof pipeline.
 ///
 /// Every field is a *free knob*; everything else (the `(pow_bits, n_queries)` at 96-bit, the trusted
@@ -130,6 +152,10 @@ pub struct TopologyConfig {
     pub base_fan_arity: usize,
     /// Shots per base shard (partition knob). Default [`SHOTS_PER_SHARD`] (env `GATE_AIR_SHARD_SHOTS`).
     pub shots_per_shard: usize,
+    /// Bottom-layer topology (default [`FoldMode::BaseFanning`], env `GATE_AIR_FOLD_MODE` =
+    /// `base_fanning` | `leaf_r1r2`). Selects the parallel bottom-layer path; the shared up-tree R2
+    /// fold is identical in both.
+    pub fold_mode: FoldMode,
 }
 
 impl Default for TopologyConfig {
@@ -141,6 +167,7 @@ impl Default for TopologyConfig {
             fold_arity: FOLD_ARITY,
             base_fan_arity: BASE_FAN_ARITY,
             shots_per_shard: SHOTS_PER_SHARD,
+            fold_mode: FoldMode::BaseFanning,
         }
     }
 }
@@ -170,6 +197,12 @@ impl TopologyConfig {
             shots_per_shard: parse_env::<usize>("GATE_AIR_SHARD_SHOTS")
                 .filter(|&n| n > 0)
                 .unwrap_or(d.shots_per_shard),
+            fold_mode: match std::env::var("GATE_AIR_FOLD_MODE").ok().as_deref() {
+                Some("leaf_r1r2") => FoldMode::LeafR1R2,
+                Some("base_fanning") => FoldMode::BaseFanning,
+                // Unset / unparseable falls back to the default (BaseFanning) — a byte-identical no-op.
+                _ => d.fold_mode,
+            },
         }
     }
 }
@@ -321,6 +354,41 @@ pub struct AggregateConfig {
     /// the unpacker, the root-consistency check) reads the SAME `k` — the single source of truth the
     /// out-of-circuit unpacker and the in-circuit node hash both depend on for byte-identity.
     pub fold_arity: usize,
+
+    // ---- LEAF/R1/R2 topology extras ([`FoldMode::LeafR1R2`] only) --------------------------------
+    // These reintroduce the PRE-BASE-FANNING three-tier bottom layer (standalone leaf → level-0
+    // leaf-verifying R1 node → shared R2 up-tree fold) as a PARALLEL path. They are `None` under
+    // [`FoldMode::BaseFanning`] (the base-fanning fields above carry that mode's bottom layer) and
+    // `Some` under [`FoldMode::LeafR1R2`], populated by gate-air-leaf's `derive_aggregate_config`.
+    // The shared height-≥2 R2 fold above the bottom layer uses ONLY the base-fanning fields above
+    // (`node_shared_config`, `node_preprocessed_root`, `node_precompute`), so it is untouched.
+    /// Verifier/prover config for a level-1 node whose CHILDREN are LEAVES ([`FoldMode::LeafR1R2`]).
+    /// Built from the leaf circuit's preprocessed shape (`shared_config_for_leaf`); also deserializes
+    /// the leaf proofs a level-1 (R1) node verifies. `None` under base-fanning.
+    pub leaf_shared_config: Option<SharedConfig>,
+    /// **R1** — the preprocessed root of a level-1 (leaf-verifying) multiverifier node
+    /// ([`FoldMode::LeafR1R2`]). Reported by every height-1 leaf-node to its R2 parent. `None` under
+    /// base-fanning.
+    pub level1_preprocessed_root: Option<HashValue<QM31>>,
+    /// The trusted preprocessed root of the leaf circuit (same AIR for every leaf,
+    /// [`FoldMode::LeafR1R2`]). The unpacker uses this single constant for *all* leaves. `None` under
+    /// base-fanning (base-fanning uses `base_preprocessed_root` for its bases instead).
+    pub leaf_preprocessed_root: Option<HashValue<QM31>>,
+    /// Padding targets applied to every LEAF's trace — the leaf's OWN target (~2^20), decoupled from
+    /// the node size so `t_leaf` is pinned independent of `FOLD_ARITY` ([`FoldMode::LeafR1R2`]).
+    /// `None` under base-fanning.
+    pub leaf_target_padding_sizes: Option<ComponentSizes>,
+    /// PCS config used to prove each LEAF (and to describe the leaf proof shape a level-1 node
+    /// verifies) ([`FoldMode::LeafR1R2`]). Leaf lifting ~24 (below the node's ~25). `None` under
+    /// base-fanning.
+    pub leaf_pcs_config: Option<PcsConfig>,
+    /// Witness-independent precompute for the level-1 (leaf-verifying) multiverifier node circuit,
+    /// reused for every [`prove_leaf_or_short`] full-`k` call ([`FoldMode::LeafR1R2`]). `None` under
+    /// base-fanning (or `GATE_AIR_NO_PRECOMPUTE`).
+    pub level1_precompute: Option<Arc<CircuitPrecompute>>,
+    /// Witness-independent precompute for the leaf circuit, reused for every `prove_gate_air_leaf`
+    /// call ([`FoldMode::LeafR1R2`]). `None` under base-fanning (or `GATE_AIR_NO_PRECOMPUTE`).
+    pub leaf_precompute: Option<Arc<CircuitPrecompute>>,
 }
 
 /// Witness-independent proving precompute for one fixed circuit shape: its preprocessed circuit, the
@@ -900,6 +968,258 @@ pub fn recursive_aggregate_prove_streaming(
     }
 }
 
+// =================================================================================================
+// LEAF/R1/R2 bottom layer ([`FoldMode::LeafR1R2`], PARALLEL to base-fanning) — restored from the
+// pre-base-fanning topology (proving-utils 79eaa0b). Confined to the BOTTOM layer + config +
+// unpacker; the shared height-≥2 R2 up-tree fold (`recursive_aggregate_prove`, `prove_node`,
+// `prove_short_node`, `build_node_context`, `build_fold_topology`) is UNCHANGED and reused by both
+// modes. Under this mode the caller proves standalone leaves upstream; the level-0 layer below
+// consumes ALL leaves into height-1 leaf-verifying (R1) nodes, then delegates the up-tree fold to the
+// shared base-fanning path (a height-1 leaf-node's OWN proof has the same shape as a base-node's, so
+// R2 verifies them identically).
+// =================================================================================================
+
+/// A node's tree level, which selects its shape under leaf↔node padding decoupling
+/// ([`FoldMode::LeafR1R2`]). A **level-1** node verifies `FOLD_ARITY` LEAVES (child config
+/// `leaf_shared_config`) and reports **R1** (`level1_preprocessed_root`); a **level-≥2** node verifies
+/// NODES (child config `node_shared_config`) and reports **R2** (`node_preprocessed_root`). The level
+/// is fixed by the public topology (`FoldTask::height`), never prover-chosen. Only the leaf-node
+/// bottom layer uses `VerifiesLeaves`; the shared up-tree fold is always `VerifiesNodes`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NodeLevel {
+    /// Children are leaves (node height == 1).
+    VerifiesLeaves,
+    /// Children are nodes (node height >= 2).
+    VerifiesNodes,
+}
+
+impl NodeLevel {
+    /// The node level for a node of the given height above the leaves (leaves are height 0).
+    fn from_height(height: usize) -> Self {
+        if height == 1 {
+            NodeLevel::VerifiesLeaves
+        } else {
+            NodeLevel::VerifiesNodes
+        }
+    }
+
+    /// The child-verifier config: `leaf_shared_config` (R1) for leaf children, `node_shared_config`
+    /// (R2) for node children. Panics if the leaf config is absent (i.e. not a `LeafR1R2` config).
+    fn shared_config(self, config: &AggregateConfig) -> &SharedConfig {
+        match self {
+            NodeLevel::VerifiesLeaves => config
+                .leaf_shared_config
+                .as_ref()
+                .expect("leaf_shared_config required for a leaf-verifying (R1) node — LeafR1R2 mode"),
+            NodeLevel::VerifiesNodes => &config.node_shared_config,
+        }
+    }
+
+    /// The trusted preprocessed root a node of this level reports (R1 vs R2).
+    fn preprocessed_root(self, config: &AggregateConfig) -> HashValue<QM31> {
+        match self {
+            NodeLevel::VerifiesLeaves => config
+                .level1_preprocessed_root
+                .clone()
+                .expect("level1_preprocessed_root required for an R1 node — LeafR1R2 mode"),
+            NodeLevel::VerifiesNodes => config.node_preprocessed_root.clone(),
+        }
+    }
+
+    /// The witness-independent precompute for this level's node circuit, if built.
+    fn precompute(self, config: &AggregateConfig) -> Option<&Arc<CircuitPrecompute>> {
+        match self {
+            NodeLevel::VerifiesLeaves => config.level1_precompute.as_ref(),
+            NodeLevel::VerifiesNodes => config.node_precompute.as_ref(),
+        }
+    }
+}
+
+/// The arities of the LEVEL-0 (leaf-verifying) nodes for `n_leaves`, left-to-right — a deterministic
+/// function of the public `N` and fold arity `k` ([`FoldMode::LeafR1R2`]; SOUNDNESS: public topology,
+/// never prover-chosen).
+///
+/// LEAF↔NODE DECOUPLING FIX: leaves (lift24) and nodes (lift25) have different proof shapes, so a
+/// carried-up leaf landing under a height-≥2 (node-verifying, lift25) fold panics the in-circuit
+/// Merkle height check. To prevent that, ALL leaves are consumed at level 0 into height-1 leaf-nodes.
+/// Contiguous groups, each an arity in `2..=k`, NEVER a lone leaf:
+///   - `N <= k`: one group of arity `N` (that node IS the root).
+///   - `N > k`, `r = N % k`: `r == 0` -> `N/k` full-`k`; `r >= 2` -> `N/k` full-`k` then one arity-`r`
+///     group; `r == 1` -> `(N/k - 1)` full-`k` then arity-`(k-1)` and arity-`2` groups (the `k+1`
+///     trailing leaves split so every arity stays in `2..=k` with no lone leaf).
+///
+/// # Panics
+/// If `n_leaves < 2` (callers handle the lone-leaf no-fold case before calling this).
+fn level0_group_sizes(n_leaves: usize, k: usize) -> Vec<usize> {
+    assert!(n_leaves >= 2, "level0_group_sizes needs n_leaves >= 2");
+    if n_leaves <= k {
+        return vec![n_leaves];
+    }
+    let full = n_leaves / k;
+    let r = n_leaves % k;
+    match r {
+        0 => vec![k; full],
+        1 => {
+            let mut v = vec![k; full - 1];
+            v.push(k - 1);
+            v.push(2);
+            v
+        }
+        _ => {
+            let mut v = vec![k; full];
+            v.push(r);
+            v
+        }
+    }
+}
+
+/// Builds and pads (to the common `node_target_padding_sizes`) the multiverifier circuit that verifies
+/// `children`, using the child-verifier config for the node's `level` ([`FoldMode::LeafR1R2`]).
+/// Distinct from the shared `build_node_context` (always R2) — this selects the child config by level.
+fn build_leaf_node_context(
+    children: &[TreeProof],
+    config: &AggregateConfig,
+    level: NodeLevel,
+) -> FinalizedContext<QM31> {
+    let inputs: Vec<MultiverifierInput<QM31>> = children.iter().map(child_input).collect();
+    let mut context = build_multiverifier_circuit::<QM31>(inputs, level.shared_config(config));
+    pad_to_targets(&mut context, config.node_target_padding_sizes.clone());
+    context.validate_circuit();
+    context
+}
+
+/// Proves one LEVEL-0 (height-1, leaf-verifying) node over `children` leaves ([`FoldMode::LeafR1R2`]):
+/// full-`k` groups go through the R1 precompute/`prove_circuit_assignment` path (reporting R1); short
+/// groups (`2..=k-1`) recompute their real root R1'(m). `height` is always 1.
+fn prove_leaf_or_short(
+    children: &[TreeProof],
+    config: &AggregateConfig,
+    height: usize,
+) -> TreeProof {
+    debug_assert_eq!(height, 1, "level-0 leaf nodes are always height 1");
+    let level = NodeLevel::VerifiesLeaves;
+    let _t_node = std::time::Instant::now();
+    let full = children.len() == config.fold_arity;
+    let mut context = build_leaf_node_context(children, config, level);
+
+    let (preprocessed_root_reported, circuit_proof) = if full {
+        // Full-`k` leaf-node: reuse the R1 precompute (or the self-contained path) and report the
+        // fixed R1.
+        let cp = match level.precompute(config) {
+            Some(pc) => prove_with_precompute(context.values(), pc),
+            None => {
+                let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
+                prove_circuit_assignment(
+                    context.values(),
+                    &preprocessed,
+                    &BaseColumnPool::<SimdBackend>::new(),
+                    config.node_pcs_config,
+                )
+            }
+        };
+        (level.preprocessed_root(config), cp)
+    } else {
+        // Short leaf group: distinct shape, rebuild tree0 and report the recomputed real root R1'(m).
+        let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
+        let root =
+            preprocessed_root(&preprocessed, config.node_pcs_config.fri_config.log_blowup_factor);
+        let cp = prove_circuit_assignment(
+            context.values(),
+            &preprocessed,
+            &BaseColumnPool::<SimdBackend>::new(),
+            config.node_pcs_config,
+        );
+        (root, cp)
+    };
+    let circuit_proof = circuit_proof.expect("leaf-node prove failed");
+    let (proof, public_data) = prepare_circuit_proof_for_circuit_verifier(circuit_proof);
+    let output_values: [QM31; N_RESERVED] = public_data
+        .output_values
+        .try_into()
+        .expect("leaf-node must emit exactly N_RESERVED output values");
+
+    eprintln!(
+        "recursive_aggregate: MEASURE t_leaf_node(arity={},h={height})={:.3}s",
+        children.len(),
+        _t_node.elapsed().as_secs_f64()
+    );
+    TreeProof {
+        proof,
+        preprocessed_root: preprocessed_root_reported,
+        output_values,
+    }
+}
+
+/// Folds standalone `leaves` into a single root proof ([`FoldMode::LeafR1R2`]). LEVEL 0 consumes ALL
+/// leaves into height-1 leaf-verifying (R1) nodes via [`level0_group_sizes`] + [`prove_leaf_or_short`]
+/// (so no leaf survives above height 1), then the SHARED [`recursive_aggregate_prove`] folds those
+/// height-1 leaf-nodes up the tree with the identical R2 group+carry.
+///
+/// `n_leaves == 1`: the lone leaf is the root (no fold, `n_levels == 0`). `N <= k`: the single level-0
+/// leaf-node is the root (`n_levels == 1`), same as delegating a 1-element vec to the shared fold.
+///
+/// # Panics
+/// If `leaves` is empty, or if the config lacks the `LeafR1R2` extras.
+pub fn recursive_aggregate_prove_leaves(
+    leaves: Vec<TreeProof>,
+    config: &AggregateConfig,
+    pools: &PoolSet,
+) -> AggregateOutput {
+    assert!(!leaves.is_empty(), "need at least one leaf");
+    assert!(
+        config.leaf_shared_config.is_some(),
+        "recursive_aggregate_prove_leaves requires a LeafR1R2 config (leaf_shared_config present)"
+    );
+    let k = config.fold_arity;
+
+    // n_leaves == 1: the lone leaf is itself the root (no fold, height 0).
+    if leaves.len() == 1 {
+        return AggregateOutput {
+            root: leaves.into_iter().next().unwrap(),
+            n_levels: 0,
+        };
+    }
+
+    // --- Level 0: consume ALL leaves into height-1 leaf-verifying (R1) nodes. After this every entry
+    //     is a NODE, so the shared up-tree fold sees only nodes (homogeneous, no carried leaf). ---
+    let sizes = level0_group_sizes(leaves.len(), k);
+    let mut leaves_iter = leaves.into_iter();
+    let groups: Vec<Vec<TreeProof>> = sizes
+        .iter()
+        .map(|&m| leaves_iter.by_ref().take(m).collect())
+        .collect();
+    let jobs: Vec<_> = groups
+        .iter()
+        .map(|children| move || prove_leaf_or_short(children, config, 1))
+        .collect();
+    let leaf_nodes: Vec<TreeProof> = pools.map(jobs);
+
+    // --- Levels ≥ 1: SHARED up-tree R2 fold over the height-1 leaf-nodes (byte-identical to the
+    //     base-fanning fold over base-nodes; a lone leaf-node is returned as the root at n_levels 1). ---
+    recursive_aggregate_prove(leaf_nodes, config, pools)
+}
+
+/// The preprocessed root a SHORT leaf-verifying (R1) node of the given `arity` (`2..=k-1`) reports —
+/// recomputed witness-independently over `leaf_shared_config`, byte-identical to what
+/// [`prove_leaf_or_short`] recomputes for the same shape ([`FoldMode::LeafR1R2`]). Pure function of
+/// the public `arity`.
+fn short_leaf_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> HashValue<QM31> {
+    let shared = NodeLevel::VerifiesLeaves.shared_config(config);
+    let pp = node_preprocessed_from_shared(
+        shared,
+        config.node_target_padding_sizes.clone(),
+        arity,
+    );
+    preprocessed_root(&pp, config.node_pcs_config.fri_config.log_blowup_factor)
+}
+
+/// The bottom-level input to the unpacker under [`FoldMode::LeafR1R2`]: the ordered standalone leaves
+/// (each a proved height-0 leaf `TreeProof` reporting `leaf_preprocessed_root`).
+pub struct LeafBottom {
+    /// The standalone leaves in canonical order (leaf `i` is shard `i`).
+    pub leaves: Vec<TreeProof>,
+}
+
 /// The published root-verification proof.
 pub struct RootVerificationOutput {
     /// The root verification's STARK proof — the single public artifact of the whole aggregation.
@@ -1147,6 +1467,200 @@ pub fn prove_root_verification(
     RootVerificationOutput {
         proof,
         leaf_outputs: bottom.bases.iter().map(|base| base.output_values).collect(),
+        trace_log_size,
+    }
+}
+
+/// Builds and proves the **root verification** for [`FoldMode::LeafR1R2`] — the parallel unpacker for
+/// the standalone-leaf topology. Same two phases as [`prove_root_verification`] (verify the root
+/// multiverifier proof in-circuit, then reconstruct + bind the tree root and emit the leaf outputs),
+/// but the BOTTOM reconstruction differs: it guesses each LEAF's `(leaf_preprocessed_root,
+/// output_values)`, groups the leaves into height-1 leaf-nodes via [`level0_group_sizes`] (each
+/// reporting R1 for a full-`k` group, else the recomputed short R1'(m)), then folds those up with the
+/// SHARED level-≥1 R2 group+carry (byte-identical to `prove_root_verification`). Reconstructs the same
+/// shape [`recursive_aggregate_prove_leaves`] folds.
+///
+/// `bottom.leaves` must be the same ordered leaves fed to [`recursive_aggregate_prove_leaves`], and
+/// `root` the returned root. Requires a `LeafR1R2` config.
+pub fn prove_root_verification_leaves(
+    root: &TreeProof,
+    bottom: &LeafBottom,
+    config: &AggregateConfig,
+    log_blowup_factor: u32,
+    zk_blind: Option<ZkBlind>,
+) -> RootVerificationOutput {
+    let leaves = &bottom.leaves;
+    let n = leaves.len();
+    assert!(!leaves.is_empty(), "need at least one leaf");
+    let leaf_preprocessed_root = config
+        .leaf_preprocessed_root
+        .clone()
+        .expect("leaf_preprocessed_root required for prove_root_verification_leaves (LeafR1R2 mode)");
+    // Fold arity `k` — must match the fold that built `root` + the unpacker's own group+carry.
+    let k = config.fold_arity;
+
+    // Exposes every leaf's N_RESERVED outputs.
+    let mut context = Context::<QM31>::new(n * N_RESERVED);
+
+    // (1) Verify the root multiverifier proof in-circuit (a NODE proof, node_shared_config / node PCS).
+    let circuit_config = CircuitConfig {
+        config: config.node_pcs_config,
+        n_outputs: N_RESERVED,
+        preprocessed_column_log_sizes: config
+            .node_shared_config
+            .preprocessed_column_log_sizes
+            .clone(),
+        preprocessed_root: root.preprocessed_root.clone(),
+    };
+    let statement = CircuitStatement::new(&mut context, &circuit_config, &root.output_values);
+    let proof_vars = root.proof.guess(&mut context);
+    verify(
+        &mut context,
+        &proof_vars,
+        &config.node_shared_config.proof_config,
+        &statement,
+    );
+    let root_out_vars: Vec<Var> = statement.get_output_values().to_vec();
+
+    // (2) Unpack: reconstruct the tree root from the guessed per-leaf outputs and bind it.
+    let guess_pp = |context: &mut Context<QM31>, pp: &HashValue<QM31>| -> HashValue<Var> {
+        pp.guess(context)
+    };
+    // One trusted leaf tree0 root for EVERY leaf (forces a shared leaf AIR).
+    let leaf_pp = guess_pp(&mut context, &leaf_preprocessed_root);
+    let mut leaf_output_vars: Vec<Vec<Var>> = Vec::with_capacity(n);
+    // Per-leaf entries (height 0), each carrying `leaf_pp` and its guessed outputs.
+    let mut leaf_entries: Vec<(usize, HashValue<Var>, Vec<Var>)> = leaves
+        .iter()
+        .map(|l| {
+            let outs: Vec<Var> = l
+                .output_values
+                .iter()
+                .map(|v| guess(&mut context, *v))
+                .collect();
+            leaf_output_vars.push(outs.clone());
+            (0usize, leaf_pp.clone(), outs)
+        })
+        .collect();
+
+    // Shared child-preimage hash for one ordered group — byte-identical to the in-circuit node hash in
+    // `build_multiverifier_circuit`.
+    let fold_hash = |context: &mut Context<QM31>,
+                     group: &[(usize, HashValue<Var>, Vec<Var>)]|
+     -> Vec<Var> {
+        let mut preimage: Vec<U32Wrapper<Var>> = Vec::new();
+        for (_, pp, outs) in group {
+            let output_words = unpack_qm31s_to_u32_words(context, outs.iter().copied());
+            preimage.extend(pp.iter().copied().chain(output_words));
+        }
+        let n_bytes = 4 * preimage.len();
+        let h = blake2s_u32s(context, preimage, n_bytes);
+        h.iter().map(|w| *w.get()).collect()
+    };
+
+    // `fold_group` folds one ordered group into a node, guessing the SAME reported preprocessed root
+    // the prover reported, selected by public (height, arity): R1 vs R2 (full-`k`) or the recomputed
+    // short root (short leaf-node R1'(m) / short root). A wrong selection makes the reconstructed root
+    // miss the verified root ⇒ REJECTED.
+    let fold_group = |context: &mut Context<QM31>,
+                      group: &[(usize, HashValue<Var>, Vec<Var>)]|
+     -> (usize, HashValue<Var>, Vec<Var>) {
+        let outs = fold_hash(context, group);
+        let height = group.iter().map(|(h, _, _)| *h).max().unwrap() + 1;
+        let level = NodeLevel::from_height(height);
+        let reported_root = if group.len() == k {
+            level.preprocessed_root(config)
+        } else if matches!(level, NodeLevel::VerifiesLeaves) {
+            short_leaf_node_preprocessed_root(config, group.len())
+        } else {
+            short_node_preprocessed_root(config, group.len())
+        };
+        let node_pp = guess_pp(context, &reported_root);
+        (height, node_pp, outs)
+    };
+
+    // --- BOTTOM (LEVEL 0): consume ALL leaves into height-1 leaf-nodes (per level0_group_sizes). ---
+    // n == 1: the lone leaf is itself the root (no fold), matching recursive_aggregate_prove_leaves.
+    let mut level: Vec<(usize, HashValue<Var>, Vec<Var>)> = if n == 1 {
+        leaf_entries
+    } else {
+        let sizes = level0_group_sizes(n, k);
+        let mut leaves_iter = leaf_entries.drain(..);
+        let level0: Vec<(usize, HashValue<Var>, Vec<Var>)> = sizes
+            .iter()
+            .map(|&m| {
+                let group: Vec<(usize, HashValue<Var>, Vec<Var>)> =
+                    (0..m).map(|_| leaves_iter.next().unwrap()).collect();
+                fold_group(&mut context, &group)
+            })
+            .collect();
+        drop(leaves_iter);
+        level0
+    };
+
+    // --- LEVELS ≥ 1: SHARED classic group+carry over NODES only (identical to prove_root_verification). ---
+    while level.len() > 1 {
+        if level.len() <= k {
+            let root = fold_group(&mut context, &level);
+            level = vec![root];
+            break;
+        }
+        let remainder = level.len() % k;
+        let carry: Vec<(usize, HashValue<Var>, Vec<Var>)> =
+            level.split_off(level.len() - remainder);
+        let mut next = Vec::with_capacity(level.len() / k + remainder);
+        for group in level.chunks(k) {
+            next.push(fold_group(&mut context, group));
+        }
+        next.extend(carry);
+        level = next;
+    }
+    // Bind the reconstructed root's eight digest words to the verified root's eight output words.
+    let computed_root = &level[0].2;
+    for i in 0..N_RESERVED {
+        eq(&mut context, computed_root[i], root_out_vars[i]);
+    }
+
+    // (3) Emit the unpacked per-leaf outputs as public outputs.
+    let flat_outputs: Vec<Var> = leaf_output_vars.iter().flatten().copied().collect();
+    context.set_outputs(&flat_outputs);
+
+    // (4) Finalize, (optionally) blind, pad, derive prove config, prove.
+    let mut context = context.finalize(false);
+    context.validate_circuit();
+    if let Some(zk) = zk_blind {
+        add_zk_blinding(&mut context, zk.seed, zk.n_padding);
+        context.validate_circuit();
+    }
+    pad_context(&mut context);
+    let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
+    let trace_log_size = preprocessed.trace_log_size;
+    let pcs_config = get_pcs_config(trace_log_size, log_blowup_factor);
+    let circuit_proof = prove_circuit_assignment(
+        context.values(),
+        &preprocessed,
+        &BaseColumnPool::<SimdBackend>::new(),
+        pcs_config,
+    )
+    .expect("root-verification prove failed");
+    let (proof, public_data) = prepare_circuit_proof_for_circuit_verifier(circuit_proof);
+
+    let verify_config = CircuitConfig {
+        config: pcs_config,
+        n_outputs: n * N_RESERVED,
+        preprocessed_column_log_sizes: preprocessed.preprocessed_trace.log_sizes(),
+        preprocessed_root: preprocessed_root(&preprocessed, log_blowup_factor),
+    };
+    verify_circuit(
+        verify_config,
+        proof.clone(),
+        CircuitPublicData { output_values: public_data.output_values },
+    )
+    .expect("root-verification proof failed to verify (final-proof sanity check)");
+
+    RootVerificationOutput {
+        proof,
+        leaf_outputs: leaves.iter().map(|l| l.output_values).collect(),
         trace_log_size,
     }
 }
@@ -1408,6 +1922,16 @@ impl AggregateConfig {
             self.node_preprocessed_root,
             "full-{k} node-node preprocessed root recompute != trusted R2",
         );
+        // LeafR1R2 mode: also check the R1 (leaf-verifying) full-`k` root against its recompute. The
+        // `decoupled_roots_consistent` regression test exercises this branch in the genuinely
+        // decoupled R1 != R2 regime. Skipped under base-fanning (no leaf tier).
+        if let Some(level1_root) = &self.level1_preprocessed_root {
+            assert_eq!(
+                short_leaf_node_preprocessed_root(self, k),
+                *level1_root,
+                "full-{k} leaf-node preprocessed root recompute != trusted R1",
+            );
+        }
     }
 }
 
