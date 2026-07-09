@@ -11,16 +11,8 @@ description = "CLI tool for running Cairo programs on the Cairo VM"
 bincode.workspace = true
 cairo-vm.workspace = true
 clap.workspace = true
-num-traits.workspace = true
-serde.workspace = true
 serde_json.workspace = true
-starknet-crypto.workspace = true
-starknet-types-core.workspace = true
 tempfile.workspace = true
-thiserror.workspace = true
-thiserror-no-std.workspace = true
-regex.workspace = true
-num-bigint.workspace = true
 cairo-program-runner-lib = { path = "../cairo-program-runner-lib", version = "1.0.0" }
 stwo-cairo-utils.workspace = true
 

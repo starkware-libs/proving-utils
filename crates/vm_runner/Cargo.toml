@@ -9,7 +9,6 @@ description = "VM runner for executing Cairo programs with STWO proving support"
 [dependencies]
 clap.workspace = true
 log.workspace = true
-num-traits.workspace = true
 serde_json.workspace = true
 stwo-cairo-utils.workspace = true
 stwo-cairo-adapter.workspace = true

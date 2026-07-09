@@ -11,14 +11,7 @@ slow-tests = []
 
 [dependencies]
 anyhow.workspace = true
-clap.workspace = true
 itertools.workspace = true
-log.workspace = true
-num-traits.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sonic-rs.workspace = true
-starknet-ff.workspace = true
 starknet-types-core.workspace = true
 tracing.workspace = true
 zstd.workspace = true
@@ -32,7 +25,6 @@ cairo-vm = { workspace = true, features = [
 
 # stwo cairo
 cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "68b4af6d" }
-stwo-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "68b4af6d" }
 stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "68b4af6d" }
 
 # stwo circuits
