@@ -445,7 +445,7 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
         {
             match subtask_cairo_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
                 // For cairo1 hint processors, we also ignore HintError::WrongHintData, since it
-                // if we reach a cairo1 hint procesor with a cairo0 hint, downcasting the hint data
+                // if we reach a cairo1 hint processor with a cairo0 hint, downcasting the hint data
                 // will fail and we will return the HintError::WrongHintData.
                 Err(HintError::UnknownHint(_)) | Err(HintError::WrongHintData) => {}
                 result => {
@@ -455,7 +455,7 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
         }
 
         // Since we don't want to ignore HintError::WrongHintData from the cairo0 hint processors,
-        // we assume all possbile cairo1 hint processors are matched first and since the extra
+        // we assume all possible cairo1 hint processors are matched first and since the extra
         // hint processor might contain a cairo1 hint processor, we need to match it straight after
         // the cairo1 hint processors.
         if let Some(extra_hint_processor) = self.extra_hint_processor.as_mut() {

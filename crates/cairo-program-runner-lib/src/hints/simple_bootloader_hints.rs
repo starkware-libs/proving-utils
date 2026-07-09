@@ -380,7 +380,7 @@ pub fn simulate_ecdsa_fill_mem_with_felt_96_bit_limbs(
     Ok(())
 }
 
-// TODO(Idan): Understand and fix these tests. some unavilable macros and files are used.
+// TODO(Idan): Understand and fix these tests. some unavailable macros and files are used.
 // #[cfg(test)]
 // mod tests {
 //     use std::any::Any;

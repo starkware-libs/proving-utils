@@ -20,7 +20,7 @@ use cairo_vm::vm::vm_core::VirtualMachine;
 ///     num - 1: HintReference::new_simple(-1),
 ///     num: HintReference::new_simple(0),
 /// }
-pub fn prepare_refrences_for_test(num: i32) -> std::collections::HashMap<usize, HintReference> {
+pub fn prepare_references_for_test(num: i32) -> std::collections::HashMap<usize, HintReference> {
     let mut references = std::collections::HashMap::<usize, HintReference>::new();
     for i in 0..num {
         references.insert(i as usize, HintReference::new_simple(i - num));
@@ -38,7 +38,7 @@ pub fn prepare_refrences_for_test(num: i32) -> std::collections::HashMap<usize, 
 /// }
 /// where num is the length of names.
 pub fn fill_ids_data_for_test(names: &[&str]) -> std::collections::HashMap<String, HintReference> {
-    let references = prepare_refrences_for_test(names.len() as i32);
+    let references = prepare_references_for_test(names.len() as i32);
     let mut ids_data = std::collections::HashMap::<String, HintReference>::new();
     for (i, name) in names.iter().enumerate() {
         ids_data.insert(name.to_string(), references.get(&i).unwrap().clone());

@@ -788,7 +788,7 @@ mod tests {
             .execute_hint_extensive(&mut vm, &mut exec_scopes, &any_box!(hint_data))
             .expect("Hint failed unexpectedly");
 
-        // Fibonnacci code should be loaded after the header whose size is 5 as checked in
+        // Fibonacci code should be loaded after the header whose size is 5 as checked in
         // test_load_program.
         let expected_code_address_offset = 5;
 
