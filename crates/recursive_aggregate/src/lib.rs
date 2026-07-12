@@ -143,6 +143,11 @@ pub struct TopologyConfig {
     pub base_log_blowup: u32,
     /// Recursion (node-node / root) FRI blowup factor. Default [`RECURSION_LOG_BLOWUP`].
     pub recursion_log_blowup: u32,
+    /// Leaf-wrap FRI blowup factor — the multiverifier leaf that verifies a base proof. Default
+    /// [`RECURSION_LOG_BLOWUP`] (env `LEAF_BLOWUP`), i.e. equal to `recursion_log_blowup` unless
+    /// overridden. Decoupled from the R1/R2 node blowup so the leaf-wrap trace/lift (which scales
+    /// with shots/shard) can be tuned independently; R1 verifies leaves at whatever this is.
+    pub leaf_log_blowup: u32,
     /// Node-node fold arity `k` (each internal R2 node verifies exactly `k` children). Default
     /// [`FOLD_ARITY`].
     pub fold_arity: usize,
@@ -163,6 +168,7 @@ impl Default for TopologyConfig {
         TopologyConfig {
             base_log_blowup: BASE_LOG_BLOWUP,
             recursion_log_blowup: RECURSION_LOG_BLOWUP,
+            leaf_log_blowup: RECURSION_LOG_BLOWUP,
             fold_arity: FOLD_ARITY,
             base_fan_arity: BASE_FAN_ARITY,
             shots_per_shard: SHOTS_PER_SHARD,
@@ -175,7 +181,8 @@ impl TopologyConfig {
     /// The topology config in effect, applying the env overrides existing sweep scripts rely on:
     /// `BASE_BLOWUP` → `base_log_blowup`, `BASE_FAN_ARITY` → `base_fan_arity` (clamped `>= 1`),
     /// `GATE_AIR_SHARD_SHOTS` → `shots_per_shard` (`> 0`), `GATE_AIR_FOLD_ARITY` → `fold_arity`
-    /// (clamped `>= 2`). `recursion_log_blowup` keeps its [`Default`] value (no env knob today). Unset /
+    /// (clamped `>= 2`), `LEAF_BLOWUP` → `leaf_log_blowup`. `recursion_log_blowup` keeps its [`Default`]
+    /// value (no env knob today). Unset /
     /// unparseable env vars fall back to the default, so with a clean environment this equals
     /// [`TopologyConfig::default`] exactly (in particular `fold_arity` stays 8 — a byte-identical no-op
     /// unless `GATE_AIR_FOLD_ARITY` is explicitly set, e.g. `=4` for the a2 sweep).
@@ -187,6 +194,7 @@ impl TopologyConfig {
         TopologyConfig {
             base_log_blowup: parse_env("BASE_BLOWUP").unwrap_or(d.base_log_blowup),
             recursion_log_blowup: d.recursion_log_blowup,
+            leaf_log_blowup: parse_env("LEAF_BLOWUP").unwrap_or(d.leaf_log_blowup),
             fold_arity: parse_env::<usize>("GATE_AIR_FOLD_ARITY")
                 .unwrap_or(d.fold_arity)
                 .max(2),
@@ -787,6 +795,37 @@ fn build_fold_topology(m_base_nodes: usize, k: usize) -> (Vec<FoldTask>, Child) 
     (tasks, level[0].1)
 }
 
+/// Proves ONE tier-≥1 fold task over its ordered `children`, dispatching EXACTLY as the sequential
+/// fold so every streaming path stays byte-identical to [`recursive_aggregate_prove`]. Every fold
+/// task is a node-node fold (height ≥ 2, verifies base-nodes/nodes ⇒ R2); its children arrive
+/// already proved:
+///   - the ROOT (`is_root`) ⇒ [`prove_short_node`] (the self-contained recompute path) even at
+///     arity `FOLD_ARITY` — the sequential terminal step ALWAYS uses it, so the streaming root must
+///     too;
+///   - every non-root internal node: full-`k` ⇒ [`prove_node`] (precompute, fixed R2), short
+///     (impossible for a non-root here) ⇒ [`prove_short_node`].
+///
+/// Pure function of `(children, is_root, height, config, pre)` — no channel / seed / scheduling
+/// state — so completion order cannot affect its bytes. Shared by BOTH streaming coordinators
+/// ([`recursive_aggregate_prove_streaming`] and [`recursive_aggregate_prove_leaves_streaming`]) so
+/// the tier-≥1 dispatch logic cannot diverge between them.
+fn run_fold_task(
+    children: &[TreeProof],
+    is_root: bool,
+    height: usize,
+    config: &AggregateConfig,
+    pre: &RecursionPrecompute,
+) -> TreeProof {
+    let k = config.fold_arity;
+    if is_root {
+        prove_short_node(children, config, height)
+    } else if children.len() == k {
+        prove_node(children, config, pre, height)
+    } else {
+        prove_short_node(children, config, height)
+    }
+}
+
 /// Streaming variant of [`recursive_aggregate_prove`]: folds base-nodes as they arrive over a
 /// channel, dispatching each fold to a [`PoolSet`] worker the instant all its children are ready — so
 /// the node-node fold runs concurrently with (and overlaps) the upstream base-node producer feeding
@@ -926,25 +965,12 @@ pub fn recursive_aggregate_prove_streaming(
                             .map(|slot| slot.take().unwrap())
                             .collect()
                     };
-                    // Dispatch EXACTLY as the sequential fold, so the two paths stay byte-identical.
-                    // Every fold task here is a node-node fold (height ≥ 2, verifies base-nodes/nodes
-                    // ⇒ R2) — base-nodes arrive already proved:
-                    //   - the ROOT (no parent) ⇒ `prove_short_node` (the self-contained recompute
-                    //     path) even at arity `FOLD_ARITY` — the sequential terminal step always uses
-                    //     it, so the streaming root must too;
-                    //   - every non-root internal node: full-`k` ⇒ `prove_node` (precompute, fixed
-                    //     R2), short (impossible for non-root) ⇒ `prove_short_node`.
+                    // Dispatch EXACTLY as the sequential fold (via the shared `run_fold_task`), so
+                    // the two paths stay byte-identical.
                     let is_root = node_parent[ti].is_none();
                     let height = tasks[ti].height;
-                    let result = pool.install(|| {
-                        if is_root {
-                            prove_short_node(&children, config, height)
-                        } else if children.len() == k {
-                            prove_node(&children, config, pre, height)
-                        } else {
-                            prove_short_node(&children, config, height)
-                        }
-                    });
+                    let result =
+                        pool.install(|| run_fold_task(&children, is_root, height, config, pre));
                     {
                         let mut st = state.lock().unwrap();
                         match node_parent[ti] {
@@ -1219,6 +1245,311 @@ pub fn recursive_aggregate_prove_leaves(
     // --- Levels ≥ 1: SHARED up-tree R2 fold over the height-1 leaf-nodes (byte-identical to the
     //     base-fanning fold over base-nodes; a lone leaf-node is returned as the root at n_levels 1). ---
     recursive_aggregate_prove(leaf_nodes, config, pre, pools)
+}
+
+/// The three job kinds the unified streaming coordinator schedules onto its single worker pool
+/// ([`recursive_aggregate_prove_leaves_streaming`], "hide the fold behind base-proving"). One
+/// ready-queue holds all three; workers are symmetric pull-workers, so there is no per-kind thread
+/// (no oversubscription) and no ordering hazard — ordering does NOT affect proof bytes (see the
+/// byte-identity invariants on `recursive_aggregate_prove_leaves_streaming`).
+#[derive(Clone, Copy)]
+enum Job {
+    /// Wrap the arrived producer input at leaf index `i` into leaf `i` (the injected AIR-specific
+    /// wrap closure). Producer-driven: enqueued when `(i, w)` arrives on `rx`.
+    Wrap(usize),
+    /// Prove level-0 (leaf→R1) group `g` over its contiguous `level0_group_sizes` leaf range. Ready
+    /// when all of the group's leaves have been wrapped.
+    R1(usize),
+    /// Prove tier-≥1 fold task `t` (the shared node-node R2 fold, [`build_fold_topology`]). Ready
+    /// when all its children (R1 nodes / earlier fold nodes) are available.
+    Fold(usize),
+}
+
+/// Overlapped ("hide the fold behind base-proving", Model 1) variant of
+/// [`recursive_aggregate_prove_leaves`]: wraps the streamed producer inputs into leaves AND folds
+/// the whole tree (level-0 leaf→R1 layer + shared up-tree R2 fold) PROGRESSIVELY, as leaves and
+/// nodes become ready — concurrently with the still-arriving producer feeding `rx`. This lets the
+/// GPU base-producer overlap with the CPU wrap + fold instead of the fold running as a separate tail
+/// after every leaf is collected.
+///
+/// LEAF-AGNOSTIC: the AIR-specific leaf-wrap is INJECTED as `wrap: impl Fn(W) -> TreeProof` and the
+/// producer's per-leaf input `W` is generic, so this crate stays leaf-type-agnostic (gate-air-leaf
+/// passes its `make_base` + `prove_gate_air_leaf` as `wrap`, and streams `(leaf_idx, base)`). The
+/// heavy `wrap` runs INSIDE a pool worker (`pool.install`).
+///
+/// Streaming schedule (Model 1): one coordinator owns the dataflow state; `pools.n_pools()` SYMMETRIC
+/// pull-workers each pull one ready [`Job`] and run it on their pool's cores. The single ready-queue
+/// holds three job kinds — `Wrap` (producer-driven), `R1` (ready when its group's leaves are all
+/// wrapped), `Fold` (ready when its children are available). Fold-priority (`Fold` > `R1` > `Wrap`)
+/// drains sub-trees first to bound host RAM; because every prove is a pure function of its ordered
+/// inputs, this priority — and the resulting completion order — does NOT change any proof bytes.
+///
+/// BYTE-IDENTITY: the result is byte-identical to [`recursive_aggregate_prove_leaves`] for the same
+/// ordered leaves. Topology is FIXED up front by the SAME [`level0_group_sizes`] (tier 0) +
+/// [`build_fold_topology`] (tier ≥ 1) and does not depend on completion order; child ordering is by
+/// INDEX (leaf `i` → group `group_of(i)` at slot `i - offset`; tier-≥1 children in their fixed
+/// [`FoldTask`] slots), and every node dispatch uses the SAME predicates via [`prove_leaf_or_short`]
+/// (tier 0) and [`run_fold_task`] (tier ≥ 1). Out-of-order completion only changes WHEN a slot fills.
+///
+/// Returns BOTH the ordered `Vec<TreeProof>` leaves (leaf `i` = the wrap of the input streamed with
+/// index `i`) — for the `LeafBottom` unpacker + the fingerprint's base-nodes — AND the same
+/// [`AggregateOutput`] as [`recursive_aggregate_prove_leaves`].
+///
+/// Consumes exactly `n_leaves` items from `rx` (in ARBITRARY arrival order; each tagged with its
+/// canonical leaf index). Edge cases: `n_leaves == 1` recvs the one input, wraps it, and returns it
+/// as the root (`n_levels == 0`), no workers; `2 <= n_leaves <= k` yields `M == 1` so the single
+/// level-0 R1 node IS the root (`n_levels == 1`).
+///
+/// # Panics
+/// If `n_leaves == 0`, if the config lacks the `LeafR1R2` extras, if `rx` yields fewer than
+/// `n_leaves` items, or if any leaf index arrives twice / out of `0..n_leaves`. A `wrap` panic (or a
+/// fold panic) re-panics on the parent via `thread::scope` join — no hang, no silent drop.
+pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
+    rx: std::sync::mpsc::Receiver<(usize, W)>,
+    n_leaves: usize,
+    wrap: impl Fn(W) -> TreeProof + Sync,
+    config: &AggregateConfig,
+    pre: &RecursionPrecompute,
+    pools: &PoolSet,
+) -> (Vec<TreeProof>, AggregateOutput) {
+    assert!(n_leaves >= 1, "need at least one leaf");
+    assert!(
+        config.leaf_shared_config.is_some(),
+        "recursive_aggregate_prove_leaves_streaming requires a LeafR1R2 config (leaf_shared_config present)"
+    );
+    let k = config.fold_arity;
+
+    // n_leaves == 1: the lone wrapped leaf is itself the root (no fold, height 0). Mirror
+    // `recursive_aggregate_prove_leaves`. No workers.
+    if n_leaves == 1 {
+        let (idx, w) = rx.recv().expect("streaming leaves fold: missing leaf 0");
+        assert_eq!(idx, 0, "single-leaf stream must carry index 0");
+        let leaf = wrap(w);
+        let out = AggregateOutput { root: leaf.clone(), n_levels: 0 };
+        return (vec![leaf], out);
+    }
+
+    // --- Tier 0 (leaf→R1) topology: contiguous leaf groups, a pure function of public (n, k). ---
+    let sizes = level0_group_sizes(n_leaves, k);
+    let m = sizes.len(); // number of R1 nodes (= build_fold_topology's base-node count)
+    debug_assert_eq!(
+        sizes.iter().sum::<usize>(),
+        n_leaves,
+        "level0 groups must cover all leaves"
+    );
+    // leaf i -> (group g, slot within group). Contiguous left-to-right: leaf i is slot `s` of group
+    // `g` (byte-identity invariant 2: child ordering is by index).
+    let leaf_group: Vec<(usize, usize)> = sizes
+        .iter()
+        .enumerate()
+        .flat_map(|(g, &sz)| (0..sz).map(move |s| (g, s)))
+        .collect();
+    debug_assert_eq!(leaf_group.len(), n_leaves);
+
+    // --- Tier ≥ 1 (R2 up-tree) topology over the m R1 nodes: reuse the SAME fixed DAG the sequential
+    //     fold realizes. Here `Child::Leaf(g)` denotes R1 node g's output. ---
+    let (tasks, root_ref) = build_fold_topology(m, k);
+
+    // Per-task readiness (mirrors `recursive_aggregate_prove_streaming`): which task+slot consumes
+    // each R1 node output / each fold node output, and each task's pending-child count.
+    let mut r1_parent: Vec<Option<(usize, usize)>> = vec![None; m];
+    let mut node_parent: Vec<Option<(usize, usize)>> = vec![None; tasks.len()];
+    let mut fold_pending: Vec<usize> = vec![0; tasks.len()];
+    let fold_arity_of: Vec<usize> = tasks.iter().map(|t| t.children.len()).collect();
+    for (ti, t) in tasks.iter().enumerate() {
+        for (slot, ch) in t.children.iter().enumerate() {
+            fold_pending[ti] += 1;
+            match ch {
+                Child::Leaf(g) => r1_parent[*g] = Some((ti, slot)),
+                Child::Node(j) => node_parent[*j] = Some((ti, slot)),
+            }
+        }
+    }
+
+    // Dataflow state shared between the coordinator and the workers. Three ready sub-queues, popped
+    // Fold > R1 > Wrap (drains sub-trees first to bound host RAM; ordering is byte-irrelevant).
+    struct State<W> {
+        // Tier 0: pending producer inputs (awaiting a Wrap worker), per-group remaining leaf count,
+        // and each group's resolved leaf inputs (slotted by index).
+        wrap_inputs: Vec<Option<W>>,
+        r1_remaining: Vec<usize>,
+        r1_inputs: Vec<Vec<Option<TreeProof>>>,
+        // Tier ≥ 1: resolved child inputs + pending child counts (as in the base-node streamer).
+        fold_inputs: Vec<Vec<Option<TreeProof>>>,
+        fold_pending: Vec<usize>,
+        // Ready sub-queues (Fold-priority).
+        ready_fold: std::collections::VecDeque<usize>,
+        ready_r1: std::collections::VecDeque<usize>,
+        ready_wrap: std::collections::VecDeque<usize>,
+        // Ordered leaves to return (leaf i = wrap of input streamed with index i).
+        leaves_out: Vec<Option<TreeProof>>,
+        done: usize,
+        // Root proof, captured when the no-parent node (an R1 node if m == 1, else a fold task)
+        // completes.
+        root: Option<TreeProof>,
+    }
+    // Total scheduled jobs: n_leaves wraps + m R1 nodes + tasks.len() fold tasks.
+    let n_jobs = n_leaves + m + tasks.len();
+    let state = std::sync::Mutex::new(State::<W> {
+        wrap_inputs: (0..n_leaves).map(|_| None).collect(),
+        r1_remaining: sizes.clone(),
+        r1_inputs: sizes.iter().map(|&s| (0..s).map(|_| None).collect()).collect(),
+        fold_inputs: fold_arity_of
+            .iter()
+            .map(|&a| (0..a).map(|_| None).collect())
+            .collect(),
+        fold_pending,
+        ready_fold: std::collections::VecDeque::new(),
+        ready_r1: std::collections::VecDeque::new(),
+        ready_wrap: std::collections::VecDeque::new(),
+        leaves_out: (0..n_leaves).map(|_| None).collect(),
+        done: 0,
+        root: None,
+    });
+    let cv = std::sync::Condvar::new();
+
+    // Deliver a completed fold/R1 node output into its consuming tier-≥1 task (or capture the root
+    // when there is no parent). Mutates `st` under its lock.
+    let deliver_node = |st: &mut State<W>, parent: Option<(usize, usize)>, proof: TreeProof| {
+        match parent {
+            Some((ti, slot)) => {
+                st.fold_inputs[ti][slot] = Some(proof);
+                st.fold_pending[ti] -= 1;
+                if st.fold_pending[ti] == 0 {
+                    st.ready_fold.push_back(ti);
+                }
+            }
+            None => st.root = Some(proof), // the root (m == 1 ⇒ R1 node 0; else the root fold task)
+        }
+    };
+
+    let n_workers = pools.n_pools().max(1);
+    std::thread::scope(|s| {
+        for pool in pools.pools.iter().take(n_workers) {
+            let state = &state;
+            let cv = &cv;
+            let deliver_node = &deliver_node;
+            let r1_parent = &r1_parent;
+            let node_parent = &node_parent;
+            let leaf_group = &leaf_group;
+            let sizes = &sizes;
+            let tasks = &tasks;
+            let wrap = &wrap;
+            s.spawn(move || {
+                loop {
+                    // Pull one ready job, Fold > R1 > Wrap (drains sub-trees; byte-irrelevant order).
+                    let job = {
+                        let mut st = state.lock().unwrap();
+                        loop {
+                            if let Some(t) = st.ready_fold.pop_front() {
+                                break Job::Fold(t);
+                            }
+                            if let Some(g) = st.ready_r1.pop_front() {
+                                break Job::R1(g);
+                            }
+                            if let Some(i) = st.ready_wrap.pop_front() {
+                                break Job::Wrap(i);
+                            }
+                            if st.done == n_jobs {
+                                return;
+                            }
+                            st = cv.wait(st).unwrap();
+                        }
+                    };
+                    match job {
+                        // --- Tier 0a: wrap producer input `i` into leaf `i` (injected AIR closure). ---
+                        Job::Wrap(i) => {
+                            let w = {
+                                let mut st = state.lock().unwrap();
+                                st.wrap_inputs[i].take().expect("wrap input missing")
+                            };
+                            let leaf = pool.install(|| wrap(w));
+                            let (g, slot) = leaf_group[i];
+                            let mut st = state.lock().unwrap();
+                            // Record the ordered leaf for the caller's return + slot it into its R1
+                            // group by INDEX (byte-identity invariant 2).
+                            st.leaves_out[i] = Some(leaf.clone());
+                            st.r1_inputs[g][slot] = Some(leaf);
+                            st.r1_remaining[g] -= 1;
+                            if st.r1_remaining[g] == 0 {
+                                st.ready_r1.push_back(g);
+                            }
+                            st.done += 1;
+                            cv.notify_all();
+                        }
+                        // --- Tier 0b: prove level-0 (leaf→R1) group `g` (full-k or short). ---
+                        Job::R1(g) => {
+                            let children: Vec<TreeProof> = {
+                                let mut st = state.lock().unwrap();
+                                st.r1_inputs[g]
+                                    .iter_mut()
+                                    .map(|slot| slot.take().unwrap())
+                                    .collect()
+                            };
+                            debug_assert_eq!(children.len(), sizes[g]);
+                            // R1 nodes are always height 1; `prove_leaf_or_short` dispatches full-k
+                            // vs short exactly as `recursive_aggregate_prove_leaves`'s level-0 layer.
+                            let result =
+                                pool.install(|| prove_leaf_or_short(&children, config, pre, 1));
+                            let mut st = state.lock().unwrap();
+                            deliver_node(&mut st, r1_parent[g], result);
+                            st.done += 1;
+                            cv.notify_all();
+                        }
+                        // --- Tier ≥ 1: shared node-node R2 fold task (byte-identical dispatch). ---
+                        Job::Fold(ti) => {
+                            let children: Vec<TreeProof> = {
+                                let mut st = state.lock().unwrap();
+                                st.fold_inputs[ti]
+                                    .iter_mut()
+                                    .map(|slot| slot.take().unwrap())
+                                    .collect()
+                            };
+                            let is_root = node_parent[ti].is_none();
+                            let height = tasks[ti].height;
+                            let result = pool
+                                .install(|| run_fold_task(&children, is_root, height, config, pre));
+                            let mut st = state.lock().unwrap();
+                            deliver_node(&mut st, node_parent[ti], result);
+                            st.done += 1;
+                            cv.notify_all();
+                        }
+                    }
+                }
+            });
+        }
+
+        // Coordinator: drain the producer inputs (arbitrary order, each tagged with its leaf index)
+        // and enqueue a Wrap job per input, so wrap + R1 + fold overlap the still-arriving producer.
+        for _ in 0..n_leaves {
+            let (idx, w) = rx
+                .recv()
+                .expect("streaming leaves fold: fewer inputs than n_leaves");
+            assert!(idx < n_leaves, "leaf index {idx} out of range");
+            let mut st = state.lock().unwrap();
+            assert!(st.wrap_inputs[idx].is_none(), "leaf index {idx} arrived twice");
+            st.wrap_inputs[idx] = Some(w);
+            st.ready_wrap.push_back(idx);
+            cv.notify_all();
+        }
+    });
+
+    // All jobs complete; assemble the ordered leaves + the root.
+    let mut st = state.into_inner().unwrap();
+    let leaves: Vec<TreeProof> = st
+        .leaves_out
+        .iter_mut()
+        .enumerate()
+        .map(|(i, l)| l.take().unwrap_or_else(|| panic!("leaf {i} missing after streaming fold")))
+        .collect();
+    let root = st.root.take().expect("root not produced");
+    // n_levels mirrors `recursive_aggregate_prove_leaves` -> `recursive_aggregate_prove`: m == 1 ⇒
+    // the lone R1 node is the root at height 1; else the root fold task's height.
+    let n_levels = match root_ref {
+        Child::Leaf(_) => 1, // m == 1: the single level-0 R1 node is the root
+        Child::Node(j) => tasks[j].height,
+    };
+    (leaves, AggregateOutput { root, n_levels })
 }
 
 /// The preprocessed root a SHORT leaf-verifying (R1) node of the given `arity` (`2..=k-1`) reports —
@@ -2288,7 +2619,10 @@ pub fn multiverifier_node_preprocessed(
 
 #[cfg(test)]
 mod topology_tests {
-    use super::{Child, FOLD_ARITY, base_fan_group_sizes, build_fold_topology, root_arity};
+    use super::{
+        Child, FOLD_ARITY, base_fan_group_sizes, build_fold_topology, level0_group_sizes,
+        root_arity,
+    };
 
     /// The arity these topology tests run at — the [`TopologyConfig`](super::TopologyConfig) default
     /// (`fold_arity = FOLD_ARITY`). Threaded explicitly into `build_fold_topology`/`root_arity` (which
@@ -2531,6 +2865,211 @@ mod topology_tests {
                     if gi + 1 < sizes.len() {
                         assert_eq!(m, b, "b={b} n={n}: non-last group {gi} must be full-b");
                     }
+                }
+            }
+        }
+    }
+
+    // =====================================================================================
+    // Two-tier (leaf→R1→R2) streaming DAG topology tests ([`recursive_aggregate_prove_leaves_
+    // streaming`], Model 1). SYMBOLIC — no proving. They prove that the coordinator's fixed DAG
+    // (tier 0 = `level0_group_sizes`, tier ≥ 1 = `build_fold_topology` over the R1 nodes) folds
+    // the SAME tree, with the SAME per-node child ordering, that `recursive_aggregate_prove_leaves`
+    // realizes — the byte-identity invariant the streaming path relies on.
+    // =====================================================================================
+
+    /// A symbolic two-tier tree shape over standalone leaves: `Leaf(i)` = leaf i, `R1(children)` =
+    /// a level-0 leaf-verifying node over its leaves, `R2(children)` = a node-node fold over R1/R2
+    /// nodes. Index-aware, so it captures the byte-identity-relevant child ordering at every node.
+    #[derive(PartialEq, Eq, Debug)]
+    enum LeafShape {
+        Leaf(usize),
+        R1(Vec<LeafShape>),
+        R2(Vec<LeafShape>),
+    }
+
+    /// The tree `recursive_aggregate_prove_leaves` realizes over `n` leaves: level 0 slices the
+    /// leaves into `level0_group_sizes(n, k)` contiguous R1 nodes, then the SHARED up-tree fold
+    /// (`recursive_aggregate_prove`, mirrored by `sequential_shape` over the m R1 nodes) folds those
+    /// into the root. `n == 1` ⇒ the lone leaf is the root (no R1). Reference for the streaming DAG.
+    fn sequential_leaf_shape(n: usize) -> LeafShape {
+        if n == 1 {
+            return LeafShape::Leaf(0);
+        }
+        // Tier 0: contiguous leaf groups → R1 nodes (indices 0..m in left-to-right leaf order).
+        let sizes = level0_group_sizes(n, K);
+        let mut next_leaf = 0usize;
+        let r1_nodes: Vec<LeafShape> = sizes
+            .iter()
+            .map(|&sz| {
+                let children = (0..sz)
+                    .map(|_| {
+                        let l = LeafShape::Leaf(next_leaf);
+                        next_leaf += 1;
+                        l
+                    })
+                    .collect();
+                LeafShape::R1(children)
+            })
+            .collect();
+        assert_eq!(next_leaf, n);
+        let m = r1_nodes.len();
+        // Tier ≥ 1: the classic group+carry over the m R1 nodes (same loop as `sequential_shape`),
+        // but the height-1 inputs are the R1 nodes themselves. m == 1 ⇒ that R1 node IS the root.
+        if m == 1 {
+            return r1_nodes.into_iter().next().unwrap();
+        }
+        let mut level: Vec<LeafShape> = r1_nodes;
+        while level.len() > 1 {
+            if level.len() <= K {
+                return LeafShape::R2(level);
+            }
+            let remainder = level.len() % K;
+            let carry: Vec<LeafShape> = level.split_off(level.len() - remainder);
+            let mut nxt: Vec<LeafShape> = Vec::new();
+            let mut iter = level.into_iter().peekable();
+            while iter.peek().is_some() {
+                let group: Vec<LeafShape> = iter.by_ref().take(K).collect();
+                nxt.push(LeafShape::R2(group));
+            }
+            nxt.extend(carry);
+            level = nxt;
+        }
+        level.into_iter().next().unwrap()
+    }
+
+    /// The tree the STREAMING coordinator realizes over `n` leaves, reconstructed purely from the
+    /// two fixed topology functions: tier 0 = `level0_group_sizes(n, k)` (contiguous leaf→R1
+    /// grouping, leaf i at slot `i-offset` of its group), tier ≥ 1 = `build_fold_topology(m, k)`
+    /// where `Child::Leaf(g)` = R1 node g. Mirrors exactly how the coordinator slots inputs.
+    fn streaming_leaf_shape(n: usize) -> LeafShape {
+        if n == 1 {
+            return LeafShape::Leaf(0);
+        }
+        let sizes = level0_group_sizes(n, K);
+        // R1 node g's children are the contiguous leaf range [off, off+sz).
+        let mut off = 0usize;
+        let r1_shapes: Vec<LeafShape> = sizes
+            .iter()
+            .map(|&sz| {
+                let children = (off..off + sz).map(LeafShape::Leaf).collect();
+                off += sz;
+                LeafShape::R1(children)
+            })
+            .collect();
+        assert_eq!(off, n);
+        let m = r1_shapes.len();
+        let (tasks, root) = build_fold_topology(m, K);
+        // Resolve a tier-≥1 child: `Child::Leaf(g)` is R1 node g; `Child::Node(j)` is fold task j.
+        fn resolve(c: Child, tasks: &[super::FoldTask], r1: &[LeafShape]) -> LeafShape {
+            match c {
+                Child::Leaf(g) => clone_shape(&r1[g]),
+                Child::Node(j) => LeafShape::R2(
+                    tasks[j]
+                        .children
+                        .iter()
+                        .map(|&ch| resolve(ch, tasks, r1))
+                        .collect(),
+                ),
+            }
+        }
+        fn clone_shape(s: &LeafShape) -> LeafShape {
+            match s {
+                LeafShape::Leaf(i) => LeafShape::Leaf(*i),
+                LeafShape::R1(c) => LeafShape::R1(c.iter().map(clone_shape).collect()),
+                LeafShape::R2(c) => LeafShape::R2(c.iter().map(clone_shape).collect()),
+            }
+        }
+        resolve(root, &tasks, &r1_shapes)
+    }
+
+    /// The streaming two-tier DAG folds the IDENTICAL tree `recursive_aggregate_prove_leaves`
+    /// realizes — same tier-0 leaf→R1 grouping, same up-tree R2 nesting, same leaf-index→slot
+    /// assignment at every node. Since `prove_leaf_or_short`/`run_fold_task` are pure functions of
+    /// their ordered children, identical shape ⇒ identical proof bytes. Swept over the required
+    /// n ∈ {1, 2, k, k+1, ragged r==1, ~2k+3} PLUS a dense 1..=260 sweep (all residues, several
+    /// levels, power-of-k boundaries).
+    #[test]
+    fn streaming_leaf_topology_matches_sequential() {
+        let required = [1usize, 2, K, K + 1, 2 * K + 1, 2 * K + 3];
+        for &n in required.iter() {
+            assert_eq!(
+                streaming_leaf_shape(n),
+                sequential_leaf_shape(n),
+                "two-tier leaf DAG diverges from recursive_aggregate_prove_leaves at n={n}"
+            );
+        }
+        for n in 1..=260usize {
+            assert_eq!(
+                streaming_leaf_shape(n),
+                sequential_leaf_shape(n),
+                "two-tier leaf DAG diverges from recursive_aggregate_prove_leaves at n={n}"
+            );
+        }
+    }
+
+    /// Tier-0 group assignment IS `level0_group_sizes` slicing: leaves land contiguously,
+    /// left-to-right, each R1 node consuming exactly its group size; every leaf index appears once,
+    /// in order. Pins n=k+1 (r==1 splits into k-1 and 2) as a worked example.
+    #[test]
+    fn tier0_group_assignment_matches_level0_sizes() {
+        assert_eq!(K, 8, "the k+1 (r==1) pin is written for k=8 (the TopologyConfig default)");
+        // n = k+1 = 9 (r==1): level0_group_sizes → [k-1, 2] = [7, 2]. So R1(0) = leaves 0..7,
+        // R1(1) = leaves 7..9.
+        use LeafShape::{Leaf, R1};
+        let n9 = R1(vec![
+            R1((0..7).map(Leaf).collect()),
+            R1((7..9).map(Leaf).collect()),
+        ]);
+        // n=9 ⇒ m=2 R1 nodes, m <= k ⇒ the R2 root folds them; but the SHAPE at tier 0 is these two
+        // R1 nodes. Reconstruct the tier-0 layer directly and compare.
+        assert_eq!(
+            streaming_leaf_shape(9),
+            LeafShape::R2(vec![
+                R1((0..7).map(Leaf).collect()),
+                R1((7..9).map(Leaf).collect()),
+            ]),
+            "n=9 (r==1) tier-0 grouping wrong"
+        );
+        let _ = n9; // documents the R1-node shapes the R2 root wraps
+
+        // General: every leaf index 0..n appears exactly once, contiguous per group, per
+        // level0_group_sizes, across all required + a dense sweep.
+        for n in 2..=260usize {
+            let sizes = level0_group_sizes(n, K);
+            let shape = streaming_leaf_shape(n);
+            let mut collected: Vec<usize> = Vec::new();
+            collect_r1_leaf_indices(&shape, &mut collected);
+            let expected: Vec<usize> = (0..n).collect();
+            assert_eq!(collected, expected, "n={n}: leaves not consumed contiguously in order");
+            // Group sizes read back off the R1 nodes match level0_group_sizes exactly.
+            let mut r1_sizes: Vec<usize> = Vec::new();
+            collect_r1_sizes(&shape, &mut r1_sizes);
+            assert_eq!(r1_sizes, sizes, "n={n}: R1 group sizes != level0_group_sizes");
+        }
+    }
+
+    /// Depth-first collect of leaf indices under every R1 node (left-to-right) — the order the
+    /// tier-0 layer consumes leaves.
+    fn collect_r1_leaf_indices(s: &LeafShape, out: &mut Vec<usize>) {
+        match s {
+            LeafShape::Leaf(i) => out.push(*i),
+            LeafShape::R1(c) | LeafShape::R2(c) => {
+                for ch in c {
+                    collect_r1_leaf_indices(ch, out);
+                }
+            }
+        }
+    }
+
+    /// Depth-first collect of each R1 node's arity (left-to-right) — the tier-0 group sizes.
+    fn collect_r1_sizes(s: &LeafShape, out: &mut Vec<usize>) {
+        match s {
+            LeafShape::Leaf(_) => {}
+            LeafShape::R1(c) => out.push(c.len()),
+            LeafShape::R2(c) => {
+                for ch in c {
+                    collect_r1_sizes(ch, out);
                 }
             }
         }
