@@ -201,7 +201,6 @@ fn build_decoupled_config() -> AggregateConfig {
         node_preprocessed_root,
         node_target_padding_sizes: node_target,
         node_pcs_config: node_pcs,
-        node_precompute: None,
         fold_arity: FOLD_ARITY,
         // Base-fanning-only fields — UNUSED by this test (it never touches a base/base-node). Set to
         // the leaf root so the struct is well-formed; `assert_full_arity_roots_consistent` only reads
@@ -214,9 +213,8 @@ fn build_decoupled_config() -> AggregateConfig {
         leaf_preprocessed_root: Some(leaf_preprocessed_root),
         leaf_target_padding_sizes: Some(leaf_target),
         leaf_pcs_config: Some(pcs),
-        // No precomputes: this test builds preprocessed circuits only, never proves.
-        level1_precompute: None,
-        leaf_precompute: None,
+        // No precomputes: this test builds preprocessed circuits only, never proves. The precompute
+        // fields now live on a separate `RecursionPrecompute` (unused here).
     }
 }
 

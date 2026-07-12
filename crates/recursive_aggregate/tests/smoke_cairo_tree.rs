@@ -23,9 +23,9 @@ use circuits_stark_verifier::proof::ProofConfig;
 use std::sync::Arc;
 
 use recursive_aggregate::{
-    AggregateConfig, CircuitPrecompute, FOLD_ARITY, LeafBottom, PoolSet, TreeProof, ZkBlind,
-    node_preprocessed_from_shared, preprocessed_root, prove_root_verification_leaves,
-    recursive_aggregate_prove_leaves,
+    AggregateConfig, CircuitPrecompute, FOLD_ARITY, LeafBottom, PoolSet, RecursionPrecompute,
+    TreeProof, ZkBlind, node_preprocessed_from_shared, preprocessed_root,
+    prove_root_verification_leaves, recursive_aggregate_prove_leaves,
 };
 use stwo::core::fields::m31::M31;
 use stwo::core::fields::qm31::QM31;
@@ -144,7 +144,7 @@ fn multiverifier_preprocessed_column_log_sizes() -> OrderedHashMap<PreProcessedC
     .collect()
 }
 
-fn aggregate_config() -> AggregateConfig {
+fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
     let pcs_config = get_pcs_config(PRIVACY_CAIRO_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR);
     let proof_config = ProofConfig::new(
         &all_circuit_components::<QM31>(),
@@ -185,13 +185,12 @@ fn aggregate_config() -> AggregateConfig {
     // both shared configs are the same. `node_shared_config` is used both to build node-verifying
     // nodes and to verify the root in the unpacker.
     let leaf_preprocessed_root = HashValue::from(PRIVACY_CAIRO_VERIFIER_PREPROCESSED_ROOT);
-    AggregateConfig {
+    let config = AggregateConfig {
         // Shared / R2 (base-fanning) fields — real values, used by the shared up-tree fold.
         node_shared_config: shared_config,
         node_preprocessed_root: node_preprocessed_root.clone(),
         node_target_padding_sizes: target_padding_sizes(),
         node_pcs_config: pcs_config,
-        node_precompute: node_precompute.clone(),
         fold_arity: FOLD_ARITY,
         // Base-fanning-only fields — UNUSED under FoldMode::LeafR1R2 (this smoke test's mode). Set to
         // the leaf root so the struct is well-formed; the leaf unpacker never reads them.
@@ -204,9 +203,15 @@ fn aggregate_config() -> AggregateConfig {
         leaf_preprocessed_root: Some(leaf_preprocessed_root),
         leaf_target_padding_sizes: Some(target_padding_sizes()),
         leaf_pcs_config: Some(pcs_config),
+    };
+    // Precompute now lives in a separate `RecursionPrecompute` (decoupled from the config). Cairo
+    // stand-in: leaves share the node shape, so R1 == R2 → reuse the node precompute for level1 too.
+    let pre = RecursionPrecompute {
+        node_precompute: node_precompute.clone(),
         level1_precompute: node_precompute,
         leaf_precompute: None,
-    }
+    };
+    (config, pre)
 }
 
 fn load_cairo_leaves(config: &AggregateConfig, n: usize) -> Vec<TreeProof> {
@@ -355,11 +360,11 @@ fn smoke_fold_four_cairo_leaves() {
         );
         return;
     }
-    let config = aggregate_config();
+    let (config, pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
 
     let t0 = Instant::now();
-    let out = recursive_aggregate_prove_leaves(leaves, &config, &test_pools());
+    let out = recursive_aggregate_prove_leaves(leaves, &config, &pre, &test_pools());
     let elapsed = t0.elapsed();
 
     // At k=FOLD_ARITY (=8), 4 leaves (< k) fold in ONE level into a single short 4-child root.
@@ -395,7 +400,7 @@ fn mv_tree_root_output_two_phase() {
         return;
     }
     assert_eq!(FOLD_ARITY, 8, "this hand-rolled shape is written for k=8");
-    let config = aggregate_config();
+    let (config, _pre) = aggregate_config();
     let base = load_cairo_leaves(&config, 1).pop().unwrap();
     let node_pp = config.node_preprocessed_root.clone();
     let q = |a: u32| QM31::from_m31_array([M31(a), M31(0), M31(0), M31(0)]);
@@ -449,7 +454,7 @@ fn opener_recomputes_known_root() {
         eprintln!("opener_recomputes_known_root: SKIPPED. Set GATE_AIR_HEAVY_RECURSION=1 to run.");
         return;
     }
-    let config = aggregate_config();
+    let (config, _pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
 
     let root = mv_tree_root_output(&leaves, config.node_preprocessed_root);
@@ -487,10 +492,10 @@ fn smoke_root_verification() {
         );
         return;
     }
-    let config = aggregate_config();
+    let (config, pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
 
-    let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &test_pools());
+    let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &pre, &test_pools());
 
     let t0 = Instant::now();
     let bottom = LeafBottom { leaves: leaves.clone() };
@@ -532,9 +537,9 @@ fn smoke_root_verification_zk_blinded() {
         );
         return;
     }
-    let config = aggregate_config();
+    let (config, pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
-    let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &test_pools());
+    let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &pre, &test_pools());
 
     let n_queries = get_pcs_config(PRIVACY_CAIRO_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR)
         .fri_config
