@@ -1,7 +1,11 @@
+use std::fs::read_to_string;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use cairo_air::verifier::INTERACTION_POW_BITS;
-use cairo_program_runner_lib::utils::get_cairo_run_config;
+use cairo_program_runner_lib::utils::{
+    get_cairo_run_config, get_program, get_program_input_from_path,
+};
 use cairo_program_runner_lib::{ProgramInput, cairo_run_program};
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
@@ -35,6 +39,39 @@ use tracing::info;
 use crate::consts::{
     DISABLED_COMPONENTS_CANONICAL_PREPROCESSED, DISABLED_COMPONENTS_SMALL_PREPROCESSED,
 };
+
+/// File-path front end of [`prove_leaf`]: loads the compiled program, program input, and the two
+/// prover parameter JSONs from disk. Used by the binary's `main` and by tests that drive the leaf
+/// prover end-to-end.
+pub fn prove_leaf_from_files(
+    program_path: &Path,
+    program_input: &Option<PathBuf>,
+    cairo_prover_params_json: &Path,
+    circuit_prover_pcs_config: PcsConfig,
+) -> SerializedLeafProof {
+    let program = get_program(program_path)
+        .unwrap_or_else(|err| panic!("Cannot get program from {}: {err}", program_path.display()));
+    let program_input = get_program_input_from_path(program_input).unwrap_or_else(|err| {
+        panic!(
+            "Cannot get program input from {:?}: {err}",
+            program_input.as_ref().map(|x| x.display())
+        )
+    });
+
+    let cairo_prover_parameters = read_to_string(cairo_prover_params_json).unwrap_or_else(|err| {
+        panic!(
+            "Cannot get Cairo prover parameters from {}: {err}",
+            cairo_prover_params_json.display()
+        )
+    });
+    let cairo_prover_parameters = sonic_rs::from_str(&cairo_prover_parameters).unwrap();
+    prove_leaf(
+        &program,
+        program_input,
+        cairo_prover_parameters,
+        circuit_prover_pcs_config,
+    )
+}
 
 pub fn prove_leaf(
     program: &Program,

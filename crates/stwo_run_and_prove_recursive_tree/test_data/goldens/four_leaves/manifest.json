@@ -1,0 +1,8 @@
+{
+ "leaves": [
+  "/home/yairv/workspace/vm-cairo-rust/3_bootloader-hints/crates/stwo_run_and_prove_recursive_tree/test_data/goldens/four_leaves/leaf.json",
+  "/home/yairv/workspace/vm-cairo-rust/3_bootloader-hints/crates/stwo_run_and_prove_recursive_tree/test_data/goldens/four_leaves/leaf.json",
+  "/home/yairv/workspace/vm-cairo-rust/3_bootloader-hints/crates/stwo_run_and_prove_recursive_tree/test_data/goldens/four_leaves/leaf.json",
+  "/home/yairv/workspace/vm-cairo-rust/3_bootloader-hints/crates/stwo_run_and_prove_recursive_tree/test_data/goldens/four_leaves/leaf.json"
+ ]
+}

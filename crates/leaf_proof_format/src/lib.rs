@@ -4,7 +4,7 @@ use serde_with::serde_as;
 
 /// Describes the structure of the output JSON file
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SerializedLeafProof {
     /// The output of the Cairo program received. Each element is a felt, encoded as a decimal
     /// number.
