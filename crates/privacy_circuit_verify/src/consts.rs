@@ -30,7 +30,7 @@ pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
 );
 pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 9] = [3, 4, 5, 6, 7, 8, 9, 10, 2];
 pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    800377284, 3072891210, 312668056, 4159802026, 3280170003, 3058368945, 3010382083, 3621697867,
+    3802340786, 586827083, 2636804670, 3480942637, 1689725398, 785647429, 2874909032, 3438926929,
 ];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
@@ -47,7 +47,7 @@ pub const CAIRO_FRI_CONFIG: FriConfig = FriConfig {
 pub const CAIRO_PCS_CONFIG: PcsConfig = PcsConfig {
     pow_bits: 27,
     fri_config: CAIRO_FRI_CONFIG,
-    lifting_log_size: Some(CAIRO_TRACE_LOG_SIZE + CAIRO_LOG_BLOWUP_FACTOR),
+    min_lifting_log_size: CAIRO_TRACE_LOG_SIZE + CAIRO_LOG_BLOWUP_FACTOR,
 };
 
 pub const CIRCUIT_FRI_CONFIG: FriConfig = FriConfig {
@@ -60,7 +60,7 @@ pub const CIRCUIT_FRI_CONFIG: FriConfig = FriConfig {
 pub const CIRCUIT_PCS_CONFIG: PcsConfig = PcsConfig {
     pow_bits: 26,
     fri_config: CIRCUIT_FRI_CONFIG,
-    lifting_log_size: Some(CIRCUIT_TRACE_LOG_SIZE + CIRCUIT_LOG_BLOWUP_FACTOR),
+    min_lifting_log_size: CIRCUIT_TRACE_LOG_SIZE + CIRCUIT_LOG_BLOWUP_FACTOR,
 };
 
 // The set of components that are used to verify the privacy transaction.
