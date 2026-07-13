@@ -6,7 +6,8 @@
         "log_blowup_factor": 1,
         "log_last_layer_degree_bound": 0,
         "n_queries": 70
-    }
+    },
+    "min_lifting_log_size": 0
 },
 "preprocessed_trace": "canonical_without_pedersen",
 "include_all_preprocessed_columns": false,
