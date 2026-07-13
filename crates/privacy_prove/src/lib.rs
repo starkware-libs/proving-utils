@@ -124,13 +124,8 @@ pub fn prepare_recursive_prover_precomputes()
 
     info!("Prepare the twiddles");
     let base_column_pool = BaseColumnPool::<SimdBackend>::new();
-    let cairo_lifting_log_size = CAIRO_PROVER_PARAMS
-        .pcs_config
-        .lifting_log_size
-        .ok_or("Lifting log size is not set in Cairo's PcsConfig")?;
-    let circuit_lifting_log_size = CIRCUIT_PCS_CONFIG
-        .lifting_log_size
-        .ok_or("Lifting log size is not set in Circuit's PcsConfig")?;
+    let cairo_lifting_log_size = CAIRO_PROVER_PARAMS.pcs_config.min_lifting_log_size;
+    let circuit_lifting_log_size = CIRCUIT_PCS_CONFIG.min_lifting_log_size;
 
     // Precompute twiddles.
     let max_domain_size = max(cairo_lifting_log_size, circuit_lifting_log_size);
@@ -155,7 +150,7 @@ pub fn prepare_recursive_prover_precomputes()
         CAIRO_PCS_CONFIG.fri_config.log_blowup_factor,
         &twiddles,
         CAIRO_PROVER_PARAMS.store_polynomials_coefficients,
-        Some(cairo_lifting_log_size),
+        cairo_lifting_log_size,
         &base_column_pool,
     );
 
@@ -171,7 +166,7 @@ pub fn prepare_recursive_prover_precomputes()
             CIRCUIT_FRI_CONFIG.log_blowup_factor,
             &twiddles,
             CIRCUIT_STORE_POLYNOMIALS_COEFFICIENTS,
-            circuit_config.config.lifting_log_size,
+            circuit_config.config.min_lifting_log_size,
             &base_column_pool,
         );
 
