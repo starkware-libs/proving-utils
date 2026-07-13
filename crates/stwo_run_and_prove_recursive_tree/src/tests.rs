@@ -120,6 +120,7 @@ fn test_packed_node_serializes_leaf_and_internal() {
     // bootloader's hashed output) over `Plain` (the raw preimage).
     let leaf_a = PackedNode::leaf(
         std::array::from_fn(|i| QM31::from_u32_unchecked(i as u32 + 1, 0, 0, 0)),
+        std::array::from_fn(|i| i as u32 + 30),
         vec!["3".to_string(), "4".to_string()],
         vec!["1".to_string(), "2".to_string()],
     );
@@ -130,11 +131,12 @@ fn test_packed_node_serializes_leaf_and_internal() {
             .map(|q| crate::fold::qm31_to_u32_limbs(&q)),
         *leaf_a.output_values()
     );
-    // Serializes as `{"Composite": { output_values, subtasks: [{"BootloaderOutput": {
-    // program_output, subtask: {"Plain": { output_preimage }}}}] }}`.
+    // Serializes as `{"Composite": { output_values, preprocessed_root, subtasks:
+    // [{"BootloaderOutput": { program_output, subtask: {"Plain": { output_preimage }}}}] }}`.
     let leaf_json: serde_json::Value =
         serde_json::from_str(&serde_json::to_string(&leaf_a).unwrap()).unwrap();
     assert_eq!(leaf_json["Composite"]["output_values"][0][0], 1);
+    assert_eq!(leaf_json["Composite"]["preprocessed_root"][0], 30);
     let bl_out = &leaf_json["Composite"]["subtasks"][0]["BootloaderOutput"];
     assert_eq!(bl_out["program_output"][0], "3");
     assert_eq!(bl_out["subtask"]["Plain"]["output_preimage"][0], "1");
@@ -142,11 +144,13 @@ fn test_packed_node_serializes_leaf_and_internal() {
     // Internal: a `Composite` over two child subtasks.
     let leaf_b = PackedNode::leaf(
         std::array::from_fn(|i| QM31::from_u32_unchecked(i as u32 + 9, 0, 0, 0)),
+        std::array::from_fn(|i| i as u32 + 40),
         vec![],
         vec![],
     );
     let internal = PackedNode::Composite {
         output_values: std::array::from_fn(|i| [(i as u32 + 1) * 100, 0, 0, 0]),
+        preprocessed_root: std::array::from_fn(|i| i as u32 + 50),
         subtasks: vec![leaf_a, leaf_b],
     };
 
@@ -190,24 +194,36 @@ fn test_canonical_circuit_builds_with_matching_preprocessed_root() {
 }
 
 // ------------------------------------------------------------------------------------------------
-// End-to-end fold over a pre-generated leaf proof (gated behind the `slow-tests` feature).
+// End-to-end folds (gated behind the `slow-tests` feature; run in RELEASE mode, one test at a
+// time: `cargo test --release --features slow-tests -- --test-threads=1`).
 //
-// This test focuses on the recursive-tree binary itself and does NOT run `leaf_prover`. It
-// duplicates a single pre-generated privacy cairo-verifier proof (the fixture at
-// `test_data/privacy_cairo_verifier_proof.bin`, taken from `circuit_multiverifier::verify_test`) as
-// N leaves and folds them. The tree is configured to match that proof (see `canonical`), so every
-// fold builds and proves a real multiverifier circuit over two valid child proofs. Still
-// proving-heavy (one multiverifier proof per pair), hence `slow-tests`; run in RELEASE mode
-// (`cargo test --release --features slow-tests`).
+// `fold_two_leaves` / `fold_three_leaves_with_carry` duplicate the pre-generated golden
+// `leaf_prover` output at `test_data/goldens/four_leaves/leaf.json` as N leaves and fold them —
+// every fold builds and proves a real multiverifier circuit over two valid child proofs.
+//
+// `test_golden_four_leaves_e2e` is the true end-to-end: it runs `leaf_prover` itself on the leaf
+// simple bootloader (executing the simple-output task), injects the dumped hashed-output preimage
+// the way the backend does, folds 4 copies, and asserts the artifacts match the committed goldens.
+// Run it with `FIX=1` to regenerate every golden:
+//
+//   FIX=1 cargo test -p stwo-run-and-prove-recursive-tree --release --features slow-tests \
+//     --lib -- test_golden_four_leaves_e2e --test-threads=1
+//
+// The two compiled programs in `test_data/` (`leaf_simple_bootloader_compiled.json`,
+// `simple_output_compiled.json`) are inputs, not goldens; they are compiled from the main starkware
+// repo via `bazel run
+// //src/services/gps/bin/rust/test:compile_cairo_run_programs_with_rust_hints_script`.
 // ------------------------------------------------------------------------------------------------
 
 #[cfg(feature = "slow-tests")]
 mod e2e {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use blake2::{Blake2s256, Digest};
     use circuits::blake::HashValue;
     use circuits::ivalue::IValue;
+    use leaf_prover::prove_leaf::prove_leaf_from_files;
+    use num_bigint::BigUint;
     use stwo::core::fields::qm31::QM31;
     use stwo::core::poly::circle::CanonicCoset;
     use stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
@@ -216,26 +232,96 @@ mod e2e {
     use stwo::prover::mempool::BaseColumnPool;
     use stwo::prover::poly::circle::PolyOps;
 
-    use crate::canonical::{CIRCUIT_LOG_BLOWUP_FACTOR, CanonicalCircuit};
-    use crate::fold::{PackedNode, qm31_to_u32_limbs};
-    use crate::{LeafInput, SerializedLeafProof, stwo_run_and_prove_recursive_tree};
+    use crate::canonical::{CIRCUIT_LOG_BLOWUP_FACTOR, CIRCUIT_PCS_CONFIG, CanonicalCircuit};
+    use crate::fold::PackedNode;
+    use crate::{LeafInput, stwo_run_and_prove_recursive_tree};
 
-    /// Preprocessed root of the cairo-verifier circuit that produced the committed fixture proof
-    /// `test_data/privacy_cairo_verifier_proof.bin`; declared in each leaf's `SerializedLeafProof`.
-    const LEAF_PREPROCESSED_ROOT: [u32; circuit_common::N_RESERVED] = [
-        1000331179, 2681434797, 3806553994, 1868679953, 3615184069, 3937104268, 679470514,
-        520074062,
-    ];
+    fn goldens_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_data/goldens/four_leaves")
+    }
 
-    /// The output values attested by the pre-generated privacy cairo-verifier proof (see
-    /// `circuit_multiverifier::verify_test::PRIVACY_CAIRO_VERIFIER_OUTPUT_VALUES`). Inline in each
-    /// duplicated leaf's `SerializedLeafProof` so the multiverifier's output check is satisfied.
-    const LEAF_OUTPUT_VALUES: [u32; circuit_common::N_RESERVED] = [
-        2299450592, 1514947052, 87572453, 633358207, 462231094, 464091325, 2016711704, 1173534648,
-    ];
+    /// The golden `leaf_prover` output the cheaper e2e folds duplicate their leaves from: the leaf
+    /// simple bootloader running a simple-output task, proven with the canonical-small setup (the
+    /// `cairo_prover_params_canonical_small.json` parameters and `CIRCUIT_PCS_CONFIG`; see
+    /// `generate_leaf`). Regenerated by `test_golden_four_leaves_e2e` under `FIX=1`.
+    fn golden_leaf() -> LeafInput {
+        let path = goldens_dir().join("leaf.json");
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
 
-    fn leaf_proof_fixture() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_data/privacy_cairo_verifier_proof.bin")
+    /// The simple-output task's output, and the leaf bootloader input driving it — the same values
+    /// the goldens were generated with.
+    const LEAF_TASK_OUTPUT: [u32; 3] = [11, 13, 17];
+
+    /// The leaf bootloader input JSON: one simple-output `RunProgramTask` (blake program hash) plus
+    /// the hashed-output preimage dump path.
+    fn leaf_bl_input_json(dump_path: &Path) -> String {
+        let task_path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_data/simple_output_compiled.json");
+        serde_json::to_string_pretty(&serde_json::json!({
+            "tasks": [{
+                "type": "RunProgramTask",
+                "path": task_path.to_str().unwrap(),
+                "program_input": {"output": LEAF_TASK_OUTPUT},
+                "program_hash_function": "blake",
+            }],
+            "fact_topologies_path": null,
+            "single_page": true,
+            "output_preimage_dump_path": dump_path.to_str().unwrap(),
+        }))
+        .unwrap()
+    }
+
+    /// True-e2e leaf generation: runs `leaf_prover` on the leaf simple bootloader (executing the
+    /// simple-output task) with the canonical-small parameters, then wraps the produced
+    /// `SerializedLeafProof` into a `LeafInput` with the dumped hashed-output preimage exactly as
+    /// the backend does (hex felts from the dump file, re-encoded as decimal strings).
+    fn generate_leaf(dir: &Path) -> LeafInput {
+        let dump_path = dir.join("leaf_preimage.json");
+        let input_path = dir.join("leaf_bl_input.json");
+        std::fs::write(&input_path, leaf_bl_input_json(&dump_path)).unwrap();
+
+        let leaf = prove_leaf_from_files(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("test_data/leaf_simple_bootloader_compiled.json"),
+            &Some(input_path),
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../leaf_prover/tests/data/cairo_prover_params_canonical_small.json"),
+            CIRCUIT_PCS_CONFIG,
+        );
+        let dumped: Vec<String> =
+            serde_json::from_str(&std::fs::read_to_string(&dump_path).unwrap()).unwrap();
+        let output_preimage = dumped
+            .iter()
+            .map(|hex| {
+                BigUint::parse_bytes(hex.trim_start_matches("0x").as_bytes(), 16)
+                    .expect("dump entries are hex felts")
+                    .to_string()
+            })
+            .collect();
+        LeafInput {
+            proof: leaf,
+            output_preimage,
+        }
+    }
+
+    /// The leaf's eight circuit-output words, recovered from the golden's `[low16, high16, 0, 0]`
+    /// limb encoding.
+    fn leaf_output_words(leaf: &LeafInput) -> [u32; circuit_common::N_RESERVED] {
+        let limbs: [[u32; 4]; circuit_common::N_RESERVED] =
+            leaf.proof.circuit_output.clone().try_into().unwrap();
+        limbs.map(|[low, high, _, _]| low | (high << 16))
+    }
+
+    /// The leaf's preprocessed root as eight little-endian u32 words.
+    fn leaf_root_words(leaf: &LeafInput) -> [u32; circuit_common::N_RESERVED] {
+        std::array::from_fn(|i| {
+            u32::from_le_bytes(
+                leaf.proof.circuit_preprocessed_root[i * 4..i * 4 + 4]
+                    .try_into()
+                    .unwrap(),
+            )
+        })
     }
 
     fn init_tracing() {
@@ -256,7 +342,7 @@ mod e2e {
     }
 
     /// Raw u32 output words in the on-disk `PackedNode` limb encoding: each word as
-    /// `[low16, high16, 0, 0]` (= `qm31_to_u32_limbs(QM31::pack_u32(word))`).
+    /// `[low16, high16, 0, 0]`.
     fn packed_limbs(
         words: [u32; circuit_common::N_RESERVED],
     ) -> [[u32; 4]; circuit_common::N_RESERVED] {
@@ -297,18 +383,19 @@ mod e2e {
         packed: PackedNode,
     }
 
-    fn expected_leaf() -> ExpectedNode {
+    fn expected_leaf(leaf: &LeafInput) -> ExpectedNode {
         ExpectedNode {
-            output_words: LEAF_OUTPUT_VALUES,
-            preprocessed_root: LEAF_PREPROCESSED_ROOT,
-            // The fixture leaves carry an empty program output and preimage (see `dupe_and_fold`),
-            // so each leaf is a `Composite` over a `BootloaderOutput` over a `Plain`, all empty.
+            output_words: leaf_output_words(leaf),
+            preprocessed_root: leaf_root_words(leaf),
+            // One node per hash layer: the circuit output over the bootloader's hashed output over
+            // the raw preimage (see `PackedNode`).
             packed: PackedNode::Composite {
-                output_values: packed_limbs(LEAF_OUTPUT_VALUES),
+                output_values: packed_limbs(leaf_output_words(leaf)),
+                preprocessed_root: leaf_root_words(leaf),
                 subtasks: vec![PackedNode::BootloaderOutput {
-                    program_output: vec![],
+                    program_output: leaf.proof.program_output.clone(),
                     subtask: Box::new(PackedNode::Plain {
-                        output_preimage: vec![],
+                        output_preimage: leaf.output_preimage.clone(),
                     }),
                 }],
             },
@@ -336,6 +423,7 @@ mod e2e {
             preprocessed_root: multiverifier_root,
             packed: PackedNode::Composite {
                 output_values: packed_limbs(output_words),
+                preprocessed_root: multiverifier_root,
                 subtasks: vec![left.packed, right.packed],
             },
         }
@@ -345,10 +433,11 @@ mod e2e {
     /// and returns the expected root node. `multiverifier_root` is the preprocessed root every
     /// internal node carries (see [`multiverifier_preprocessed_root`]).
     fn expected_root(
+        leaf: &LeafInput,
         n: usize,
         multiverifier_root: [u32; circuit_common::N_RESERVED],
     ) -> ExpectedNode {
-        let mut layer: Vec<ExpectedNode> = (0..n).map(|_| expected_leaf()).collect();
+        let mut layer: Vec<ExpectedNode> = (0..n).map(|_| expected_leaf(leaf)).collect();
         while layer.len() > 1 {
             let mut next = Vec::with_capacity(layer.len().div_ceil(2));
             let mut pairs = layer.into_iter();
@@ -363,43 +452,13 @@ mod e2e {
         layer.pop().expect("at least one leaf")
     }
 
-    /// `LEAF_PREPROCESSED_ROOT` (eight words) as the 32-byte digest a `leaf_prover` output carries,
-    /// i.e. the little-endian bytes `SerializedLeafProof::preprocessed_root` reads back.
-    fn leaf_preprocessed_root_bytes() -> [u8; 32] {
-        let mut bytes = [0u8; 32];
-        for (i, w) in LEAF_PREPROCESSED_ROOT.iter().enumerate() {
-            bytes[i * 4..i * 4 + 4].copy_from_slice(&w.to_le_bytes());
-        }
-        bytes
-    }
-
-    /// Folds `n` identical leaves — each a `SerializedLeafProof` mirroring a `leaf_prover` output
-    /// (the pre-generated fixture proof inline, with its outputs and preprocessed root) — with
-    /// the binary entry point, and asserts the produced root proof, root outputs, and full
-    /// `packed_output` tree match what we recompute independently (topology + values) from the
-    /// identical leaves.
-    fn dupe_and_fold(n: usize, dir: &std::path::Path) {
+    /// Folds `n` identical copies of `leaf` with the binary entry point, and asserts the produced
+    /// root proof, root outputs, and full `packed_output` tree match what we recompute
+    /// independently (topology + values) from the identical leaves. Returns the multiverifier
+    /// preprocessed root used by the recompute (every internal node's root).
+    fn dupe_and_fold(leaf: &LeafInput, n: usize, dir: &Path) -> [u32; circuit_common::N_RESERVED] {
         init_tracing();
-        let proof_bytes = std::fs::read(leaf_proof_fixture()).unwrap();
-        // The leaf's N_RESERVED output values as `[u32; 4]` QM31 limbs (each a u32 word packed into
-        // a QM31), exactly as `leaf_prover` emits `circuit_output`.
-        let circuit_output: Vec<[u32; 4]> = LEAF_OUTPUT_VALUES
-            .iter()
-            .map(|&w| qm31_to_u32_limbs(&QM31::pack_u32(w)))
-            .collect();
-        let circuit_preprocessed_root = leaf_preprocessed_root_bytes();
-
-        let leaves: Vec<LeafInput> = (0..n)
-            .map(|_| LeafInput {
-                proof: SerializedLeafProof {
-                    program_output: vec![],
-                    circuit_output: circuit_output.clone(),
-                    circuit_preprocessed_root,
-                    proof: proof_bytes.clone(),
-                },
-                output_preimage: vec![],
-            })
-            .collect();
+        let leaves: Vec<LeafInput> = vec![leaf.clone(); n];
         stwo_run_and_prove_recursive_tree(
             leaves,
             &dir.join("root.proof"),
@@ -421,7 +480,8 @@ mod e2e {
         );
 
         // Independently recompute the whole tree (topology + hashed output values) from the leaves.
-        let expected = expected_root(n, multiverifier_preprocessed_root(&canonical));
+        let multiverifier_root = multiverifier_preprocessed_root(&canonical);
+        let expected = expected_root(leaf, n, multiverifier_root);
 
         let actual_outputs: Vec<[u32; 4]> =
             serde_json::from_str(&std::fs::read_to_string(dir.join("root_outputs.json")).unwrap())
@@ -439,23 +499,123 @@ mod e2e {
             actual_packed, expected.packed,
             "packed output tree (topology + values) mismatch"
         );
+
+        multiverifier_root
+    }
+
+    /// Parses the same JSON file from two directories and asserts value equality (formatting- and
+    /// byte-layout-agnostic).
+    fn assert_same_json<T: serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
+        actual_dir: &Path,
+        golden_dir: &Path,
+        file: &str,
+    ) {
+        let parse = |dir: &Path| -> T {
+            serde_json::from_str(&std::fs::read_to_string(dir.join(file)).unwrap())
+                .unwrap_or_else(|e| panic!("{file} does not parse: {e}"))
+        };
+        assert_eq!(
+            parse(actual_dir),
+            parse(golden_dir),
+            "{file} does not match the committed golden; run with FIX=1 to regenerate"
+        );
     }
 
     #[test]
     fn test_fold_two_leaves() {
         let tmp = tempfile::tempdir().unwrap();
-        dupe_and_fold(2, tmp.path());
+        dupe_and_fold(&golden_leaf(), 2, tmp.path());
     }
 
     #[test]
     fn test_fold_three_leaves_with_carry() {
         let tmp = tempfile::tempdir().unwrap();
-        dupe_and_fold(3, tmp.path());
+        dupe_and_fold(&golden_leaf(), 3, tmp.path());
     }
 
+    /// True end-to-end: `leaf_prover` over the leaf simple bootloader (running the simple-output
+    /// task), backend-style preimage injection, 4-leaf fold, and comparison against the committed
+    /// goldens at `test_data/goldens/four_leaves/`. When run with the `FIX` env var set, it
+    /// regenerates the goldens (including the derived `supported_preprocessed_roots.json` trust
+    /// list and the machine-specific manual-CLI-repro inputs) instead of asserting.
     #[test]
-    fn test_fold_four_leaves() {
+    fn test_golden_four_leaves_e2e() {
         let tmp = tempfile::tempdir().unwrap();
-        dupe_and_fold(4, tmp.path());
+        let dir = tmp.path();
+        let leaf = generate_leaf(dir);
+        let multiverifier_root = dupe_and_fold(&leaf, 4, dir);
+
+        let goldens = goldens_dir();
+        if std::env::var("FIX").is_ok() {
+            std::fs::write(
+                goldens.join("leaf.json"),
+                serde_json::to_string_pretty(&leaf).unwrap(),
+            )
+            .unwrap();
+            for file in [
+                "leaf_preimage.json",
+                "root.proof",
+                "root_outputs.json",
+                "root_packed.json",
+            ] {
+                std::fs::copy(dir.join(file), goldens.join(file)).unwrap();
+            }
+            // Manual-CLI-repro inputs (machine-specific absolute paths).
+            std::fs::write(
+                goldens.join("leaf_bl_input.json"),
+                leaf_bl_input_json(&goldens.join("leaf_preimage.json")),
+            )
+            .unwrap();
+            let leaf_path = goldens.join("leaf.json");
+            std::fs::write(
+                goldens.join("manifest.json"),
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"leaves": vec![leaf_path.to_str().unwrap(); 4]}),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            // The unpacker's trust-anchor list, derived from the freshly generated circuits — the
+            // circuit-world analogue of the bootloader config's `supported_program_hashes.json`:
+            // role-named lists of allowed preprocessed roots (each as 8 little-endian u32 digest
+            // words). Internal-node contributions must use a supported multiverifier root; leaf
+            // contributions a supported leaf-circuit root (the leaf list grows if leaves of other
+            // circuit types are admitted).
+            std::fs::write(
+                goldens.join("supported_preprocessed_roots.json"),
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "supported_multiverifier_preprocessed_roots": [multiverifier_root],
+                    "supported_leaf_circuit_preprocessed_roots": [leaf_root_words(&leaf)],
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+            return;
+        }
+
+        // Regression: the freshly generated artifacts must match the committed goldens.
+        assert_eq!(
+            leaf,
+            golden_leaf(),
+            "freshly proven leaf does not match the golden leaf.json; run with FIX=1 to regenerate"
+        );
+        assert_same_json::<Vec<String>>(dir, &goldens, "leaf_preimage.json");
+        assert_same_json::<Vec<String>>(dir, &goldens, "root.proof");
+        assert_same_json::<Vec<[u32; 4]>>(dir, &goldens, "root_outputs.json");
+        assert_same_json::<PackedNode>(dir, &goldens, "root_packed.json");
+        let roots: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(goldens.join("supported_preprocessed_roots.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            roots["supported_multiverifier_preprocessed_roots"][0],
+            serde_json::json!(multiverifier_root),
+            "multiverifier root drifted from supported_preprocessed_roots.json; run with FIX=1"
+        );
+        assert_eq!(
+            roots["supported_leaf_circuit_preprocessed_roots"][0],
+            serde_json::json!(leaf_root_words(&leaf)),
+            "leaf circuit root drifted from supported_preprocessed_roots.json; run with FIX=1"
+        );
     }
 }

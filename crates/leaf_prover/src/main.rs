@@ -8,9 +8,8 @@
 //! Outputs a file with the output of the Cairo program, the output and preprocessed
 //! root of the verifier circuit, and the final proof.
 
-use cairo_program_runner_lib::utils::{get_program, get_program_input_from_path};
 use clap::Parser;
-use leaf_prover::prove_leaf::prove_leaf;
+use leaf_prover::prove_leaf::prove_leaf_from_files;
 use std::fs::{self, read_to_string};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -36,24 +35,6 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), String> {
     let args = Args::parse();
-    let program = get_program(&args.program)
-        .unwrap_or_else(|err| panic!("Cannot get program from {}: {err}", args.program.display()));
-    let program_input = get_program_input_from_path(&args.program_input).unwrap_or_else(|err| {
-        panic!(
-            "Cannot get program input from {:?}: {err}",
-            args.program_input.as_ref().map(|x| x.display())
-        )
-    });
-
-    let cairo_prover_parameters =
-        read_to_string(&args.cairo_prover_params_json).unwrap_or_else(|err| {
-            panic!(
-                "Cannot get Cairo prover parameters from {}: {err}",
-                args.cairo_prover_params_json.display()
-            )
-        });
-    let cairo_prover_parameters = sonic_rs::from_str(&cairo_prover_parameters).unwrap();
-
     let circuit_prover_pcs_config = read_to_string(&args.circuit_prover_params_json)
         .unwrap_or_else(|err| {
             panic!(
@@ -63,10 +44,10 @@ fn run() -> Result<(), String> {
         });
     let circuit_prover_pcs_config = sonic_rs::from_str(&circuit_prover_pcs_config).unwrap();
 
-    let output = prove_leaf(
-        &program,
-        program_input,
-        cairo_prover_parameters,
+    let output = prove_leaf_from_files(
+        &args.program,
+        &args.program_input,
+        &args.cairo_prover_params_json,
         circuit_prover_pcs_config,
     );
 

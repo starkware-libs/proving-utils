@@ -57,6 +57,7 @@ impl LayerEntry {
             preprocessed_root: leaf.proof.preprocessed_root(),
             packed_output: PackedNode::leaf(
                 leaf.proof.parse_output_values()?,
+                digest_bytes_to_words(&leaf.proof.circuit_preprocessed_root),
                 leaf.proof.program_output.clone(),
                 leaf.output_preimage.clone(),
             ),
@@ -106,7 +107,7 @@ pub fn reduce_pair(
         "multiverifier circuit rejected its inputs at layer {layer_idx} pair {pair_idx}"
     );
 
-    let (proof_bytes, preprocessed_root, output_values) = if is_root {
+    let (proof_bytes, extracted) = if is_root {
         let circuit_proof = prove_circuit_assignment_with_channel::<Blake2sMerkleChannel>(
             context.values(),
             &canonical.preprocessed_multiverifier,
@@ -114,7 +115,7 @@ pub fn reduce_pair(
             canonical.shared_config.pcs_config,
         )
         .map_err(|e| RecursiveTreeError::Proving(format!("{e:?}")))?;
-        let (preprocessed_root, output_values) = extract_root_and_outputs(&circuit_proof)?;
+        let extracted = extract_root_and_outputs(&circuit_proof)?;
 
         // Serialize for the Cairo circuit verifier: only the proof goes on the wire; the
         // verifier-config constants are baked into the Cairo binary.
@@ -128,7 +129,7 @@ pub fn reduce_pair(
         let felts = prepare_circuit_proof_for_cairo_verifier(circuit_proof, &component_log_sizes);
         let proof_hex: Vec<String> = felts.iter().map(|felt| format!("0x{felt:x}")).collect();
         let proof_bytes = serde_json::to_vec_pretty(&proof_hex)?;
-        (proof_bytes, preprocessed_root, output_values)
+        (proof_bytes, extracted)
     } else {
         let circuit_proof = prove_circuit_assignment(
             context.values(),
@@ -137,19 +138,32 @@ pub fn reduce_pair(
             canonical.shared_config.pcs_config,
         )
         .map_err(|e| RecursiveTreeError::Proving(format!("{e:?}")))?;
-        let (preprocessed_root, output_values) = extract_root_and_outputs(&circuit_proof)?;
+        let extracted = extract_root_and_outputs(&circuit_proof)?;
 
         let (proof, _public_data) = prepare_circuit_proof_for_circuit_verifier(circuit_proof);
         let mut proof_bytes = Vec::new();
         proof.serialize(&mut proof_bytes);
-        (proof_bytes, preprocessed_root, output_values)
+        (proof_bytes, extracted)
     };
 
     Ok(LayerEntry {
         proof_bytes,
-        preprocessed_root,
-        packed_output: PackedNode::internal(output_values, left.packed_output, right.packed_output),
+        preprocessed_root: extracted.preprocessed_root,
+        packed_output: PackedNode::internal(
+            extracted.output_values,
+            extracted.root_words,
+            left.packed_output,
+            right.packed_output,
+        ),
     })
+}
+
+/// The parent-entry data extracted from a freshly proven circuit proof: its preprocessed root (as
+/// the circuits' `HashValue` and as raw little-endian u32 words) and its circuit output values.
+struct ExtractedProofData {
+    preprocessed_root: HashValue<QM31>,
+    root_words: [u32; N_RESERVED],
+    output_values: [QM31; N_RESERVED],
 }
 
 /// Extracts the parent entry's preprocessed root and output values from a freshly proven circuit
@@ -157,8 +171,9 @@ pub fn reduce_pair(
 /// value).
 fn extract_root_and_outputs<H: MerkleHasherLifted<Hash = Blake2sHash>>(
     circuit_proof: &CircuitProof<H>,
-) -> Result<(HashValue<QM31>, [QM31; N_RESERVED]), RecursiveTreeError> {
+) -> Result<ExtractedProofData, RecursiveTreeError> {
     let root_hash = circuit_proof.stark_proof.proof.commitments[PREPROCESSED_TRACE_IDX];
+    let root_words = digest_bytes_to_words(&root_hash.0);
     let preprocessed_root: HashValue<QM31> = root_hash.into();
     let outputs = circuit_proof.claim.output_values.clone();
     let output_values: [QM31; N_RESERVED] =
@@ -168,7 +183,17 @@ fn extract_root_and_outputs<H: MerkleHasherLifted<Hash = Blake2sHash>>(
                 expected: N_RESERVED,
                 got: v.len(),
             })?;
-    Ok((preprocessed_root, output_values))
+    Ok(ExtractedProofData {
+        preprocessed_root,
+        root_words,
+        output_values,
+    })
+}
+
+/// Reads a 32-byte digest as eight little-endian u32 words — the wire encoding of a preprocessed
+/// root everywhere outside the circuits (matching `HashValue`'s `From<Blake2sHash>`).
+pub fn digest_bytes_to_words(bytes: &[u8; 32]) -> [u32; N_RESERVED] {
+    std::array::from_fn(|i| u32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap()))
 }
 
 /// Nested packed-output tree — the circuit-world analogue of the old Cairo `PackedOutput` —
@@ -201,9 +226,13 @@ pub enum PackedNode {
         subtask: Box<PackedNode>,
     },
     /// A verifier / fold node: its `N_RESERVED` circuit output values (each as 4 little-endian
-    /// `QM31` limbs) and its child subtasks. The analogue of `CompositePackedOutput`.
+    /// `QM31` limbs), the preprocessed root of this node's proof (eight little-endian u32 words —
+    /// the root the unpacker must use in this node's fold contribution; it looks the value up in
+    /// its supported-roots trust list), and its child subtasks. The analogue of
+    /// `CompositePackedOutput`.
     Composite {
         output_values: [[u32; 4]; N_RESERVED],
+        preprocessed_root: [u32; N_RESERVED],
         subtasks: Vec<PackedNode>,
     },
 }
@@ -213,11 +242,13 @@ impl PackedNode {
     /// bootloader's `program_output` over the `Plain` preimage reveal.
     pub fn leaf(
         output_values: [QM31; N_RESERVED],
+        preprocessed_root: [u32; N_RESERVED],
         program_output: Vec<String>,
         output_preimage: Vec<String>,
     ) -> Self {
         PackedNode::Composite {
             output_values: output_values.map(|v| qm31_to_u32_limbs(&v)),
+            preprocessed_root,
             subtasks: vec![PackedNode::BootloaderOutput {
                 program_output,
                 subtask: Box::new(PackedNode::Plain { output_preimage }),
@@ -228,11 +259,13 @@ impl PackedNode {
     /// An internal fold node: the multiverifier's `output_values` over its two children.
     pub fn internal(
         output_values: [QM31; N_RESERVED],
+        preprocessed_root: [u32; N_RESERVED],
         left: PackedNode,
         right: PackedNode,
     ) -> Self {
         PackedNode::Composite {
             output_values: output_values.map(|v| qm31_to_u32_limbs(&v)),
+            preprocessed_root,
             subtasks: vec![left, right],
         }
     }

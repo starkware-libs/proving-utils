@@ -10,8 +10,14 @@
 //! This module replicates the logic of `circuit_multiverifier::test_utils`'s
 //! `get_preprocessed_multiverifier_from_circuit`, which is test-only upstream.
 
-use circuit_cairo_verifier::privacy::{get_pcs_config, privacy_cairo_verifier_config};
-use circuit_cairo_verifier::verify::build_cairo_verifier_circuit;
+use std::path::PathBuf;
+
+use circuit_cairo_verifier::all_components::all_components;
+use circuit_cairo_verifier::privacy::get_pcs_config;
+use circuit_cairo_verifier::utils::load_program;
+use circuit_cairo_verifier::verify::{
+    CairoVerifierConfig, build_cairo_verifier_circuit, get_preprocessed_root,
+};
 use circuit_common::finalize::{ComponentSizes, pad_to_targets};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_multiverifier::verify::{
@@ -22,9 +28,14 @@ use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
 use circuits::blake::HashValue;
 use circuits::context::FinalizedContext;
 use circuits::ivalue::NoValue;
+use circuits_stark_verifier::constraint_eval::CircuitEval;
 use circuits_stark_verifier::proof::{ProofConfig, empty_proof};
+use indexmap::IndexMap;
+use leaf_prover::consts::DISABLED_COMPONENTS_SMALL_PREPROCESSED;
 use stwo::core::fields::qm31::QM31;
+use stwo::core::fri::FriConfig;
 use stwo::core::pcs::PcsConfig;
+use stwo_cairo_common::preprocessed_columns::preprocessed_trace::PreProcessedTraceVariant;
 use tracing::{Level, info, span};
 
 use crate::RecursiveTreeError;
@@ -32,33 +43,51 @@ use crate::RecursiveTreeError;
 // ---------------------------------------------------------------------------------------------
 // Circuit configuration.
 //
-// TEMPORARY: the whole tree is configured to match the pre-generated *privacy* cairo-verifier
-// proof used as the leaf fixture (see `circuit_multiverifier::verify_test`), so the recursive-tree
-// binary can be tested end-to-end without running `leaf_prover`. When `leaf_prover` is integrated
-// this will move back to the leaf-prover-derived (canonical) config.
+// The tree is configured to the shape `leaf_prover` produces when proving the
+// `leaf_simple_bootloader` with the canonical-small setup: `CanonicalSmall` preprocessed trace for
+// the inner Cairo proof, and a blowup-1 (memory-feasible), 96-bit-secure circuit PCS config.
 // ---------------------------------------------------------------------------------------------
 
-/// Log blowup factor of the outer circuit proof (matches `circuit_multiverifier::verify_test`).
-pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 3;
+/// Log blowup factor of the outer circuit proof (matches
+/// `leaf_prover::tests::CIRCUIT_LOG_BLOWUP_FACTOR`).
+pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 1;
 
-/// Cairo-verifier (leaf) circuit trace log size in the privacy setup — drives the outer proof's
-/// PCS config (matches
-/// `circuit_multiverifier::verify_test::PRIVACY_CAIRO_VERIFIER_TRACE_LOG_SIZE`).
-pub const CIRCUIT_TRACE_LOG_SIZE: u32 = 21;
+/// Cairo-verifier (leaf) circuit trace log size — the log size the leaf-bootloader verifier
+/// circuit reaches (its dominant components, `qm31_ops`/`blake_g_gate`, hit 2^23; see
+/// [`TARGET_PADDING_SIZES`]).
+pub const CIRCUIT_TRACE_LOG_SIZE: u32 = 23;
 
-/// PCS config for proving each layer (matches `circuit_multiverifier::verify_test::PCS_CONFIG`).
+/// PCS config for proving each layer. MUST equal the config the leaf circuit proofs were produced
+/// with.
 pub const CIRCUIT_PCS_CONFIG: PcsConfig =
     get_pcs_config(CIRCUIT_TRACE_LOG_SIZE, CIRCUIT_LOG_BLOWUP_FACTOR);
 
+/// PCS config of the *inner* Cairo proof the leaf circuit verifies. MUST equal the `pcs_config` in
+/// `leaf_prover/tests/data/cairo_prover_params_canonical_small.json` (the parameters the leaf Cairo
+/// run was proven with).
+const CAIRO_PCS_CONFIG: PcsConfig = PcsConfig {
+    pow_bits: 16,
+    fri_config: FriConfig {
+        log_blowup_factor: 1,
+        log_last_layer_degree_bound: 0,
+        n_queries: 70,
+        fold_step: 1,
+    },
+    lifting_log_size: Some(21),
+};
+
 /// Common per-component padding target applied to BOTH the leaf cairo-verifier circuit and the
 /// multiverifier circuit, so they share one preprocessed-trace layout and a single proof shape
-/// verifies every layer. Matches `circuit_multiverifier::verify_test::TARGET_PADDING_SIZES`.
+/// verifies every layer. Derived (and locked by `target_padding_sizes_are_consistent`) as the
+/// per-component max of the two circuits — currently the leaf-bootloader verifier circuit
+/// dominates every component, so `leaf_prover`'s default next-power-of-two padding already
+/// produces exactly this shape.
 pub const TARGET_PADDING_SIZES: ComponentSizes = ComponentSizes {
-    eq: 1 << 17,
-    qm31_ops: 1 << 21,
-    m31_to_u32: 1 << 18,
-    triple_xor: 1 << 17,
-    blake_g_gate: 1 << 20,
+    eq: 1 << 20,
+    qm31_ops: 1 << 23,
+    m31_to_u32: 1 << 20,
+    triple_xor: 1 << 19,
+    blake_g_gate: 1 << 23,
 };
 
 /// Everything that is identical for every node of the tree. Built once at startup and threaded by
@@ -141,9 +170,57 @@ fn build_preprocessed_leaf_circuit() -> PreprocessedCircuit {
     PreprocessedCircuit::preprocess_circuit(&mut leaf_context)
 }
 
-/// The unpadded privacy cairo-verifier (leaf) circuit context.
+/// The unpadded cairo-verifier (leaf) circuit context, shaped exactly as `leaf_prover` shapes it
+/// when proving the leaf simple bootloader (see `leaf_prover::prove_leaf`): `CanonicalSmall`
+/// preprocessed trace, all components except [`DISABLED_COMPONENTS_SMALL_PREPROCESSED`], the
+/// bootloader program's felts, and its two public outputs (the hashed-output Uint256 low/high).
 pub fn build_unpadded_leaf_context() -> FinalizedContext<NoValue> {
-    build_cairo_verifier_circuit(&privacy_cairo_verifier_config(CIRCUIT_LOG_BLOWUP_FACTOR))
+    build_cairo_verifier_circuit(&leaf_cairo_verifier_config())
+}
+
+/// Path of the compiled leaf simple bootloader — the program every leaf proof attests to.
+/// TEMPORARY: read from this crate's `test_data`; production will receive it via configuration.
+fn leaf_bootloader_program_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_data/leaf_simple_bootloader_compiled.json")
+}
+
+/// Mirrors `circuit_cairo_verifier::privacy::privacy_cairo_verifier_config`, for the leaf simple
+/// bootloader under the canonical-small test setup instead of the privacy transaction.
+fn leaf_cairo_verifier_config() -> CairoVerifierConfig {
+    let preprocessed_trace_variant = PreProcessedTraceVariant::CanonicalSmall;
+    // Build `enabled_bits` (one flag per component in the full list) and `components` (only the
+    // enabled entries, as expected by `ProofConfig::new`) in a single pass.
+    let (enabled_bits, components): (Vec<bool>, Vec<_>) = all_components::<NoValue>()
+        .into_iter()
+        .map(|(name, component)| {
+            let enabled = !DISABLED_COMPONENTS_SMALL_PREPROCESSED.contains(&name);
+            (enabled, enabled.then_some((name, component)))
+        })
+        .unzip();
+    let components: IndexMap<&'static str, Box<dyn CircuitEval<NoValue>>> =
+        components.into_iter().flatten().collect();
+
+    let proof_config = ProofConfig::new(
+        &components,
+        preprocessed_trace_variant.n_columns(),
+        &CAIRO_PCS_CONFIG,
+        cairo_air::verifier::INTERACTION_POW_BITS,
+    );
+
+    CairoVerifierConfig {
+        preprocessed_root: get_preprocessed_root(
+            CAIRO_PCS_CONFIG
+                .lifting_log_size
+                .expect("lifting_log_size is set"),
+        ),
+        proof_config,
+        enabled_bits,
+        program: load_program(&leaf_bootloader_program_path()),
+        // The leaf simple bootloader outputs only the blake2s hash of `[task program hash,
+        // task output...]`, as a Uint256 (low, high).
+        n_outputs: 2,
+        preprocessed_trace_variant,
+    }
 }
 
 /// Builds the multiverifier circuit topology (structure-only) from a leaf circuit padded only with
