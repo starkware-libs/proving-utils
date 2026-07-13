@@ -500,6 +500,28 @@ pub struct AggregateOutput {
     pub n_levels: usize,
 }
 
+/// Lower THIS thread's scheduling priority (called once per pool worker at startup).
+/// Byte-neutral: only a scheduling syscall, touches no proof data. Unprivileged: raising nice
+/// and SCHED_IDLE need no CAP_SYS_NICE. `who==0` targets the calling thread's task (per-thread
+/// nice on Linux).
+fn apply_pool_thread_priority(sched: Option<&str>) {
+    match sched {
+        None => {}
+        Some("idle") | Some("IDLE") => {
+            let p = libc::sched_param { sched_priority: 0 };
+            unsafe {
+                libc::sched_setscheduler(0, libc::SCHED_IDLE, &p);
+            }
+        }
+        Some(s) => {
+            let nice: i32 = s.parse().unwrap_or(10);
+            unsafe {
+                libc::setpriority(libc::PRIO_PROCESS, 0, nice);
+            }
+        }
+    }
+}
+
 /// A fixed set of rayon thread pools for partitioning prove work across the cores of a *single*
 /// machine.
 ///
@@ -519,11 +541,17 @@ impl PoolSet {
     /// Creates `n_pools` pools of `threads_per_pool` worker threads each. On a 96-core machine with
     /// a measured sweet spot of 48 threads/prove, use `PoolSet::new(2, 48)`.
     pub fn new(n_pools: usize, threads_per_pool: usize) -> Self {
+        // Deprioritize wrap/fold pool workers so the GPU-producer / composition host-dispatch
+        // threads win CPU during the bursty composition phase. Byte-neutral (scheduling only).
+        // OFF unless GATE_AIR_POOL_NICE is set: an integer nice delta (e.g. 12), or "idle" (SCHED_IDLE).
+        let sched = std::env::var("GATE_AIR_POOL_NICE").ok();
         let pools = (0..n_pools.max(1))
             .map(|_| {
+                let sched = sched.clone();
                 Arc::new(
                     rayon::ThreadPoolBuilder::new()
                         .num_threads(threads_per_pool)
+                        .start_handler(move |_| apply_pool_thread_priority(sched.as_deref()))
                         .build()
                         .expect("build rayon pool"),
                 )

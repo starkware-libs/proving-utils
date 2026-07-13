@@ -23,6 +23,7 @@ circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuit
 stwo = { git = "https://github.com/starkware-libs/stwo", rev = "5ea05973", features = ["prover"] }
 num-traits = "0.2"
 rayon = "1"
+libc = "0.2"
 
 [dev-dependencies]
 stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "5ea05973" }
