@@ -5,13 +5,13 @@ use std::{
 };
 
 use cairo_vm::{
+    Felt252,
     cairo_run::CairoRunConfig,
     types::{
         errors::program_errors::ProgramError, layout::CairoLayoutParams, layout_name::LayoutName,
         program::Program,
     },
     vm::runners::cairo_runner::CairoRunner,
-    Felt252,
 };
 
 use crate::types::RunMode;

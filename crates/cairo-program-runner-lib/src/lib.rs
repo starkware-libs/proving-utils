@@ -1,11 +1,11 @@
-use cairo_vm::cairo_run::{cairo_run_program_with_initial_scope, CairoRunConfig};
+use cairo_vm::cairo_run::{CairoRunConfig, cairo_run_program_with_initial_scope};
 use cairo_vm::hint_processor::hint_processor_definition::HintProcessor;
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::program::Program;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::runners::cairo_runner::CairoRunner;
 pub use hints::*;
-use tracing::{span, Level};
+use tracing::{Level, span};
 
 pub mod hints;
 pub mod tasks;

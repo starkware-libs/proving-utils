@@ -1,17 +1,17 @@
 use cairo_vm::{
+    Felt252,
     air_public_input::{MemorySegmentAddresses, PublicMemoryEntry},
     serde::deserialize_program::Identifier,
     types::builtin_name::BuiltinName,
     vm::errors::hint_errors::HintError,
-    Felt252,
 };
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 
 use super::{
+    COMPONENT_HEIGHT,
     cairo_structs::*,
     types::{ExtractedIDsAndInputValues, ExtractedProofValues, OwnedPublicInput},
-    COMPONENT_HEIGHT,
 };
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
@@ -374,22 +374,22 @@ fn get_dynamic_or_const_value(
 ) -> Result<Felt252, HintError> {
     let name_lower = name.to_lowercase();
 
-    if let Some(dynamic_params) = dynamic_params {
-        if let Some(value) = dynamic_params.get(&name_lower) {
-            return Ok((*value).into());
-        }
+    if let Some(dynamic_params) = dynamic_params
+        && let Some(value) = dynamic_params.get(&name_lower)
+    {
+        return Ok((*value).into());
     }
 
     let full_name = format!("{module_name}.{name}");
 
     if let Some(identifier) = identifiers.get(&full_name) {
         // Check if the identifier is a constant
-        if let Some(type_) = &identifier.type_ {
-            if type_ != "const" {
-                return Err(HintError::CustomHint(
-                    format!("Identifier '{full_name}' is not a constant.").into(),
-                ));
-            }
+        if let Some(type_) = &identifier.type_
+            && type_ != "const"
+        {
+            return Err(HintError::CustomHint(
+                format!("Identifier '{full_name}' is not a constant.").into(),
+            ));
         }
 
         if let Some(felt_value) = &identifier.value {
@@ -1091,4 +1091,70 @@ pub fn sort_segments(
     }
 
     Ok(sorted_segments)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MODULE_NAME: &str = "starkware.cairo.dummy.module";
+
+    fn const_identifier(value: Option<Felt252>) -> Identifier {
+        Identifier {
+            pc: None,
+            type_: Some("const".to_string()),
+            value,
+            full_name: None,
+            members: None,
+            cairo_type: None,
+            size: None,
+            destination: None,
+        }
+    }
+
+    /// A value present in `dynamic_params` takes precedence and is returned as a `Felt252`.
+    #[test]
+    fn test_get_dynamic_or_const_value_from_dynamic_params() {
+        let dynamic_params = HashMap::from([("cpu_component_step".to_string(), 1234)]);
+        let identifiers = HashMap::new();
+
+        let value = get_dynamic_or_const_value(
+            Some(&dynamic_params),
+            "CPU_COMPONENT_STEP",
+            &identifiers,
+            MODULE_NAME,
+        )
+        .unwrap();
+
+        assert_eq!(value, Felt252::from(1234));
+    }
+
+    /// When not in `dynamic_params`, a constant identifier's value is returned.
+    #[test]
+    fn test_get_dynamic_or_const_value_from_const_identifier() {
+        let identifiers = HashMap::from([(
+            format!("{MODULE_NAME}.CPU_COMPONENT_STEP"),
+            const_identifier(Some(Felt252::from(1234))),
+        )]);
+
+        let value =
+            get_dynamic_or_const_value(None, "CPU_COMPONENT_STEP", &identifiers, MODULE_NAME)
+                .unwrap();
+
+        assert_eq!(value, Felt252::from(1234));
+    }
+
+    /// An identifier that is not a constant yields an error.
+    #[test]
+    fn test_get_dynamic_or_const_value_non_const_identifier() {
+        let mut identifier = const_identifier(Some(Felt252::from(1234)));
+        identifier.type_ = Some("reference".to_string());
+        let identifiers =
+            HashMap::from([(format!("{MODULE_NAME}.CPU_COMPONENT_STEP"), identifier)]);
+
+        let err = get_dynamic_or_const_value(None, "CPU_COMPONENT_STEP", &identifiers, MODULE_NAME)
+            .unwrap_err();
+
+        assert!(err.to_string().contains("is not a constant"));
+    }
 }

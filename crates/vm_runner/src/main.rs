@@ -14,7 +14,7 @@ use stwo_cairo_adapter::adapter::adapt;
 use stwo_cairo_adapter::{ExecutionResources, ProverInput};
 use stwo_cairo_utils::binary_utils::run_binary;
 use thiserror::Error;
-use tracing::{span, Level};
+use tracing::{Level, span};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

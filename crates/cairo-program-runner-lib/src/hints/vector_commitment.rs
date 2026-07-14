@@ -42,9 +42,9 @@ pub fn set_bit_from_index(
 mod tests {
     use super::*;
     use crate::test_utils::fill_ids_data_for_test;
+    use cairo_vm::Felt252;
     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
     use cairo_vm::types::relocatable::Relocatable;
-    use cairo_vm::Felt252;
     use rstest::rstest;
 
     /// This test verifies that the `set_bit_from_index` hint correctly sets the bit

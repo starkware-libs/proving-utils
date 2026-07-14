@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use cairo_vm::{
+    Felt252,
     hint_processor::{
         builtin_hint_processor::hint_utils::{
             get_integer_from_var_name, get_ptr_from_var_name, insert_value_into_ap,
@@ -10,7 +11,6 @@ use cairo_vm::{
     serde::deserialize_program::ApTracking,
     types::exec_scope::ExecutionScopes,
     vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
-    Felt252,
 };
 use num_traits::ToPrimitive;
 
@@ -125,7 +125,7 @@ pub fn pedersen_merkle_update(
 mod tests {
     use super::*;
     use crate::test_utils::fill_ids_data_for_test;
-    use crate::{ProgramInput, PROGRAM_INPUT};
+    use crate::{PROGRAM_INPUT, ProgramInput};
     use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
     use cairo_vm::vm::vm_core::VirtualMachine;
     use num_bigint::BigUint;

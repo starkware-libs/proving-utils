@@ -1,3 +1,4 @@
+use cairo_vm::Felt252;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::relocatable::Relocatable;
@@ -5,7 +6,6 @@ use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use cairo_vm::Felt252;
 
 use crate::hints::types::BootloaderVersion;
 
@@ -166,11 +166,11 @@ impl<'vm> ProgramLoader<'vm> {
 
 #[cfg(test)]
 mod tests {
+    use cairo_vm::Felt252;
     use cairo_vm::types::builtin_name::BuiltinName;
     use cairo_vm::types::program::Program;
     use cairo_vm::types::relocatable::Relocatable;
     use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
-    use cairo_vm::Felt252;
     use rstest::{fixture, rstest};
 
     use crate::hints::types::BootloaderVersion;
