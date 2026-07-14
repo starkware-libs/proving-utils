@@ -1,7 +1,7 @@
 [package]
 name = "cairo-program-runner"
 version.workspace = true
-edition = "2021"
+edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "CLI tool for running Cairo programs on the Cairo VM"

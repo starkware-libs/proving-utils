@@ -12,7 +12,7 @@ use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use num_bigint::BigInt;
 use serde_json::Value;
 
-use crate::{types::Cairo1Executable, Cairo0Executable, Task};
+use crate::{Cairo0Executable, Task, types::Cairo1Executable};
 
 #[derive(thiserror::Error, Debug)]
 pub enum BootloaderTaskError {

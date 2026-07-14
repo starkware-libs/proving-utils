@@ -1,7 +1,7 @@
 use std::any::Any;
 
-use cairo_vm::types::relocatable::MaybeRelocatable;
 use cairo_vm::Felt252;
+use cairo_vm::types::relocatable::MaybeRelocatable;
 use serde::{Deserialize, Serialize};
 
 use crate::maybe_relocatable_box;

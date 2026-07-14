@@ -3,6 +3,7 @@ use super::{
     types::FlexibleBuiltinUsageInput, utils::get_program_input_value,
 };
 use cairo_vm::{
+    Felt252,
     hint_processor::{
         builtin_hint_processor::hint_utils::{
             get_ptr_from_var_name, insert_value_from_var_name, insert_value_into_ap,
@@ -12,9 +13,8 @@ use cairo_vm::{
     serde::deserialize_program::ApTracking,
     types::exec_scope::ExecutionScopes,
     vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
-    Felt252,
 };
-use starknet_crypto::{pedersen_hash, Felt};
+use starknet_crypto::{Felt, pedersen_hash};
 use std::collections::HashMap;
 
 /// Implements hint:
@@ -213,7 +213,7 @@ pub fn flexible_builtin_usage_from_input(
 mod tests {
     use super::*;
     use crate::test_utils::fill_ids_data_for_test;
-    use crate::{ProgramInput, PROGRAM_INPUT};
+    use crate::{PROGRAM_INPUT, ProgramInput};
     use cairo_vm::serde::deserialize_program::OffsetValue;
     use cairo_vm::types::relocatable::MaybeRelocatable;
     use cairo_vm::types::relocatable::Relocatable;

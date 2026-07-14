@@ -3,8 +3,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use super::types::Task;
 use super::PROGRAM_INPUT;
+use super::types::Task;
 use crate::hints::fact_topologies::GPS_FACT_TOPOLOGY;
 use crate::hints::types::ProgramIdentifiers;
 use crate::utils::ProgramInput;
@@ -115,10 +115,10 @@ pub fn get_identifier(
     identifiers: &HashMap<String, Identifier>,
     name: &str,
 ) -> Result<usize, HintError> {
-    if let Some(identifier) = identifiers.get(name) {
-        if let Some(pc) = identifier.pc {
-            return Ok(pc);
-        }
+    if let Some(identifier) = identifiers.get(name)
+        && let Some(pc) = identifier.pc
+    {
+        return Ok(pc);
     }
 
     Err(HintError::VariableNotInScopeError(

@@ -63,9 +63,9 @@ pub fn select_builtin(
 #[cfg(test)]
 mod tests {
     use crate::test_utils::fill_ids_data_for_test;
+    use cairo_vm::Felt252;
     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_integer_from_var_name;
     use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
-    use cairo_vm::Felt252;
     use rstest::rstest;
 
     use super::*;

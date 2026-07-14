@@ -1,5 +1,5 @@
-use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::Felt252;
+use cairo_vm::types::builtin_name::BuiltinName;
 use std::fs::File;
 use std::path::Path;
 

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use cairo_vm::Felt252;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
@@ -8,7 +9,6 @@ use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::runners::builtin_runner::SignatureBuiltinRunner;
 use cairo_vm::vm::runners::cairo_pie::{BuiltinAdditionalData, CairoPie, CairoPieMemory};
 use cairo_vm::vm::vm_core::VirtualMachine;
-use cairo_vm::Felt252;
 use thiserror_no_std::Error;
 
 #[derive(Error, Debug)]

@@ -27,7 +27,7 @@ mod verifier_hints;
 mod verifier_utils;
 
 pub use hint_processors::{BootloaderHintProcessor, MinimalBootloaderHintProcessor};
-pub use program_hash::{compute_program_hash_chain, ProgramHashError};
+pub use program_hash::{ProgramHashError, compute_program_hash_chain};
 pub use types::{
     ApplicativeBootloaderInput, BootloaderConfig, BootloaderInput, Cairo0Executable,
     CairoVerifierInput, PackedOutput, SimpleBootloaderInput, Task, TaskSpec,

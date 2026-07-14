@@ -1,5 +1,5 @@
 use crate::hints::fact_topologies::{
-    compute_fact_topologies, configure_fact_topologies, write_to_fact_topologies_file, FactTopology,
+    FactTopology, compute_fact_topologies, configure_fact_topologies, write_to_fact_topologies_file,
 };
 use crate::maybe_relocatable_box;
 use cairo_vm::any_box;
@@ -489,6 +489,7 @@ mod tests {
     use crate::hints::hint_processors::MinimalBootloaderHintProcessor;
     use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
     use crate::test_utils::fill_ids_data_for_test;
+    use cairo_vm::Felt252;
     use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
     use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
@@ -497,7 +498,6 @@ mod tests {
         BuiltinRunner, OutputBuiltinRunner, OutputBuiltinState,
     };
     use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
-    use cairo_vm::Felt252;
     use rstest::{fixture, rstest};
     use std::collections::BTreeMap;
     use std::ops::Add;

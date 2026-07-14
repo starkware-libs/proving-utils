@@ -1,17 +1,17 @@
 use cairo_vm::{
+    Felt252,
     air_public_input::{MemorySegmentAddresses, PublicMemoryEntry},
     serde::deserialize_program::Identifier,
     types::builtin_name::BuiltinName,
     vm::errors::hint_errors::HintError,
-    Felt252,
 };
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 
 use super::{
+    COMPONENT_HEIGHT,
     cairo_structs::*,
     types::{ExtractedIDsAndInputValues, ExtractedProofValues, OwnedPublicInput},
-    COMPONENT_HEIGHT,
 };
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
@@ -374,22 +374,22 @@ fn get_dynamic_or_const_value(
 ) -> Result<Felt252, HintError> {
     let name_lower = name.to_lowercase();
 
-    if let Some(dynamic_params) = dynamic_params {
-        if let Some(value) = dynamic_params.get(&name_lower) {
-            return Ok((*value).into());
-        }
+    if let Some(dynamic_params) = dynamic_params
+        && let Some(value) = dynamic_params.get(&name_lower)
+    {
+        return Ok((*value).into());
     }
 
     let full_name = format!("{module_name}.{name}");
 
     if let Some(identifier) = identifiers.get(&full_name) {
         // Check if the identifier is a constant
-        if let Some(type_) = &identifier.type_ {
-            if type_ != "const" {
-                return Err(HintError::CustomHint(
-                    format!("Identifier '{full_name}' is not a constant.").into(),
-                ));
-            }
+        if let Some(type_) = &identifier.type_
+            && type_ != "const"
+        {
+            return Err(HintError::CustomHint(
+                format!("Identifier '{full_name}' is not a constant.").into(),
+            ));
         }
 
         if let Some(felt_value) = &identifier.value {

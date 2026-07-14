@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use cairo_program_runner_lib::types::{HashFunc, RunMode};
 use cairo_program_runner_lib::{
-    cairo_run_program, ProgramInput, SimpleBootloaderInput, Task, TaskSpec,
+    ProgramInput, SimpleBootloaderInput, Task, TaskSpec, cairo_run_program,
 };
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;

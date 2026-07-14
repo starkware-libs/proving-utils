@@ -2,7 +2,7 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use cairo_program_runner_lib::types::RunMode;
-use cairo_program_runner_lib::{cairo_run_program, ProgramInput};
+use cairo_program_runner_lib::{ProgramInput, cairo_run_program};
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 

@@ -1,8 +1,8 @@
+use cairo_vm::Felt252;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::relocatable::MaybeRelocatable;
 use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
-use cairo_vm::Felt252;
-use starknet_crypto::{pedersen_hash, poseidon_hash_many, Felt};
+use starknet_crypto::{Felt, pedersen_hash, poseidon_hash_many};
 use starknet_types_core::hash::Blake2Felt252;
 use std::iter::once;
 
@@ -21,9 +21,7 @@ pub enum ProgramHashError {
     #[error(transparent)]
     HashChain(#[from] HashChainError),
 
-    #[error(
-        "Invalid program builtin: builtin name too long to be converted to field element: {0}"
-    )]
+    #[error("Invalid program builtin: builtin name too long to be converted to field element: {0}")]
     InvalidProgramBuiltin(&'static str),
 
     #[error("Invalid program data: data contains relocatable(s)")]
@@ -143,15 +141,15 @@ pub fn compute_program_hash_chain(
 mod tests {
     use std::path::PathBuf;
 
+    use cairo_vm::Felt252;
     use cairo_vm::math_utils::signed_felt;
     use cairo_vm::types::layout_name::LayoutName;
     use cairo_vm::types::program::Program;
-    use cairo_vm::Felt252;
     use rstest::rstest;
     use starknet_crypto::pedersen_hash;
 
     use crate::types::RunMode;
-    use crate::{cairo_run_program, ProgramInput};
+    use crate::{ProgramInput, cairo_run_program};
 
     use super::*;
 
@@ -274,8 +272,7 @@ mod tests {
             "Expected at least 3 output lines (n_tasks, n_task_words, program_hash). Got:\n{output_buffer}"
         );
         assert_eq!(
-            output_lines[2],
-            expected_hash_output_format,
+            output_lines[2], expected_hash_output_format,
             "Bootloader output program hash should match compute_program_hash_chain for {hash_func:?}",
         );
     }

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use cairo_vm::Felt252;
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_constant_from_var_name, get_integer_from_var_name, get_ptr_from_var_name,
     get_relocatable_from_var_name, insert_value_from_var_name, insert_value_into_ap,
@@ -14,7 +15,6 @@ use cairo_vm::vm::runners::builtin_runner::{
     EcOpBuiltinRunner, KeccakBuiltinRunner, SignatureBuiltinRunner,
 };
 use cairo_vm::vm::vm_core::VirtualMachine;
-use cairo_vm::Felt252;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;

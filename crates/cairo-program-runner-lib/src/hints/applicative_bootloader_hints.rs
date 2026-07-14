@@ -17,15 +17,15 @@ use cairo_vm::{
 
 use crate::hints::{
     fact_topologies::{
-        add_consecutive_output_pages, write_to_fact_topologies_file, GPS_FACT_TOPOLOGY,
+        GPS_FACT_TOPOLOGY, add_consecutive_output_pages, write_to_fact_topologies_file,
     },
     types::BOOTLOADER_CONFIG_SIZE,
     utils::get_program_input_value,
 };
 
 use super::{
-    fact_topologies::FactTopology, vars, ApplicativeBootloaderInput, BootloaderInput,
-    SimpleBootloaderInput, APPLICATIVE_BOOTLOADER_INPUT,
+    APPLICATIVE_BOOTLOADER_INPUT, ApplicativeBootloaderInput, BootloaderInput,
+    SimpleBootloaderInput, fact_topologies::FactTopology, vars,
 };
 
 /// Implements nondet %{ aggregator_program_hash_function %}

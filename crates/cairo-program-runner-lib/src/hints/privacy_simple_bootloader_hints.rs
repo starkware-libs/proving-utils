@@ -9,9 +9,9 @@ use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use starknet_types_core::felt::Felt;
 
+use crate::hints::SIMPLE_BOOTLOADER_INPUT;
 use crate::hints::types::PrivacySimpleBootloaderInput;
 use crate::hints::vars;
-use crate::hints::SIMPLE_BOOTLOADER_INPUT;
 
 use super::utils::get_program_input_value;
 
@@ -68,6 +68,7 @@ pub fn dump_privacy_simple_bootloader_output_preimage(
 mod tests {
     use std::path::PathBuf;
 
+    use cairo_vm::Felt252;
     use cairo_vm::math_utils::signed_felt;
     use cairo_vm::serde::deserialize_program::ApTracking;
     use cairo_vm::types::exec_scope::ExecutionScopes;
@@ -75,7 +76,6 @@ mod tests {
     use cairo_vm::types::program::Program;
     use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
     use cairo_vm::vm::vm_core::VirtualMachine;
-    use cairo_vm::Felt252;
     use starknet_types_core::felt::Felt;
     use starknet_types_core::hash::Blake2Felt252;
 
@@ -84,7 +84,7 @@ mod tests {
     use crate::hints::types::{HashFunc, SimpleBootloaderInput};
     use crate::test_utils::prepare_non_continuous_ids_data_for_test;
     use crate::types::RunMode;
-    use crate::{cairo_run_program, ProgramInput, PROGRAM_INPUT};
+    use crate::{PROGRAM_INPUT, ProgramInput, cairo_run_program};
 
     #[test]
     fn test_load_privacy_simple_bootloader_input() {

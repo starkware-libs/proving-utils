@@ -31,10 +31,10 @@ pub fn fibonacci_load_claim_idx(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ProgramInput, PROGRAM_INPUT};
+    use crate::{PROGRAM_INPUT, ProgramInput};
+    use cairo_vm::Felt252;
     use cairo_vm::types::relocatable::Relocatable;
     use cairo_vm::vm::vm_core::VirtualMachine;
-    use cairo_vm::Felt252;
 
     fn prepare_vm_for_fibonacci_test(
         fibonacci_input: &FibonacciInput,

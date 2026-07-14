@@ -22,20 +22,20 @@ use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::runners::builtin_runner::{OutputBuiltinRunner, OutputBuiltinState};
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use cairo_vm::{any_box, Felt252};
+use cairo_vm::{Felt252, any_box};
 use num_traits::ToPrimitive as _;
 use starknet_crypto::Felt;
 
 use super::types::HashFunc;
 use super::utils::{get_identifier, get_program_from_task, get_program_identifies};
 use super::{BootloaderHintProcessor, PROGRAM_INPUT, PROGRAM_OBJECT};
-use crate::hints::fact_topologies::{get_task_fact_topology, FactTopology};
+use crate::ProgramInput;
+use crate::hints::fact_topologies::{FactTopology, get_task_fact_topology};
 use crate::hints::load_cairo_pie::load_cairo_pie;
 use crate::hints::program_hash::compute_program_hash_chain;
 use crate::hints::program_loader::ProgramLoader;
 use crate::hints::types::{BootloaderVersion, Task};
 use crate::hints::vars;
-use crate::ProgramInput;
 
 pub fn felt_to_felt252(field_element: Felt) -> Felt252 {
     let bytes = field_element.to_bytes_be();
