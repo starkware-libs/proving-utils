@@ -120,6 +120,7 @@ fn test_packed_node_serializes_leaf_and_internal() {
     // bootloader's hashed output) over `Plain` (the raw preimage).
     let leaf_a = PackedNode::leaf(
         std::array::from_fn(|i| QM31::from_u32_unchecked(i as u32 + 1, 0, 0, 0)),
+        std::array::from_fn(|i| i as u32 + 30),
         vec!["3".to_string(), "4".to_string()],
         vec!["1".to_string(), "2".to_string()],
     );
@@ -130,11 +131,12 @@ fn test_packed_node_serializes_leaf_and_internal() {
             .map(|q| crate::fold::qm31_to_u32_limbs(&q)),
         *leaf_a.output_values()
     );
-    // Serializes as `{"Composite": { output_values, subtasks: [{"BootloaderOutput": {
-    // program_output, subtask: {"Plain": { output_preimage }}}}] }}`.
+    // Serializes as `{"Composite": { output_values, preprocessed_root, subtasks:
+    // [{"BootloaderOutput": { program_output, subtask: {"Plain": { output_preimage }}}}] }}`.
     let leaf_json: serde_json::Value =
         serde_json::from_str(&serde_json::to_string(&leaf_a).unwrap()).unwrap();
     assert_eq!(leaf_json["Composite"]["output_values"][0][0], 1);
+    assert_eq!(leaf_json["Composite"]["preprocessed_root"][0], 30);
     let bl_out = &leaf_json["Composite"]["subtasks"][0]["BootloaderOutput"];
     assert_eq!(bl_out["program_output"][0], "3");
     assert_eq!(bl_out["subtask"]["Plain"]["output_preimage"][0], "1");
@@ -142,11 +144,13 @@ fn test_packed_node_serializes_leaf_and_internal() {
     // Internal: a `Composite` over two child subtasks.
     let leaf_b = PackedNode::leaf(
         std::array::from_fn(|i| QM31::from_u32_unchecked(i as u32 + 9, 0, 0, 0)),
+        std::array::from_fn(|i| i as u32 + 40),
         vec![],
         vec![],
     );
     let internal = PackedNode::Composite {
         output_values: std::array::from_fn(|i| [(i as u32 + 1) * 100, 0, 0, 0]),
+        preprocessed_root: std::array::from_fn(|i| i as u32 + 50),
         subtasks: vec![leaf_a, leaf_b],
     };
 
@@ -314,6 +318,7 @@ mod e2e {
             // the raw preimage (see `PackedNode`).
             packed: PackedNode::Composite {
                 output_values: packed_limbs(leaf_output_words(leaf)),
+                preprocessed_root: leaf_root_words(leaf),
                 subtasks: vec![PackedNode::BootloaderOutput {
                     program_output: leaf.proof.program_output.clone(),
                     subtask: Box::new(PackedNode::Plain {
@@ -345,6 +350,7 @@ mod e2e {
             preprocessed_root: multiverifier_root,
             packed: PackedNode::Composite {
                 output_values: packed_limbs(output_words),
+                preprocessed_root: multiverifier_root,
                 subtasks: vec![left.packed, right.packed],
             },
         }
