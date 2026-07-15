@@ -2,6 +2,7 @@ mod applicative_bootloader_hints;
 mod bootloader_hints;
 mod builtin_usage_hints;
 mod cairo_structs;
+mod circuit_applicative_bootloader_hints;
 mod codes;
 mod concat_aggregator_hints;
 mod execute_task_hints;

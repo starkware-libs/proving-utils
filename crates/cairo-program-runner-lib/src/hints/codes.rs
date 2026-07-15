@@ -572,3 +572,4 @@ pub const PEDERSEN_MERKLE_UPDATE_RIGHT: &str = "# Hash hints.
 sibling = auth_path.pop()
 ids.prev_node_hash.x = sibling
 ids.new_node_hash.x = sibling";
+pub const MOCK_CIRCUIT_VERIFIER_LOAD_INPUT: &str = "MOCK_CIRCUIT_VERIFIER_LOAD_INPUT";
