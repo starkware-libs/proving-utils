@@ -25,6 +25,12 @@ slow-tests = []
 [dependencies]
 clap.workspace = true
 leaf-proof-format.workspace = true
+# The real leaf producer: the canonical circuit shape is derived from the same constants
+# (disabled components, preprocessed-trace variant) `leaf_prover` proves leaves with.
+leaf-prover.workspace = true
+stwo-cairo-common.workspace = true
+cairo-air.workspace = true
+indexmap = { version = "2.10.0", default-features = false, features = ["std"] }
 serde.workspace = true
 serde_json.workspace = true
 sonic-rs.workspace = true
