@@ -30,16 +30,15 @@ use super::{
 
 /// Implements nondet %{ aggregator_program_hash_function %}
 /// Compiles to: memory[ap] = to_felt_or_relocatable(aggregator_program_hash_function)
+///
+/// The scope variable is set by the input-loading hint of whichever applicative bootloader is
+/// running (the applicative bootloader or the circuit-unpacking applicative bootloader).
 pub fn aggregator_program_hash_function_to_ap(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
-    let applicative_bootloader_input: &ApplicativeBootloaderInput =
-        exec_scopes.get_ref(vars::APPLICATIVE_BOOTLOADER_INPUT)?;
-    let program_hash_function = applicative_bootloader_input
-        .aggregator_task
-        .program_hash_function;
-    insert_value_into_ap(vm, program_hash_function as usize)
+    let program_hash_function: usize = exec_scopes.get(vars::AGGREGATOR_PROGRAM_HASH_FUNCTION)?;
+    insert_value_into_ap(vm, program_hash_function)
 }
 
 /// Implements
@@ -97,6 +96,13 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
         single_page: true,
     };
 
+    // Read back by the `nondet %{ aggregator_program_hash_function %}` hint.
+    exec_scopes.insert_value(
+        vars::AGGREGATOR_PROGRAM_HASH_FUNCTION,
+        applicative_bootloader_input
+            .aggregator_task
+            .program_hash_function as usize,
+    );
     exec_scopes.insert_value(APPLICATIVE_BOOTLOADER_INPUT, applicative_bootloader_input);
     exec_scopes.insert_value(vars::SIMPLE_BOOTLOADER_INPUT, simple_bootloader_input);
 
@@ -340,4 +346,38 @@ pub fn finalize_fact_topologies_and_pages(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use cairo_vm::Felt252;
+    use cairo_vm::types::relocatable::Relocatable;
+
+    use super::*;
+
+    #[test]
+    fn test_aggregator_program_hash_function_to_ap() {
+        let mut vm = VirtualMachine::new(false, false);
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        let mut exec_scopes = ExecutionScopes::new();
+        // Set by the input-loading hint of whichever applicative bootloader is running.
+        exec_scopes.insert_value(vars::AGGREGATOR_PROGRAM_HASH_FUNCTION, 2usize);
+
+        aggregator_program_hash_function_to_ap(&mut vm, &mut exec_scopes).unwrap();
+
+        assert_eq!(
+            *vm.get_integer(Relocatable::from((1, 0))).unwrap().as_ref(),
+            Felt252::from(2)
+        );
+    }
+
+    #[test]
+    fn test_aggregator_program_hash_function_to_ap_requires_scope_variable() {
+        let mut vm = VirtualMachine::new(false, false);
+        vm.add_memory_segment();
+        vm.add_memory_segment();
+        let mut exec_scopes = ExecutionScopes::new();
+        assert!(aggregator_program_hash_function_to_ap(&mut vm, &mut exec_scopes).is_err());
+    }
 }
