@@ -21,6 +21,7 @@ pub const SIMPLE_BOOTLOADER_INPUT: &str = "simple_bootloader_input";
 
 /// Deserialized applicative bootloader input.
 pub const APPLICATIVE_BOOTLOADER_INPUT: &str = "applicative_bootloader_input";
+pub const CIRCUIT_APPLICATIVE_BOOTLOADER_INPUT: &str = "circuit_applicative_bootloader_input";
 
 /// Packed outputs.
 pub const PACKED_OUTPUTS: &str = "packed_outputs";
