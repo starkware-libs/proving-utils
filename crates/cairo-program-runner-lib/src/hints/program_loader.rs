@@ -58,10 +58,7 @@ pub struct ProgramLoader<'vm> {
 
 impl<'vm> ProgramLoader<'vm> {
     pub fn new(vm: &'vm mut VirtualMachine, builtins_offset: usize) -> Self {
-        Self {
-            vm,
-            builtins_offset,
-        }
+        Self { vm, builtins_offset }
     }
 
     fn load_builtins(
@@ -71,8 +68,7 @@ impl<'vm> ProgramLoader<'vm> {
     ) -> Result<(), ProgramLoaderError> {
         for (index, builtin) in builtins.iter().enumerate() {
             let builtin_felt = builtin_to_felt(builtin)?;
-            self.vm
-                .insert_value((builtin_list_ptr + index)?, builtin_felt)?;
+            self.vm.insert_value((builtin_list_ptr + index)?, builtin_felt)?;
         }
 
         Ok(())
@@ -105,8 +101,7 @@ impl<'vm> ProgramLoader<'vm> {
         let bootloader_version = bootloader_version.unwrap_or(0);
 
         self.vm.insert_value(data_length_ptr, data_length)?;
-        self.vm
-            .insert_value(bootloader_version_ptr, Felt252::from(bootloader_version))?;
+        self.vm.insert_value(bootloader_version_ptr, Felt252::from(bootloader_version))?;
         self.vm.insert_value(program_main_ptr, program_main)?;
         self.vm.insert_value(n_builtins_ptr, n_builtins)?;
 
@@ -157,10 +152,7 @@ impl<'vm> ProgramLoader<'vm> {
         let program_address = (base_address + header_size)?;
         self.load_code(program_address, program)?;
 
-        Ok(LoadedProgram {
-            code_address: program_address,
-            size: header_size + program.data.len(),
-        })
+        Ok(LoadedProgram { code_address: program_address, size: header_size + program.data.len() })
     }
 }
 
@@ -173,9 +165,8 @@ mod tests {
     use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
     use rstest::{fixture, rstest};
 
-    use crate::hints::types::BootloaderVersion;
-
     use super::*;
+    use crate::hints::types::BootloaderVersion;
 
     #[rstest]
     #[case::output(BuiltinName::output, 122550255383924)]
@@ -208,11 +199,7 @@ mod tests {
 
     #[test]
     fn test_load_builtins() {
-        let builtins = vec![
-            BuiltinName::bitwise,
-            BuiltinName::output,
-            BuiltinName::pedersen,
-        ];
+        let builtins = vec![BuiltinName::bitwise, BuiltinName::output, BuiltinName::pedersen];
 
         let mut vm = VirtualMachine::new(false, true);
         let builtin_list_ptr = vm.add_memory_segment();
@@ -250,22 +237,10 @@ mod tests {
         let program_main = program.main;
         let n_builtins = program.builtins.len();
 
-        assert_eq!(
-            header_felts[0].clone().into_owned(),
-            Felt252::from(expected_data_length)
-        );
-        assert_eq!(
-            header_felts[1].clone().into_owned(),
-            Felt252::from(bootloader_version)
-        );
-        assert_eq!(
-            header_felts[2].clone().into_owned(),
-            Felt252::from(program_main)
-        );
-        assert_eq!(
-            header_felts[3].clone().into_owned(),
-            Felt252::from(n_builtins)
-        );
+        assert_eq!(header_felts[0].clone().into_owned(), Felt252::from(expected_data_length));
+        assert_eq!(header_felts[1].clone().into_owned(), Felt252::from(bootloader_version));
+        assert_eq!(header_felts[2].clone().into_owned(), Felt252::from(program_main));
+        assert_eq!(header_felts[3].clone().into_owned(), Felt252::from(n_builtins));
     }
 
     #[rstest]

@@ -10,13 +10,14 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use cairo_air::flat_claims::FlatClaim;
-use cairo_program_runner_lib::types::HashFunc;
-use cairo_program_runner_lib::types::{PrivacySimpleBootloaderInput, SimpleBootloaderInput};
+use cairo_program_runner_lib::types::{
+    HashFunc, PrivacySimpleBootloaderInput, SimpleBootloaderInput,
+};
 use cairo_program_runner_lib::{ProgramInput, Task, TaskSpec, cairo_run_program};
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use circuit_cairo_verifier::verify::CairoVerifierConfig;
-use circuit_cairo_verifier::verify::build_fixed_cairo_circuit;
-use circuit_cairo_verifier::verify::prepare_cairo_proof_for_circuit_verifier;
+use circuit_cairo_verifier::verify::{
+    CairoVerifierConfig, build_fixed_cairo_circuit, prepare_cairo_proof_for_circuit_verifier,
+};
 use circuit_common::finalize::{add_zk_blinding, pad_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
@@ -86,11 +87,8 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
 
     info!("Generate the cairo proof");
     let cairo_proof = prove_cairo::<Blake2sM31MerkleChannel>(prover_input, CAIRO_PROVER_PARAMS)?;
-    let FlatClaim {
-        component_enable_bits,
-        component_log_sizes: _,
-        public_data: _,
-    } = cairo_proof.claim.flatten_claim();
+    let FlatClaim { component_enable_bits, component_log_sizes: _, public_data: _ } =
+        cairo_proof.claim.flatten_claim();
 
     info!("Prepare the proof for the circuit verifier");
     let (proof, serialized_aux_data) =
@@ -99,18 +97,13 @@ pub fn privacy_prove(pie: CairoPie) -> Result<PrivacyProofOutput, Box<dyn Error>
     info!("Serialize and compress the proof and public data");
     let mut proof_bytes: Vec<u8> = vec![];
     proof.serialize(&mut proof_bytes);
-    let serialized_aux_bytes: Vec<u8> = serialized_aux_data
-        .iter()
-        .flat_map(|x| x.0.to_le_bytes())
-        .collect();
+    let serialized_aux_bytes: Vec<u8> =
+        serialized_aux_data.iter().flat_map(|x| x.0.to_le_bytes()).collect();
     let combined_bytes: Vec<u8> = chain!(serialized_aux_bytes, proof_bytes).collect();
     let compressed = compress_proof(&combined_bytes)?;
     let proof = prepend_version(compressed);
 
-    Ok(PrivacyProofOutput {
-        proof,
-        output_preimage,
-    })
+    Ok(PrivacyProofOutput { proof, output_preimage })
 }
 
 pub fn prepare_recursive_prover_precomputes()
@@ -130,17 +123,12 @@ pub fn prepare_recursive_prover_precomputes()
     // Precompute twiddles.
     let max_domain_size = max(cairo_lifting_log_size, circuit_lifting_log_size);
     let twiddles = SimdBackend::precompute_twiddles(
-        CanonicCoset::new(max_domain_size)
-            .circle_domain()
-            .half_coset,
+        CanonicCoset::new(max_domain_size).circle_domain().half_coset,
     );
 
     info!("Prepare the cairo prover preprocessed trace and tree");
-    let cairo_preprocessed_trace = Arc::new(
-        CAIRO_PROVER_PARAMS
-            .preprocessed_trace
-            .to_preprocessed_trace(),
-    );
+    let cairo_preprocessed_trace =
+        Arc::new(CAIRO_PROVER_PARAMS.preprocessed_trace.to_preprocessed_trace());
     // Warm the Pedersen points table before gen_trace reads it.
     warm_pedersen_pp_trace(CAIRO_PROVER_PARAMS.preprocessed_trace);
     let cairo_preprocessed_trace_polys =
@@ -155,9 +143,8 @@ pub fn prepare_recursive_prover_precomputes()
     );
 
     info!("Prepare the circuit prover preprocessed trace and tree");
-    let circuit_preprocessed_trace = preprocessed_circuit
-        .preprocessed_trace
-        .get_trace::<SimdBackend>();
+    let circuit_preprocessed_trace =
+        preprocessed_circuit.preprocessed_trace.get_trace::<SimdBackend>();
     let circuit_preprocessed_trace_polys =
         SimdBackend::interpolate_columns(circuit_preprocessed_trace, &twiddles);
     let circuit_preprocessed_tree =
@@ -201,11 +188,8 @@ pub fn privacy_recursive_prove(
         prover_input,
         CAIRO_PROVER_PARAMS,
     )?;
-    let FlatClaim {
-        component_enable_bits,
-        component_log_sizes: _,
-        public_data: _,
-    } = cairo_proof.claim.flatten_claim();
+    let FlatClaim { component_enable_bits, component_log_sizes: _, public_data: _ } =
+        cairo_proof.claim.flatten_claim();
     info!("Prepare the cairo proof for the cairo-circuit verifier");
     let (proof, serialized_aux_data) =
         prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &component_enable_bits);
@@ -249,10 +233,7 @@ pub fn privacy_recursive_prove(
     let compressed = compress_proof(&proof_bytes)?;
     let proof = prepend_version(compressed);
 
-    Ok(PrivacyProofOutput {
-        proof,
-        output_preimage,
-    })
+    Ok(PrivacyProofOutput { proof, output_preimage })
 }
 
 fn run_privacy_bootloader(pie: CairoPie) -> Result<(ProverInput, Vec<Felt>), Box<dyn Error>> {
@@ -260,10 +241,8 @@ fn run_privacy_bootloader(pie: CairoPie) -> Result<(ProverInput, Vec<Felt>), Box
 
     let output_preimage_file = NamedTempFile::new()?;
     let output_preimage_path = output_preimage_file.path().to_path_buf();
-    let pie_task_spec = TaskSpec {
-        task: Rc::new(Task::Pie(pie)),
-        program_hash_function: HashFunc::Blake,
-    };
+    let pie_task_spec =
+        TaskSpec { task: Rc::new(Task::Pie(pie)), program_hash_function: HashFunc::Blake };
     let bootloader_input = PrivacySimpleBootloaderInput {
         simple_bootloader_input: SimpleBootloaderInput {
             fact_topologies_path: None,

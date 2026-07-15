@@ -20,11 +20,10 @@ use num_traits::ToPrimitive;
 use starknet_types_core::felt::NonZeroFelt;
 
 use super::types::HashFunc;
+use super::utils::get_program_from_task;
 use crate::hints::fact_topologies::FactTopology;
 use crate::hints::types::SimpleBootloaderInput;
 use crate::hints::vars;
-
-use super::utils::get_program_from_task;
 
 /// Implements a hint that:
 /// 1. Writes the number of tasks into `output_ptr[0]`.
@@ -148,10 +147,7 @@ pub fn simple_bootloader_simulate_ec_op(
 ) -> Result<(), HintError> {
     let mut ec_op_runner = EcOpBuiltinRunner::new(Some(1), false);
     ec_op_runner.initialize_segments(&mut vm.segments);
-    let new_ec_op_ptr = Relocatable {
-        segment_index: ec_op_runner.base as isize,
-        offset: 0,
-    };
+    let new_ec_op_ptr = Relocatable { segment_index: ec_op_runner.base as isize, offset: 0 };
     insert_value_from_var_name("new_ec_op_ptr", new_ec_op_ptr, vm, ids_data, ap_tracking)?;
     vm.simulated_builtin_runners.push(ec_op_runner.into());
 
@@ -204,10 +200,7 @@ pub fn simple_bootloader_simulate_keccak(
 ) -> Result<(), HintError> {
     let mut keccak_runner = KeccakBuiltinRunner::new(Some(1), false);
     keccak_runner.initialize_segments(&mut vm.segments);
-    let new_keccak_ptr = Relocatable {
-        segment_index: keccak_runner.base as isize,
-        offset: 0,
-    };
+    let new_keccak_ptr = Relocatable { segment_index: keccak_runner.base as isize, offset: 0 };
     insert_value_from_var_name("new_keccak_ptr", new_keccak_ptr, vm, ids_data, ap_tracking)?;
     vm.simulated_builtin_runners.push(keccak_runner.into());
 
@@ -262,13 +255,7 @@ pub fn simulate_keccak_calc_high_low(
     let x = index / 3;
     let divisor = NonZeroFelt::try_from(Felt252::from(1u64 << (x * 8))).unwrap();
     let (high_felt, low_felt) = felt.div_rem(&divisor);
-    insert_value_from_var_name(
-        &format!("high{index}"),
-        high_felt,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name(&format!("high{index}"), high_felt, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name(&format!("low{index}"), low_felt, vm, ids_data, ap_tracking)?;
 
     Ok(())
@@ -296,10 +283,7 @@ pub fn simple_bootloader_simulate_ecdsa(
 ) -> Result<(), HintError> {
     let mut ecdsa_runner = SignatureBuiltinRunner::new(Some(1), false);
     ecdsa_runner.initialize_segments(&mut vm.segments);
-    let new_ecdsa_ptr = Relocatable {
-        segment_index: ecdsa_runner.base as isize,
-        offset: 0,
-    };
+    let new_ecdsa_ptr = Relocatable { segment_index: ecdsa_runner.base as isize, offset: 0 };
     insert_value_from_var_name("new_ecdsa_ptr", new_ecdsa_ptr, vm, ids_data, ap_tracking)?;
     ecdsa_runner.add_validation_rule(&mut vm.segments.memory);
     vm.simulated_builtin_runners.push(ecdsa_runner.into());

@@ -71,10 +71,7 @@ fn single_leaf_cli_run_writes_root_outputs() {
     assert!(status.success(), "binary exited with failure: {status:?}");
 
     // Root proof: byte-for-byte copy of the single leaf's proof.
-    assert_eq!(
-        std::fs::read(&out_proof).expect("read root_proof"),
-        leaf_proof_bytes,
-    );
+    assert_eq!(std::fs::read(&out_proof).expect("read root_proof"), leaf_proof_bytes,);
 
     // program_output: JSON array of hex strings, one per leaf output (0xcd=205, 0xbf=191).
     let outputs_hex: Vec<String> =
@@ -86,9 +83,7 @@ fn single_leaf_cli_run_writes_root_outputs() {
     let ft_json: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&out_fact_topologies).expect("read ft"))
             .expect("parse fact_topologies");
-    let ft_arr = ft_json["fact_topologies"]
-        .as_array()
-        .expect("fact_topologies is array");
+    let ft_arr = ft_json["fact_topologies"].as_array().expect("fact_topologies is array");
     assert_eq!(ft_arr.len(), 1);
     assert_eq!(ft_arr[0]["page_sizes"], serde_json::json!([5]));
 
@@ -127,8 +122,5 @@ fn invalid_program_input_exits_nonzero() {
         .arg(dir.join("pout"))
         .status()
         .expect("spawn recursive-tree binary");
-    assert!(
-        !status.success(),
-        "binary should exit non-zero on malformed input, got: {status:?}",
-    );
+    assert!(!status.success(), "binary should exit non-zero on malformed input, got: {status:?}",);
 }

@@ -1,7 +1,7 @@
-use anyhow::Result;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use anyhow::Result;
 use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_program, get_program_input_from_path};
 use cairo_vm::cairo_run;
@@ -22,10 +22,7 @@ struct Args {
     #[clap(long = "program", help = "Absolute path to the compiled program.")]
     program: PathBuf,
 
-    #[clap(
-        long = "program_input",
-        help = "Absolute path to the program input file."
-    )]
+    #[clap(long = "program_input", help = "Absolute path to the program input file.")]
     program_input: Option<PathBuf>,
 
     #[clap(long = "layout", help = "Layout name.")]
@@ -45,9 +42,9 @@ struct Args {
 
     #[clap(
         long = "output_vm_execution_resources_path",
-        help = "Absolute path to dump the Cairo VM's ExecutionResources (n_steps, \
-                n_memory_holes, and unrounded per-builtin instance counts) as observed by the \
-                VM before the adapter's power-of-two padding (output file)."
+        help = "Absolute path to dump the Cairo VM's ExecutionResources (n_steps, n_memory_holes, \
+                and unrounded per-builtin instance counts) as observed by the VM before the \
+                adapter's power-of-two padding (output file)."
     )]
     output_vm_execution_resources_path: Option<PathBuf>,
 

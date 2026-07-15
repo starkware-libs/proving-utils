@@ -32,7 +32,6 @@ pub use types::{
     ApplicativeBootloaderInput, BootloaderConfig, BootloaderInput, Cairo0Executable,
     CairoVerifierInput, PackedOutput, SimpleBootloaderInput, Task, TaskSpec,
 };
-
 pub use vars::{
     APPLICATIVE_BOOTLOADER_INPUT, BOOTLOADER_INPUT, COMPONENT_HEIGHT, PROGRAM_INPUT,
     PROGRAM_OBJECT, SIMPLE_BOOTLOADER_INPUT,

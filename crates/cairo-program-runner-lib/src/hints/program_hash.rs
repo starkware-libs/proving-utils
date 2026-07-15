@@ -1,10 +1,11 @@
+use std::iter::once;
+
 use cairo_vm::Felt252;
 use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::relocatable::MaybeRelocatable;
 use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use starknet_crypto::{Felt, pedersen_hash, poseidon_hash_many};
 use starknet_types_core::hash::Blake2Felt252;
-use std::iter::once;
 
 use super::types::HashFunc;
 
@@ -32,15 +33,13 @@ pub enum ProgramHashError {
     #[error("Conversion from Felt252 to Felt failed")]
     Felt252ToFeltConversionFailed,
 }
-/*
- Computes a hash chain over the data, in the following order:
-     h(data[0], h(data[1], h(..., h(data[n-2], data[n-1])))).
-
- Reimplements this Python function:
- def compute_hash_chain(data, hash_func=pedersen_hash):
-     assert len(data) >= 1, f"len(data) for hash chain computation must be >= 1; got: {len(data)}."
-     return functools.reduce(lambda x, y: hash_func(y, x), data[::-1])
-*/
+// Computes a hash chain over the data, in the following order:
+// h(data[0], h(data[1], h(..., h(data[n-2], data[n-1])))).
+//
+// Reimplements this Python function:
+// def compute_hash_chain(data, hash_func=pedersen_hash):
+// assert len(data) >= 1, f"len(data) for hash chain computation must be >= 1; got: {len(data)}."
+// return functools.reduce(lambda x, y: hash_func(y, x), data[::-1])
 fn compute_hash_chain<'a, I>(data: I, hash_func: HashFunction) -> Result<Felt, HashChainError>
 where
     I: Iterator<Item = &'a Felt> + DoubleEndedIterator,
@@ -85,9 +84,7 @@ fn felt252_to_felt(felt: &Felt252) -> Result<Felt, ProgramHashError> {
 fn maybe_relocatable_to_felt(
     maybe_relocatable: &MaybeRelocatable,
 ) -> Result<Felt, ProgramHashError> {
-    let felt = maybe_relocatable
-        .get_int_ref()
-        .ok_or(ProgramHashError::InvalidProgramData)?;
+    let felt = maybe_relocatable.get_int_ref().ok_or(ProgramHashError::InvalidProgramData)?;
     felt252_to_felt(felt)
 }
 
@@ -106,11 +103,8 @@ pub fn compute_program_hash_chain(
     let builtin_list: Result<Vec<Felt>, _> = program.builtins.iter().map(builtin_to_felt).collect();
     let builtin_list = builtin_list?;
 
-    let program_header = vec![
-        Felt::from(bootloader_version),
-        program_main,
-        Felt::from(program.builtins.len()),
-    ];
+    let program_header =
+        vec![Felt::from(bootloader_version), program_main, Felt::from(program.builtins.len())];
 
     let program_data: Result<Vec<_>, _> =
         program.data.iter().map(maybe_relocatable_to_felt).collect();
@@ -148,18 +142,15 @@ mod tests {
     use rstest::rstest;
     use starknet_crypto::pedersen_hash;
 
+    use super::*;
     use crate::types::RunMode;
     use crate::{ProgramInput, cairo_run_program};
-
-    use super::*;
 
     #[test]
     fn test_compute_hash_chain() {
         let data: Vec<Felt> = vec![Felt::from(1u64), Felt::from(2u64), Felt::from(3u64)];
-        let expected_hash = pedersen_hash(
-            &Felt::from(1u64),
-            &pedersen_hash(&Felt::from(2u64), &Felt::from(3u64)),
-        );
+        let expected_hash =
+            pedersen_hash(&Felt::from(1u64), &pedersen_hash(&Felt::from(2u64), &Felt::from(3u64)));
         let computed_hash = compute_hash_chain(data.iter(), pedersen_hash)
             .expect("Hash computation failed unexpectedly");
 
@@ -182,9 +173,10 @@ mod tests {
         #[case] program_path: PathBuf,
         #[case] expected_program_hash: String,
     ) {
-        let program =
-            Program::from_file(program_path.as_path(), Some("main"))
-                .expect("Could not load program. Did you compile the sample programs? Run `make test` in the root directory.");
+        let program = Program::from_file(program_path.as_path(), Some("main")).expect(
+            "Could not load program. Did you compile the sample programs? Run `make test` in the \
+             root directory.",
+        );
         let stripped_program = program.get_stripped_program().unwrap();
         let bootloader_version = 0;
 
@@ -215,9 +207,8 @@ mod tests {
                 .expect("Could not load simple bootloader program.");
         let fibonacci_program = Program::from_file(fibonacci_path.as_path(), Some("main"))
             .expect("Could not load fibonacci program.");
-        let stripped_program = fibonacci_program
-            .get_stripped_program()
-            .expect("Could not get stripped program.");
+        let stripped_program =
+            fibonacci_program.get_stripped_program().expect("Could not get stripped program.");
 
         let program_hash_function_str = match hash_func {
             HashFunc::Pedersen => "pedersen",
@@ -258,10 +249,7 @@ mod tests {
         let expected_hash = compute_program_hash_chain(&stripped_program, 0, hash_func)
             .expect("Failed to compute program hash in Rust.");
         let mut output_buffer = String::new();
-        runner
-            .vm
-            .write_output(&mut output_buffer)
-            .expect("Failed to write VM output.");
+        runner.vm.write_output(&mut output_buffer).expect("Failed to write VM output.");
 
         // write_output renders integers as signed felt decimals.
         let expected_hash_output_format =
@@ -269,11 +257,13 @@ mod tests {
         let output_lines: Vec<&str> = output_buffer.lines().collect();
         assert!(
             output_lines.len() > 2,
-            "Expected at least 3 output lines (n_tasks, n_task_words, program_hash). Got:\n{output_buffer}"
+            "Expected at least 3 output lines (n_tasks, n_task_words, program_hash). \
+             Got:\n{output_buffer}"
         );
         assert_eq!(
             output_lines[2], expected_hash_output_format,
-            "Bootloader output program hash should match compute_program_hash_chain for {hash_func:?}",
+            "Bootloader output program hash should match compute_program_hash_chain for \
+             {hash_func:?}",
         );
     }
 }

@@ -1,6 +1,6 @@
-use cairo_vm::Felt252;
 use std::collections::HashMap;
 
+use cairo_vm::Felt252;
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_ptr_from_var_name, insert_value_from_var_name,
 };
@@ -45,13 +45,7 @@ pub fn select_builtin(
     };
 
     let select_builtin_felt = Felt252::from(select_builtin);
-    insert_value_from_var_name(
-        "select_builtin",
-        select_builtin_felt,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name("select_builtin", select_builtin_felt, vm, ids_data, ap_tracking)?;
 
     if select_builtin {
         exec_scopes.insert_value(vars::N_SELECTED_BUILTINS, n_selected_builtins - 1);
@@ -62,13 +56,13 @@ pub fn select_builtin(
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::fill_ids_data_for_test;
     use cairo_vm::Felt252;
     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_integer_from_var_name;
     use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
     use rstest::rstest;
 
     use super::*;
+    use crate::test_utils::fill_ids_data_for_test;
 
     /// Test for select_builtin hint. Checks that select_builtin is set according to the hint
     /// description. 4 cases:
@@ -85,20 +79,13 @@ mod tests {
         let mut vm = VirtualMachine::new(false, false);
 
         let builtin_value = 10;
-        let expected_value = if should_select_builtin {
-            builtin_value
-        } else {
-            builtin_value + 1
-        };
+        let expected_value = if should_select_builtin { builtin_value } else { builtin_value + 1 };
         vm.add_memory_segment();
         vm.add_memory_segment();
         vm.add_memory_segment();
         vm.load_data(
             Relocatable::from((1, 0)),
-            &[
-                MaybeRelocatable::from((2, 0)),
-                MaybeRelocatable::from((2, 1)),
-            ],
+            &[MaybeRelocatable::from((2, 0)), MaybeRelocatable::from((2, 1))],
         )
         .expect("Failed to load data into memory");
         vm.load_data(

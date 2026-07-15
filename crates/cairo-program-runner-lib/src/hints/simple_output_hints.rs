@@ -1,18 +1,19 @@
 use std::collections::HashMap;
 
-use cairo_vm::{
-    Felt252,
-    hint_processor::{
-        builtin_hint_processor::hint_utils::{get_ptr_from_var_name, insert_value_into_ap},
-        hint_processor_definition::HintReference,
-    },
-    serde::deserialize_program::ApTracking,
-    types::{exec_scope::ExecutionScopes, relocatable::MaybeRelocatable},
-    vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
+use cairo_vm::Felt252;
+use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
+    get_ptr_from_var_name, insert_value_into_ap,
 };
+use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+use cairo_vm::serde::deserialize_program::ApTracking;
+use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::types::relocatable::MaybeRelocatable;
+use cairo_vm::vm::errors::hint_errors::HintError;
+use cairo_vm::vm::vm_core::VirtualMachine;
 
+use super::types::SimpleOutputInput;
 use super::utils::get_program_input_value;
-use super::{types::SimpleOutputInput, vars::SIMPLE_OUTPUT_INPUT};
+use super::vars::SIMPLE_OUTPUT_INPUT;
 
 /// Implements %{ output = program_input["output"] %}
 pub fn load_simple_output_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {

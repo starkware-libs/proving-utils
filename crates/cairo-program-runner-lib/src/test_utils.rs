@@ -1,15 +1,14 @@
 use std::rc::Rc;
 
-use crate::hints::types::Task;
-use crate::hints::vars;
 use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
-use cairo_vm::hint_processor::hint_processor_definition::HintExtension;
-use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+use cairo_vm::hint_processor::hint_processor_definition::{HintExtension, HintReference};
 use cairo_vm::serde::deserialize_program::ApTracking;
 use cairo_vm::types::exec_scope::ExecutionScopes;
-use cairo_vm::types::relocatable::MaybeRelocatable;
-use cairo_vm::types::relocatable::Relocatable;
+use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
 use cairo_vm::vm::vm_core::VirtualMachine;
+
+use crate::hints::types::Task;
+use crate::hints::vars;
 
 /// Test helper: Create a HashMap of HintReferences for testing.
 /// Output:

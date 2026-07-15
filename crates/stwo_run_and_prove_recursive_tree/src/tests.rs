@@ -4,7 +4,6 @@ use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::hints::fact_topologies::FactTopology;
 use cairo_program_runner_lib::hints::types::{CompositePackedOutput, PackedOutput};
 use cairo_vm::Felt252;
-
 use stwo_run_and_prove_common::MockProverTrait;
 
 use super::{
@@ -108,14 +107,7 @@ fn read_outputs_file_parses_hex_strings() {
     let contents = serde_json::json!(["0x1", "0xCAFE", "0x0"]);
     std::fs::write(&path, contents.to_string()).expect("write outputs.json");
     let parsed = super::read_outputs_file(&path).expect("read_outputs_file ok");
-    assert_eq!(
-        parsed,
-        vec![
-            Felt252::from(1u64),
-            Felt252::from(0xCAFEu64),
-            Felt252::from(0u64),
-        ]
-    );
+    assert_eq!(parsed, vec![Felt252::from(1u64), Felt252::from(0xCAFEu64), Felt252::from(0u64),]);
 }
 
 #[test]
@@ -208,10 +200,7 @@ fn single_leaf_input_writes_root_outputs_without_reduction() {
     assert_eq!(aggregated.outputs, leaf_outputs);
 
     // Proof file: byte-for-byte copy of the leaf's proof.
-    assert_eq!(
-        std::fs::read(&out_proof).expect("read out_proof"),
-        leaf_proof_bytes
-    );
+    assert_eq!(std::fs::read(&out_proof).expect("read out_proof"), leaf_proof_bytes);
 
     // program_output: JSON array of hex strings — one per Felt252 in `aggregated.outputs`.
     let outputs_hex: Vec<String> =
@@ -224,9 +213,7 @@ fn single_leaf_input_writes_root_outputs_without_reduction() {
     let ft_json: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&out_fact_topologies).expect("read ft"))
             .expect("parse fact_topologies");
-    let ft_arr = ft_json["fact_topologies"]
-        .as_array()
-        .expect("fact_topologies is array");
+    let ft_arr = ft_json["fact_topologies"].as_array().expect("fact_topologies is array");
     assert_eq!(ft_arr.len(), 1);
     assert_eq!(ft_arr[0]["page_sizes"], serde_json::json!([5]));
 
@@ -276,14 +263,8 @@ fn single_leaf_with_plain_packed_output_returns_error() {
     let err = stwo_run_and_prove_recursive_tree(config, &MockProverTrait::new())
         .expect_err("should reject Plain leaf");
     let msg = err.to_string();
-    assert!(
-        msg.contains("train_id=999"),
-        "error should name the offending train_id, got: {msg}",
-    );
-    assert!(
-        msg.contains("Plain"),
-        "error should mention Plain packed_output, got: {msg}",
-    );
+    assert!(msg.contains("train_id=999"), "error should name the offending train_id, got: {msg}",);
+    assert!(msg.contains("Plain"), "error should mention Plain packed_output, got: {msg}",);
 }
 
 fn leaf_json(train_id: u64) -> serde_json::Value {
@@ -315,10 +296,7 @@ fn load_leaves_parses_valid_file() {
 fn load_leaves_path_io_when_file_missing() {
     let path = PathBuf::from("/nonexistent/leaves.json");
     let err = load_leaves(&path).expect_err("should fail");
-    assert!(
-        matches!(err, RecursiveTreeError::PathIO(_, _)),
-        "expected PathIO, got: {err:?}",
-    );
+    assert!(matches!(err, RecursiveTreeError::PathIO(_, _)), "expected PathIO, got: {err:?}",);
 }
 
 #[test]
@@ -327,10 +305,7 @@ fn load_leaves_serde_error_on_invalid_json() {
     let path = tmp.path().join("leaves.json");
     std::fs::write(&path, b"not valid json").expect("write");
     let err = load_leaves(&path).expect_err("should fail on bad JSON");
-    assert!(
-        matches!(err, RecursiveTreeError::Serde(_)),
-        "expected Serde error, got: {err:?}",
-    );
+    assert!(matches!(err, RecursiveTreeError::Serde(_)), "expected Serde error, got: {err:?}",);
 }
 
 #[test]
@@ -359,16 +334,9 @@ fn leaf_input_serde_flatten_counters() {
         },
     };
     let json = serde_json::to_value(&leaf).expect("serialize");
-    assert_eq!(
-        json.get("counters"),
-        None,
-        "counters must not be a nested key"
-    );
+    assert_eq!(json.get("counters"), None, "counters must not be a nested key");
     assert_eq!(json["n_non_recursive_jobs"], serde_json::json!(3));
-    assert_eq!(
-        json["total_non_recursive_output_size"],
-        serde_json::json!(100)
-    );
+    assert_eq!(json["total_non_recursive_output_size"], serde_json::json!(100));
     assert_eq!(json["total_n_pages"], serde_json::json!(5));
     assert_eq!(json["total_fact_tree_structures_len"], serde_json::json!(8));
 
@@ -383,11 +351,7 @@ fn recursive_job_data_outputs_serialized_as_decimal() {
     // felt_decimal_vec::serialize must emit decimal strings (not hex) so Python int() can parse
     // them back without a prefix. RecursiveJobData.counters are also flattened.
     let data = RecursiveJobData {
-        outputs: vec![
-            Felt252::from(0u64),
-            Felt252::from(255u64),
-            Felt252::from(65536u64),
-        ],
+        outputs: vec![Felt252::from(0u64), Felt252::from(255u64), Felt252::from(65536u64)],
         counters: RecursiveJobCounters {
             n_non_recursive_jobs: 2,
             ..RecursiveJobCounters::default()
@@ -419,10 +383,7 @@ fn write_root_outputs_path_io_when_proof_source_missing() {
         &tmp.path().join("dst_packed.json"),
     )
     .expect_err("should fail when source proof is missing");
-    assert!(
-        matches!(err, RecursiveTreeError::PathIO(_, _)),
-        "expected PathIO, got: {err:?}",
-    );
+    assert!(matches!(err, RecursiveTreeError::PathIO(_, _)), "expected PathIO, got: {err:?}",);
 }
 
 #[test]
@@ -431,10 +392,7 @@ fn read_outputs_file_io_error_when_file_missing() {
     // arm as RecursiveTreeError::IO (the `?` Err branch codecov flags as uncovered).
     let err = super::read_outputs_file(&PathBuf::from("/nonexistent/outputs.json"))
         .expect_err("should fail when file is missing");
-    assert!(
-        matches!(err, RecursiveTreeError::IO(_)),
-        "expected IO, got: {err:?}",
-    );
+    assert!(matches!(err, RecursiveTreeError::IO(_)), "expected IO, got: {err:?}",);
 }
 
 #[test]
@@ -445,10 +403,7 @@ fn read_outputs_file_serde_error_on_non_array_json() {
     let path = tmp.path().join("outputs.json");
     std::fs::write(&path, b"{}").expect("write outputs.json");
     let err = super::read_outputs_file(&path).expect_err("should fail on non-array JSON");
-    assert!(
-        matches!(err, RecursiveTreeError::Serde(_)),
-        "expected Serde, got: {err:?}",
-    );
+    assert!(matches!(err, RecursiveTreeError::Serde(_)), "expected Serde, got: {err:?}",);
 }
 
 #[test]
@@ -456,10 +411,7 @@ fn read_fact_topologies_file_io_error_when_file_missing() {
     // `fs::read_to_string(path)?` Err branch in read_fact_topologies_file.
     let err = super::read_fact_topologies_file(&PathBuf::from("/nonexistent/fact_topologies.json"))
         .expect_err("should fail when file is missing");
-    assert!(
-        matches!(err, RecursiveTreeError::IO(_)),
-        "expected IO, got: {err:?}",
-    );
+    assert!(matches!(err, RecursiveTreeError::IO(_)), "expected IO, got: {err:?}",);
 }
 
 #[test]
@@ -471,10 +423,7 @@ fn read_fact_topologies_file_serde_error_on_invalid_json() {
     std::fs::write(&path, b"[1, 2, 3]").expect("write fact_topologies.json");
     let err =
         super::read_fact_topologies_file(&path).expect_err("should fail on mismatched JSON shape");
-    assert!(
-        matches!(err, RecursiveTreeError::Serde(_)),
-        "expected Serde, got: {err:?}",
-    );
+    assert!(matches!(err, RecursiveTreeError::Serde(_)), "expected Serde, got: {err:?}",);
 }
 
 #[test]
@@ -603,53 +552,34 @@ fn two_leaves_runs_reduce_pair_end_to_end_with_mocked_prover() {
     };
 
     let mut mock_prover = MockProverTrait::new();
-    mock_prover
-        .expect_create_and_serialize_proof()
-        .times(1)
-        .returning(|_, _, proof_path, _, _| {
-            std::fs::write(&proof_path, b"<mock pair-level proof>")?;
-            Ok(())
-        });
+    mock_prover.expect_create_and_serialize_proof().times(1).returning(|_, _, proof_path, _, _| {
+        std::fs::write(&proof_path, b"<mock pair-level proof>")?;
+        Ok(())
+    });
 
     let recursive_job_data = stwo_run_and_prove_recursive_tree(config, &mock_prover)
         .expect("end-to-end two-leaves reduction failed");
 
     // Aggregate counters sum across the 2 leaves (n_non_recursive_jobs etc.).
     assert_eq!(recursive_job_data.counters.n_non_recursive_jobs, 2);
-    assert_eq!(
-        recursive_job_data.counters.total_non_recursive_output_size,
-        2
-    );
+    assert_eq!(recursive_job_data.counters.total_non_recursive_output_size, 2);
     assert_eq!(recursive_job_data.counters.total_n_pages, 2);
-    assert_eq!(
-        recursive_job_data.counters.total_fact_tree_structures_len,
-        4
-    );
+    assert_eq!(recursive_job_data.counters.total_fact_tree_structures_len, 4);
 
     // Root files were written.
-    assert!(
-        std::fs::metadata(&out_proof)
-            .expect("stat root_proof")
-            .is_file()
-    );
+    assert!(std::fs::metadata(&out_proof).expect("stat root_proof").is_file());
     let outputs_hex: Vec<String> =
         serde_json::from_str(&std::fs::read_to_string(&out_program_output).expect("read po"))
             .expect("parse program_output");
     // Bootloader output starts with n_tasks = 2 (one word per the simple bootloader contract).
-    assert!(
-        !outputs_hex.is_empty(),
-        "root program_output should be non-empty"
-    );
+    assert!(!outputs_hex.is_empty(), "root program_output should be non-empty");
 
     let fact_topology_json: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&out_fact_topologies).expect("read ft"))
             .expect("parse fact_topologies");
     // Bootloader wrote one fact_topology per verifier task (= 2 per the 2-task reduce_pair).
     assert_eq!(
-        fact_topology_json["fact_topologies"]
-            .as_array()
-            .expect("fact_topologies is array")
-            .len(),
+        fact_topology_json["fact_topologies"].as_array().expect("fact_topologies is array").len(),
         2,
     );
 
@@ -658,11 +588,5 @@ fn two_leaves_runs_reduce_pair_end_to_end_with_mocked_prover() {
             .expect("parse packed_output");
     assert_eq!(packed_output_json["type"], "CompositePackedOutput");
     // The composite carries the two leaf packed_outputs as subtasks.
-    assert_eq!(
-        packed_output_json["subtasks"]
-            .as_array()
-            .expect("subtasks is array")
-            .len(),
-        2,
-    );
+    assert_eq!(packed_output_json["subtasks"].as_array().expect("subtasks is array").len(), 2,);
 }

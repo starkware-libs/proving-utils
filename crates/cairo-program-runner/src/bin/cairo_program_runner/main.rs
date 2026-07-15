@@ -124,12 +124,8 @@ struct FileWriter {
 
 impl Writer for FileWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<(), bincode::error::EncodeError> {
-        std::io::Write::write_all(&mut self.buf_writer, bytes).map_err(|e| {
-            bincode::error::EncodeError::Io {
-                inner: e,
-                index: self.bytes_written,
-            }
-        })?;
+        std::io::Write::write_all(&mut self.buf_writer, bytes)
+            .map_err(|e| bincode::error::EncodeError::Io { inner: e, index: self.bytes_written })?;
 
         self.bytes_written += bytes.len();
 
@@ -147,10 +143,7 @@ impl BinaryWrite for FileWriter {
 
 impl FileWriter {
     fn new(buf_writer: io::BufWriter<std::fs::File>) -> Self {
-        Self {
-            buf_writer,
-            bytes_written: 0,
-        }
+        Self { buf_writer, bytes_written: 0 }
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -209,16 +202,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
 
     if let Some(ref air_public_input_file) = args.air_public_input {
-        std::fs::write(
-            air_public_input_file,
-            runner.get_air_public_input()?.serialize_json()?,
-        )?;
+        std::fs::write(air_public_input_file, runner.get_air_public_input()?.serialize_json()?)?;
     }
 
-    let relocated_trace = runner
-        .relocated_trace
-        .as_ref()
-        .expect("trace not relocated");
+    let relocated_trace = runner.relocated_trace.as_ref().expect("trace not relocated");
 
     let (trace_file, trace_file_path) = if let Some(ref path) = args.trace_file {
         let file = std::fs::File::create(path)?;

@@ -25,8 +25,7 @@ use circuit_verifier::statement::{
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
 use circuits::context::FinalizedContext;
-use circuits::ivalue::IValue;
-use circuits::ivalue::NoValue;
+use circuits::ivalue::{IValue, NoValue};
 use circuits_stark_verifier::proof::ProofConfig;
 use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
 use itertools::Itertools;
@@ -37,6 +36,7 @@ use stwo::core::fields::qm31::QM31;
 use stwo_cairo_common::preprocessed_columns::preprocessed_trace::PreProcessedTraceVariant;
 use stwo_cairo_common::prover_types::cpu::{FELT252_N_WORDS, Felt252};
 use tracing::{Level, info, span};
+pub use utils::{VERSION_BYTES, Version};
 
 use crate::consts::{
     CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG,
@@ -45,8 +45,6 @@ use crate::consts::{
     PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
     PRIVACY_TRANSACTION_COMPONENTS,
 };
-
-pub use utils::{VERSION_BYTES, Version};
 
 pub struct PrivacyProofOutput {
     /// Proof bytes, laid out as the serialized [`Version`] of the `privacy-prove` crate that

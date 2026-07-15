@@ -9,12 +9,13 @@
 //! circuit. It is assumed that the user knows the output of the program (required
 //! to verify the proof) by some other means.
 
-use cairo_program_runner_lib::utils::{get_program, get_program_input_from_path};
-use clap::Parser;
-use leaf_prover::prove_leaf::prove_leaf;
 use std::fs::{self, read_to_string};
 use std::path::PathBuf;
 use std::process::ExitCode;
+
+use cairo_program_runner_lib::utils::{get_program, get_program_input_from_path};
+use clap::Parser;
+use leaf_prover::prove_leaf::prove_leaf;
 use stwo_cairo_utils::binary_utils::run_binary;
 
 #[derive(Parser)]
@@ -64,23 +65,12 @@ fn run() -> Result<(), String> {
         });
     let circuit_prover_pcs_config = sonic_rs::from_str(&circuit_prover_pcs_config).unwrap();
 
-    let output = prove_leaf(
-        &program,
-        program_input,
-        cairo_prover_parameters,
-        circuit_prover_pcs_config,
-    );
+    let output =
+        prove_leaf(&program, program_input, cairo_prover_parameters, circuit_prover_pcs_config);
 
-    fs::write(
-        &args.output_path,
-        serde_json::to_string_pretty(&output).unwrap(),
-    )
-    .unwrap_or_else(|err| {
-        panic!(
-            "Cannot write output to {}: {err}",
-            args.output_path.display()
-        )
-    });
+    fs::write(&args.output_path, serde_json::to_string_pretty(&output).unwrap()).unwrap_or_else(
+        |err| panic!("Cannot write output to {}: {err}", args.output_path.display()),
+    );
 
     Ok(())
 }

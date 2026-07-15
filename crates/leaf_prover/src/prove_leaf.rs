@@ -43,7 +43,8 @@ pub fn prove_leaf(
 ) -> SerializedLeafProof {
     assert!(
         cairo_prover_parameters.include_all_preprocessed_columns,
-        "The prover parameters must set include_all_preprocessed_columns=true because the verifier circuit expects a constant number of preprocessed columns"
+        "The prover parameters must set include_all_preprocessed_columns=true because the \
+         verifier circuit expects a constant number of preprocessed columns"
     );
 
     // Execute & prove the input Cairo program.
@@ -76,10 +77,8 @@ pub fn prove_leaf(
     let n_outputs = program_output_u256s.len();
     info!("Adapter done. Program created {n_outputs} outputs.");
 
-    let outputs_as_m31_slices = program_output_u256s
-        .iter()
-        .map(|value| split_f252(*value))
-        .collect_vec();
+    let outputs_as_m31_slices =
+        program_output_u256s.iter().map(|value| split_f252(*value)).collect_vec();
     let proof =
         prove_cairo::<Blake2sM31MerkleChannel>(prover_input, cairo_prover_parameters).unwrap();
     info!("Cairo proving done");
@@ -124,7 +123,8 @@ pub fn prove_leaf(
         let columns_in_proof = proof.extended_stark_proof.proof.queried_values[trace_idx].len();
         assert!(
             columns_in_proof == expected_columns,
-            "Expected {expected_columns} columns in {trace_name} trace, but proof has {columns_in_proof}"
+            "Expected {expected_columns} columns in {trace_name} trace, but proof has \
+             {columns_in_proof}"
         );
     }
 
@@ -166,10 +166,7 @@ pub fn prove_leaf(
         verifier_config.proof_config.n_pow_bits,
         verifier_config.proof_config.fri,
     );
-    assert!(
-        context.is_circuit_valid(),
-        "The verifier circuit rejected the proof!"
-    );
+    assert!(context.is_circuit_valid(), "The verifier circuit rejected the proof!");
     let preprocessed_circuit = PreprocessedCircuit::preprocess_circuit(&mut context);
 
     // Prove the execution of the verifier circuit.
@@ -194,10 +191,7 @@ pub fn prove_leaf(
     let mut proof_bytes: Vec<u8> = vec![];
     proof_qm31s.serialize(&mut proof_bytes);
 
-    SerializedLeafProof {
-        circuit_preprocessed_root,
-        proof: proof_bytes,
-    }
+    SerializedLeafProof { circuit_preprocessed_root, proof: proof_bytes }
 }
 
 fn program_felts(program: &Program) -> Vec<[M31; MEMORY_VALUES_LIMBS]> {

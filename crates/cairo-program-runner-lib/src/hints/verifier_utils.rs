@@ -1,22 +1,19 @@
-use cairo_vm::{
-    Felt252,
-    air_public_input::{MemorySegmentAddresses, PublicMemoryEntry},
-    serde::deserialize_program::Identifier,
-    types::builtin_name::BuiltinName,
-    vm::errors::hint_errors::HintError,
-};
-use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 
-use super::{
-    COMPONENT_HEIGHT,
-    cairo_structs::*,
-    types::{ExtractedIDsAndInputValues, ExtractedProofValues, OwnedPublicInput},
-};
+use cairo_vm::Felt252;
+use cairo_vm::air_public_input::{MemorySegmentAddresses, PublicMemoryEntry};
+use cairo_vm::serde::deserialize_program::Identifier;
+use cairo_vm::types::builtin_name::BuiltinName;
+use cairo_vm::vm::errors::hint_errors::HintError;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use regex::Regex;
+use serde_json::Value as JsonValue;
 use starknet_types_core::hash::{Pedersen, StarkHash};
+
+use super::COMPONENT_HEIGHT;
+use super::cairo_structs::*;
+use super::types::{ExtractedIDsAndInputValues, ExtractedProofValues, OwnedPublicInput};
 
 /// Computes the base-2 logarithm of a power-of-two number.
 ///
@@ -36,9 +33,7 @@ pub fn safe_log2(x: u128) -> Result<u32, HintError> {
     if x.is_power_of_two() {
         Ok(x.trailing_zeros())
     } else {
-        Err(HintError::CustomHint(
-            format!("safe_log2: Input {x} is not a power of two.").into(),
-        ))
+        Err(HintError::CustomHint(format!("safe_log2: Input {x} is not a power of two.").into()))
     }
 }
 
@@ -142,11 +137,8 @@ fn extract_z_and_alpha(annotations: &[String]) -> Result<(Felt252, Felt252), Hin
     // Ensure the number of interaction elements is as expected
     if ![3, 6, 8].contains(&interaction_elements.len()) {
         return Err(HintError::CustomHint(
-            format!(
-                "Unexpected number of interaction elements: {}",
-                interaction_elements.len()
-            )
-            .into(),
+            format!("Unexpected number of interaction elements: {}", interaction_elements.len())
+                .into(),
         ));
     }
 
@@ -219,26 +211,20 @@ pub fn extract_proof_values(
         Ok(res)
     };
 
-    let original_witness_leaves = annotations(
-        "STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 0",
-        "Field Element",
-    )?;
+    let original_witness_leaves =
+        annotations("STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 0", "Field Element")?;
 
     let original_witness_authentications =
         get_authentications("STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 0")?;
 
-    let interaction_witness_leaves = annotations(
-        "STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 1",
-        "Field Element",
-    )?;
+    let interaction_witness_leaves =
+        annotations("STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 1", "Field Element")?;
 
     let interaction_witness_authentications =
         get_authentications("STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 1")?;
 
-    let composition_witness_leaves = annotations(
-        "STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 2",
-        "Field Element",
-    )?;
+    let composition_witness_leaves =
+        annotations("STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 2", "Field Element")?;
 
     let composition_witness_authentications =
         get_authentications("STARK/FRI/Decommitment/Layer 0/Virtual Oracle/Trace 2")?;
@@ -247,31 +233,26 @@ pub fn extract_proof_values(
         .get("proof_parameters")
         .ok_or_else(|| HintError::CustomHint("Missing 'proof_parameters' in proof.".into()))?;
 
-    let fri_step_list_json = proof_parameters["stark"]["fri"]["fri_step_list"]
-        .as_array()
-        .ok_or_else(|| {
+    let fri_step_list_json =
+        proof_parameters["stark"]["fri"]["fri_step_list"].as_array().ok_or_else(|| {
             HintError::CustomHint("Missing or invalid 'fri_step_list' in proof parameters.".into())
         })?;
 
     let fri_step_list: Vec<u64> = fri_step_list_json
         .iter()
         .map(|v| {
-            v.as_u64()
-                .ok_or_else(|| HintError::CustomHint("Invalid 'fri_step_list' entry.".into()))
+            v.as_u64().ok_or_else(|| HintError::CustomHint("Invalid 'fri_step_list' entry.".into()))
         })
         .collect::<Result<_, _>>()?;
 
     let n_fri_layers = fri_step_list.len();
 
-    let log_n_cosets = proof_parameters["stark"]["log_n_cosets"]
-        .as_u64()
-        .ok_or_else(|| {
-            HintError::CustomHint("Missing or invalid 'log_n_cosets' in proof parameters.".into())
-        })?;
+    let log_n_cosets = proof_parameters["stark"]["log_n_cosets"].as_u64().ok_or_else(|| {
+        HintError::CustomHint("Missing or invalid 'log_n_cosets' in proof parameters.".into())
+    })?;
 
-    let last_layer_degree_bound = proof_parameters["stark"]["fri"]["last_layer_degree_bound"]
-        .as_u64()
-        .ok_or_else(|| {
+    let last_layer_degree_bound =
+        proof_parameters["stark"]["fri"]["last_layer_degree_bound"].as_u64().ok_or_else(|| {
             HintError::CustomHint(
                 "Missing or invalid 'last_layer_degree_bound' in proof parameters.".into(),
             )
@@ -284,19 +265,16 @@ pub fn extract_proof_values(
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
 
-    let proof_of_work_bits = proof_parameters["stark"]["fri"]["proof_of_work_bits"]
-        .as_u64()
-        .ok_or_else(|| {
+    let proof_of_work_bits =
+        proof_parameters["stark"]["fri"]["proof_of_work_bits"].as_u64().ok_or_else(|| {
             HintError::CustomHint(
                 "Missing or invalid 'proof_of_work_bits' in proof parameters.".into(),
             )
         })?;
 
-    let n_queries = proof_parameters["stark"]["fri"]["n_queries"]
-        .as_u64()
-        .ok_or_else(|| {
-            HintError::CustomHint("Missing or invalid 'n_queries' in proof parameters.".into())
-        })?;
+    let n_queries = proof_parameters["stark"]["fri"]["n_queries"].as_u64().ok_or_else(|| {
+        HintError::CustomHint("Missing or invalid 'n_queries' in proof parameters.".into())
+    })?;
 
     let (z, alpha) = extract_z_and_alpha(&annotations_vec)?;
 
@@ -430,10 +408,8 @@ pub fn extract_from_ids_and_public_input(
     identifiers: &HashMap<String, Identifier>,
     extracted_values: &ExtractedProofValues,
 ) -> Result<ExtractedIDsAndInputValues, HintError> {
-    let module_name = format!(
-        "starkware.cairo.stark_verifier.air.layouts.{}.autogenerated",
-        public_input.layout
-    );
+    let module_name =
+        format!("starkware.cairo.stark_verifier.air.layouts.{}.autogenerated", public_input.layout);
 
     let dynamic_params = public_input.dynamic_params.as_ref();
 
@@ -507,12 +483,8 @@ pub fn extract_from_ids_and_public_input(
         ));
     }
 
-    let num_columns_first = get_dynamic_or_const_value(
-        dynamic_params,
-        "NUM_COLUMNS_FIRST",
-        identifiers,
-        &module_name,
-    )?;
+    let num_columns_first =
+        get_dynamic_or_const_value(dynamic_params, "NUM_COLUMNS_FIRST", identifiers, &module_name)?;
 
     let num_columns_second = get_dynamic_or_const_value(
         dynamic_params,
@@ -556,11 +528,8 @@ pub fn get_stark_proof_cairo_struct(
     public_input: &OwnedPublicInput,
 ) -> Result<StarkProof, HintError> {
     // Instantiate CairoPublicInput based on public_input
-    let cairo_public_input = public_input_to_cairo(
-        public_input,
-        &extracted_proof_vals.z,
-        &extracted_proof_vals.alpha,
-    )?;
+    let cairo_public_input =
+        public_input_to_cairo(public_input, &extracted_proof_vals.z, &extracted_proof_vals.alpha)?;
     // Instantiate StarkConfig
     let stark_config = StarkConfig {
         traces: TracesConfig {
@@ -623,9 +592,7 @@ pub fn get_stark_proof_cairo_struct(
                 .collect(),
             log_last_layer_degree_bound: extracted_proof_vals.log_last_layer_degree_bound.into(),
         },
-        proof_of_work: ProofOfWorkConfig {
-            n_bits: extracted_proof_vals.proof_of_work_bits.into(),
-        },
+        proof_of_work: ProofOfWorkConfig { n_bits: extracted_proof_vals.proof_of_work_bits.into() },
         log_trace_domain_size: extracted_ids_and_pub_in_vals.log_trace_domain_size,
         n_queries: extracted_proof_vals.n_queries.into(),
         log_n_cosets: extracted_proof_vals.log_n_cosets.into(),
@@ -690,9 +657,7 @@ pub fn get_stark_proof_cairo_struct(
                         .original_witness_authentications
                         .len()
                         .into(),
-                    authentications: extracted_proof_vals
-                        .original_witness_authentications
-                        .clone(),
+                    authentications: extracted_proof_vals.original_witness_authentications.clone(),
                 },
             },
             interaction: TableCommitmentWitness {
@@ -717,14 +682,10 @@ pub fn get_stark_proof_cairo_struct(
                     .composition_witness_authentications
                     .len()
                     .into(),
-                authentications: extracted_proof_vals
-                    .composition_witness_authentications
-                    .clone(),
+                authentications: extracted_proof_vals.composition_witness_authentications.clone(),
             },
         },
-        fri_witness: FriWitness {
-            layers: fri_witnesses,
-        },
+        fri_witness: FriWitness { layers: fri_witnesses },
     };
 
     // Instantiate StarkProof
@@ -781,17 +742,10 @@ pub fn public_input_to_cairo(
     let mut segments = memory_segments
         .values()
         .map(|elm| {
-            Ok(SegmentInfo {
-                begin_addr: elm.begin_addr.into(),
-                stop_ptr: elm.stop_ptr.into(),
-            })
+            Ok(SegmentInfo { begin_addr: elm.begin_addr.into(), stop_ptr: elm.stop_ptr.into() })
         })
         .collect::<Result<Vec<SegmentInfo>, HintError>>()?;
-    segments.sort_by(|a, b| {
-        a.begin_addr
-            .cmp(&b.begin_addr)
-            .then(a.stop_ptr.cmp(&b.stop_ptr))
-    });
+    segments.sort_by(|a, b| a.begin_addr.cmp(&b.begin_addr).then(a.stop_ptr.cmp(&b.stop_ptr)));
 
     let first_public_memory_entry = public_input.public_memory.first().ok_or_else(|| {
         HintError::CustomHint(
@@ -810,12 +764,7 @@ pub fn public_input_to_cairo(
     let continuous_page_headers_flat: Vec<Felt252> = continuous_page_headers
         .into_iter()
         .flat_map(|(start_addr, size, hash_value, product)| {
-            vec![
-                Felt252::from(start_addr),
-                Felt252::from(size),
-                hash_value,
-                product,
-            ]
+            vec![Felt252::from(start_addr), Felt252::from(size), hash_value, product]
         })
         .collect();
 
@@ -935,7 +884,8 @@ pub fn compute_continuous_page_headers(
         if address != expected_address {
             return Err(HintError::CustomHint(
                 format!(
-                    "Address mismatch for page {page_id}: expected {expected_address}, got {address}"
+                    "Address mismatch for page {page_id}: expected {expected_address}, got \
+                     {address}"
                 )
                 .into(),
             ));
@@ -983,12 +933,7 @@ pub fn compute_continuous_page_headers(
 
         let hash_value = Pedersen::hash_array(page_data);
 
-        let header = (
-            start_address[page_id],
-            size[page_id],
-            hash_value,
-            page_prods[page_id],
-        );
+        let header = (start_address[page_id], size[page_id], hash_value, page_prods[page_id]);
 
         headers.push(header);
     }
@@ -1022,11 +967,7 @@ pub fn get_main_page(
             res.push((access.address, value));
         } else {
             return Err(HintError::CustomHint(
-                format!(
-                    "Value is missing for address {} on main page.",
-                    access.address
-                )
-                .into(),
+                format!("Value is missing for address {} on main page.", access.address).into(),
             ));
         }
     }

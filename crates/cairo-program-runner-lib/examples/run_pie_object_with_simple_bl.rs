@@ -13,18 +13,13 @@ fn prepare_fibonnaci_pie_task_spec(project_dir: &Path) -> Result<TaskSpec, Box<d
     let fibonnaci_program =
         Program::from_file(fibonacci_compiled_program_path.as_path(), Some("main"))?;
 
-    let cairo_run_config = RunMode::Validation {
-        layout: LayoutName::small,
-        allow_missing_builtins: false,
-    }
-    .create_config();
+    let cairo_run_config =
+        RunMode::Validation { layout: LayoutName::small, allow_missing_builtins: false }
+            .create_config();
     let runner = cairo_run_program(&fibonnaci_program, None, cairo_run_config, None)?;
     let result_pie = runner.get_cairo_pie()?;
     let pie_task: Task = Task::Pie(result_pie);
-    Ok(TaskSpec {
-        task: pie_task.into(),
-        program_hash_function: HashFunc::Blake,
-    })
+    Ok(TaskSpec { task: pie_task.into(), program_hash_function: HashFunc::Blake })
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

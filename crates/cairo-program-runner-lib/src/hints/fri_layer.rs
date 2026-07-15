@@ -66,11 +66,12 @@ pub fn divide_queries_ind_by_coset_size_to_fp_offset(
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::test_utils::fill_ids_data_for_test;
     use cairo_vm::Felt252;
     use cairo_vm::types::relocatable::Relocatable;
     use rstest::rstest;
+
+    use super::*;
+    use crate::test_utils::fill_ids_data_for_test;
 
     /// This test checks the hint implementation of `divide_queries_ind_by_coset_size_to_fp_offset`.
     /// It tests that the hint correctly divides the query index by the coset size and stores the

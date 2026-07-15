@@ -1,6 +1,8 @@
 #![cfg(feature = "slow-tests")]
 
-use std::{fs, path::PathBuf, process::Command};
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
 
 #[test]
 fn run_leaf_prover_binary() {

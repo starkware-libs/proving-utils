@@ -1,18 +1,14 @@
-use std::{
-    any::Any,
-    io,
-    path::{Path, PathBuf},
-};
+use std::any::Any;
+use std::io;
+use std::path::{Path, PathBuf};
 
-use cairo_vm::{
-    Felt252,
-    cairo_run::CairoRunConfig,
-    types::{
-        errors::program_errors::ProgramError, layout::CairoLayoutParams, layout_name::LayoutName,
-        program::Program,
-    },
-    vm::runners::cairo_runner::CairoRunner,
-};
+use cairo_vm::Felt252;
+use cairo_vm::cairo_run::CairoRunConfig;
+use cairo_vm::types::errors::program_errors::ProgramError;
+use cairo_vm::types::layout::CairoLayoutParams;
+use cairo_vm::types::layout_name::LayoutName;
+use cairo_vm::types::program::Program;
+use cairo_vm::vm::runners::cairo_runner::CairoRunner;
 
 use crate::types::RunMode;
 
@@ -61,9 +57,7 @@ pub fn get_program(program: &Path) -> Result<Program, ProgramError> {
 pub fn get_program_input_from_path(
     program_input: &Option<PathBuf>,
 ) -> io::Result<Option<ProgramInput>> {
-    Ok(program_input
-        .as_ref()
-        .map(|input_path| ProgramInput::Path(input_path.to_path_buf())))
+    Ok(program_input.as_ref().map(|input_path| ProgramInput::Path(input_path.to_path_buf())))
 }
 
 /// Creates a Cairo run configuration based on the provided parameters.
@@ -116,19 +110,10 @@ pub fn get_cairo_run_config(
     };
 
     Ok(if proof_mode {
-        RunMode::Proof {
-            layout,
-            dynamic_layout_params,
-            disable_trace_padding,
-            relocate_mem,
-        }
-        .create_config()
+        RunMode::Proof { layout, dynamic_layout_params, disable_trace_padding, relocate_mem }
+            .create_config()
     } else {
-        RunMode::Validation {
-            layout,
-            allow_missing_builtins,
-        }
-        .create_config()
+        RunMode::Validation { layout, allow_missing_builtins }.create_config()
     })
 }
 

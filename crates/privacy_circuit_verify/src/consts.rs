@@ -26,12 +26,12 @@ pub const MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize =
 // See comment in privacy_prove::tests::test_privacy_bootloader_program_hash_snapshot for more
 // details on how this file was compiled.
 pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
-    "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/privacy_simple_bootloader_compiled.json"
+    "../../cairo-program-runner-lib/resources/compiled_programs/bootloaders/\
+     privacy_simple_bootloader_compiled.json"
 );
 pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 9] = [3, 4, 5, 6, 7, 8, 9, 10, 2];
-pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
-    3967156988, 4180250654, 1309785659, 122263411, 178123464, 4171424983, 139020011, 2812255849,
-];
+pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] =
+    [3967156988, 4180250654, 1309785659, 122263411, 178123464, 4171424983, 139020011, 2812255849];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
 pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 2;

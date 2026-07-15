@@ -82,9 +82,7 @@ pub struct RelocationTable {
 
 impl RelocationTable {
     pub fn new() -> Self {
-        Self {
-            relocations: Default::default(),
-        }
+        Self { relocations: Default::default() }
     }
 
     /// Inserts an entry in the relocations map.
@@ -113,10 +111,8 @@ impl RelocationTable {
     /// returns (i*, o + o*).
     /// Returns `MemoryError::Relocation` if there is no matching relocation.
     pub fn relocate_address(&self, address: Relocatable) -> Result<MaybeRelocatable, MemoryError> {
-        let new_base = self
-            .relocations
-            .get(&address.segment_index)
-            .ok_or(MemoryError::Relocation)?;
+        let new_base =
+            self.relocations.get(&address.segment_index).ok_or(MemoryError::Relocation)?;
 
         match new_base {
             MaybeRelocatable::Int(_) => Ok(new_base.clone()),
@@ -150,9 +146,9 @@ pub fn extract_segment(maybe_relocatable: MaybeRelocatable) -> Result<isize, Rel
 
             Ok(address.segment_index)
         }
-        MaybeRelocatable::Int(_) => Err(RelocationTableError::Memory(
-            MemoryError::AddressNotRelocatable,
-        )),
+        MaybeRelocatable::Int(_) => {
+            Err(RelocationTableError::Memory(MemoryError::AddressNotRelocatable))
+        }
     }
 }
 
@@ -199,10 +195,8 @@ pub fn build_cairo_pie_relocation_table(
         MaybeRelocatable::RelocatableValue(ret_pc),
     )?;
 
-    let origin_execution_segment = Relocatable {
-        segment_index: cairo_pie.metadata.execution_segment.index,
-        offset: 0,
-    };
+    let origin_execution_segment =
+        Relocatable { segment_index: cairo_pie.metadata.execution_segment.index, offset: 0 };
 
     // Create a HashMap of the program memory for easier searching.
     // If this turns out to be too expensive, consider building it directly
@@ -268,9 +262,8 @@ fn relocate_builtin_additional_data(
         Some(_) => return Err(SignatureRelocationError::InvalidCairoPieEcdsaBuiltinData),
     };
 
-    let ecdsa_builtin = vm
-        .get_signature_builtin()
-        .map_err(|_| SignatureRelocationError::EcdsaBuiltinNotFound)?;
+    let ecdsa_builtin =
+        vm.get_signature_builtin().map_err(|_| SignatureRelocationError::EcdsaBuiltinNotFound)?;
 
     extend_additional_data(ecdsa_builtin, ecdsa_additional_data, relocation_table)?;
 
@@ -348,16 +341,10 @@ mod tests {
 
         let address = Relocatable::from((1, 27));
         let expected_address = MaybeRelocatable::from((2, 32));
-        assert_eq!(
-            relocation_table.relocate_address(address),
-            Ok(expected_address.clone())
-        );
+        assert_eq!(relocation_table.relocate_address(address), Ok(expected_address.clone()));
 
         let value = MaybeRelocatable::RelocatableValue(address);
-        assert_eq!(
-            relocation_table.relocate_value(value),
-            Ok(expected_address.clone())
-        );
+        assert_eq!(relocation_table.relocate_value(value), Ok(expected_address.clone()));
     }
 
     #[test]
@@ -365,10 +352,7 @@ mod tests {
         let relocation_table = RelocationTable::new();
 
         let value = MaybeRelocatable::RelocatableValue(Relocatable::from((1, 0)));
-        assert_eq!(
-            relocation_table.relocate_value(value.clone()),
-            Err(MemoryError::Relocation)
-        );
+        assert_eq!(relocation_table.relocate_value(value.clone()), Err(MemoryError::Relocation));
     }
 
     #[test]
@@ -407,9 +391,7 @@ mod tests {
         let result = extract_segment(MaybeRelocatable::Int(Felt252::from(1)));
         assert_matches!(
             result,
-            Err(RelocationTableError::Memory(
-                MemoryError::AddressNotRelocatable
-            ))
+            Err(RelocationTableError::Memory(MemoryError::AddressNotRelocatable))
         );
     }
 }

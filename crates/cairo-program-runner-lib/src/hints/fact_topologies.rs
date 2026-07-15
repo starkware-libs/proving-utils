@@ -1,8 +1,8 @@
-use cairo_vm::Felt252;
-use cairo_vm::types::builtin_name::BuiltinName;
 use std::fs::File;
 use std::path::Path;
 
+use cairo_vm::Felt252;
+use cairo_vm::types::builtin_name::BuiltinName;
 use cairo_vm::types::errors::math_errors::MathError;
 use cairo_vm::types::relocatable::Relocatable;
 use cairo_vm::vm::errors::hint_errors::HintError;
@@ -26,14 +26,8 @@ pub struct FactTopology {
 impl FactTopology {
     // Constructs a trivial FactTopology with a single page.
     pub fn trivial(page0_size: usize) -> Self {
-        assert!(
-            page0_size <= MAX_PAGE_SIZE,
-            "Page size exceeded the maximum."
-        );
-        FactTopology {
-            tree_structure: vec![1, 0],
-            page_sizes: vec![page0_size],
-        }
+        assert!(page0_size <= MAX_PAGE_SIZE, "Page size exceeded the maximum.");
+        FactTopology { tree_structure: vec![1, 0], page_sizes: vec![page0_size] }
     }
 
     // Returns the total size of the output in words (sum of page sizes).
@@ -340,10 +334,7 @@ fn get_page_sizes_from_pages(output_size: usize, pages: &Pages) -> Result<Vec<us
             }
             page0_size = page.start;
         } else if page.start != expected_page_start {
-            return Err(PageError::UnexpectedPageStart(
-                expected_page_start,
-                page.start,
-            ));
+            return Err(PageError::UnexpectedPageStart(expected_page_start, page.start));
         }
 
         page_sizes[index + 1] = page.size;
@@ -369,10 +360,7 @@ fn get_fact_topology_from_additional_data(
     let tree_structure = get_tree_structure_from_output_data(output_builtin_additional_data)?;
     let page_sizes = get_page_sizes_from_pages(output_size, &output_builtin_additional_data.pages)?;
 
-    Ok(FactTopology {
-        tree_structure,
-        page_sizes,
-    })
+    Ok(FactTopology { tree_structure, page_sizes })
 }
 
 // TODO: implement for CairoPieTask
@@ -405,18 +393,14 @@ pub fn get_task_fact_topology(
     match task {
         Task::Cairo0Program(_) | Task::Cairo1Program(_) => {
             let output_runner_data = output_runner_data.ok_or(FactTopologyError::Internal(
-                "Output runner data not set for program task"
-                    .to_string()
-                    .into_boxed_str(),
+                "Output runner data not set for program task".to_string().into_boxed_str(),
             ))?;
             get_program_task_fact_topology(output_size, output_builtin, output_runner_data)
         }
         Task::Pie(cairo_pie) => {
             if output_runner_data.is_some() {
                 return Err(FactTopologyError::Internal(
-                    "Output runner data set for Cairo PIE task"
-                        .to_string()
-                        .into_boxed_str(),
+                    "Output runner data set for Cairo PIE task".to_string().into_boxed_str(),
                 ));
             }
             let additional_data = {
@@ -455,35 +439,24 @@ pub fn write_to_fact_topologies_file<FT: AsRef<FactTopology>>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use rstest::{fixture, rstest};
+
     use super::*;
     use crate::hints::types::CompositePackedOutput;
-    use rstest::{fixture, rstest};
-    use std::collections::BTreeMap;
 
     #[fixture]
     fn packed_outputs() -> Vec<PackedOutput> {
-        vec![
-            PackedOutput::Plain,
-            PackedOutput::Plain,
-            PackedOutput::Plain,
-        ]
+        vec![PackedOutput::Plain, PackedOutput::Plain, PackedOutput::Plain]
     }
 
     #[fixture]
     fn fact_topologies() -> Vec<FactTopology> {
         vec![
-            FactTopology {
-                tree_structure: vec![],
-                page_sizes: vec![1usize],
-            },
-            FactTopology {
-                tree_structure: vec![],
-                page_sizes: vec![1usize, 2usize],
-            },
-            FactTopology {
-                tree_structure: vec![],
-                page_sizes: vec![3usize],
-            },
+            FactTopology { tree_structure: vec![], page_sizes: vec![1usize] },
+            FactTopology { tree_structure: vec![], page_sizes: vec![1usize, 2usize] },
+            FactTopology { tree_structure: vec![], page_sizes: vec![3usize] },
         ]
     }
 
@@ -509,14 +482,8 @@ mod tests {
     fn test_compute_fact_topologies_composite_output() {
         // Create two plain fact topologies for subtasks
         let subtask_fact_topologies = vec![
-            FactTopology {
-                tree_structure: vec![1, 0],
-                page_sizes: vec![5],
-            },
-            FactTopology {
-                tree_structure: vec![1, 0],
-                page_sizes: vec![7],
-            },
+            FactTopology { tree_structure: vec![1, 0], page_sizes: vec![5] },
+            FactTopology { tree_structure: vec![1, 0], page_sizes: vec![7] },
         ];
         // CompositePackedOutput with two subtasks and two outputs
         let composite_packed_output = CompositePackedOutput {
@@ -543,14 +510,8 @@ mod tests {
         )
         .expect("Composite packed output should be supported and return subtask fact topologies");
         let expected_subtask_fact_topologies = vec![
-            FactTopology {
-                tree_structure: vec![1, 0],
-                page_sizes: vec![3],
-            },
-            FactTopology {
-                tree_structure: vec![1, 0],
-                page_sizes: vec![5],
-            },
+            FactTopology { tree_structure: vec![1, 0], page_sizes: vec![3] },
+            FactTopology { tree_structure: vec![1, 0], page_sizes: vec![5] },
         ];
         assert_eq!(result, expected_subtask_fact_topologies);
     }
@@ -573,16 +534,11 @@ mod tests {
 
     #[rstest]
     fn test_add_consecutive_output_pages() {
-        let fact_topology = FactTopology {
-            tree_structure: vec![],
-            page_sizes: vec![1usize, 2usize, 1usize],
-        };
+        let fact_topology =
+            FactTopology { tree_structure: vec![], page_sizes: vec![1usize, 2usize, 1usize] };
         let mut output_builtin = OutputBuiltinRunner::new(true);
         let page_id = 1;
-        let output_start = Relocatable {
-            segment_index: 0,
-            offset: 10,
-        };
+        let output_start = Relocatable { segment_index: 0, offset: 10 };
 
         let result = add_consecutive_output_pages(
             &fact_topology.page_sizes,
@@ -607,10 +563,8 @@ mod tests {
     #[rstest]
     fn test_configure_fact_topologies(fact_topologies: Vec<FactTopology>) {
         let mut output_builtin = OutputBuiltinRunner::new(true);
-        let mut output_start = Relocatable {
-            segment_index: output_builtin.base() as isize,
-            offset: 10,
-        };
+        let mut output_start =
+            Relocatable { segment_index: output_builtin.base() as isize, offset: 10 };
 
         configure_fact_topologies(&fact_topologies, &mut output_start, &mut output_builtin)
             .expect("Configuring fact topologies failed unexpectedly");
@@ -652,10 +606,8 @@ mod tests {
 
     #[test]
     fn test_get_tree_structure_default() {
-        let output_builtin_data = OutputBuiltinAdditionalData {
-            pages: BTreeMap::new(),
-            attributes: BTreeMap::new(),
-        };
+        let output_builtin_data =
+            OutputBuiltinAdditionalData { pages: BTreeMap::new(), attributes: BTreeMap::new() };
 
         let tree_structure = get_tree_structure_from_output_data(&output_builtin_data)
             .expect("Failed to get tree structure");
@@ -673,10 +625,7 @@ mod tests {
         };
 
         let result = get_tree_structure_from_output_data(&output_builtin_data);
-        assert!(matches!(
-            result,
-            Err(TreeStructureError::InvalidTreeStructure)
-        ));
+        assert!(matches!(result, Err(TreeStructureError::InvalidTreeStructure)));
     }
 
     #[test]
@@ -687,10 +636,7 @@ mod tests {
         };
 
         let result = get_tree_structure_from_output_data(&output_builtin_data);
-        assert!(matches!(
-            result,
-            Err(TreeStructureError::CannotUseAdditionalPages)
-        ));
+        assert!(matches!(result, Err(TreeStructureError::CannotUseAdditionalPages)));
     }
 
     #[test]

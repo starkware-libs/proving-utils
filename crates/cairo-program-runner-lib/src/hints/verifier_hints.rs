@@ -1,19 +1,19 @@
+use std::collections::HashMap;
+
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::insert_value_from_var_name;
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::ApTracking;
+use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use cairo_vm::{types::exec_scope::ExecutionScopes, vm::errors::hint_errors::HintError};
 use serde_json::from_value;
-use std::collections::HashMap;
 
 use super::types::{ExtractedProofValues, OwnedPublicInput};
-use super::utils::{gen_arg, get_program_input_value};
+use super::utils::{gen_arg, get_program_identifies, get_program_input_value};
 use super::verifier_utils::extract_from_ids_and_public_input;
+use super::{CairoVerifierInput, PROGRAM_OBJECT};
 use crate::hints::cairo_structs::ToVec;
 use crate::hints::verifier_utils::{extract_proof_values, get_stark_proof_cairo_struct};
-
-use super::utils::get_program_identifies;
-use super::{CairoVerifierInput, PROGRAM_OBJECT};
 
 /// Implements
 ///

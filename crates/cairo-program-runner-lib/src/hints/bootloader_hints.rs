@@ -1,7 +1,6 @@
-use crate::hints::fact_topologies::{
-    FactTopology, compute_fact_topologies, configure_fact_topologies, write_to_fact_topologies_file,
-};
-use crate::maybe_relocatable_box;
+use std::any::Any;
+use std::collections::HashMap;
+
 use cairo_vm::any_box;
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
     get_integer_from_var_name, get_ptr_from_var_name, insert_value_from_var_name,
@@ -15,16 +14,17 @@ use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::runners::builtin_runner::OutputBuiltinState;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use num_traits::ToPrimitive;
-use std::any::Any;
-use std::collections::HashMap;
 
+use super::utils::{gen_arg, get_program_input_value};
+use super::{BOOTLOADER_INPUT, SIMPLE_BOOTLOADER_INPUT};
+use crate::hints::fact_topologies::{
+    FactTopology, compute_fact_topologies, configure_fact_topologies, write_to_fact_topologies_file,
+};
 use crate::hints::types::{
     BootloaderInput, CompositePackedOutput, PackedOutput, SimpleBootloaderInput,
 };
 use crate::hints::vars;
-
-use super::utils::{gen_arg, get_program_input_value};
-use super::{BOOTLOADER_INPUT, SIMPLE_BOOTLOADER_INPUT};
+use crate::maybe_relocatable_box;
 
 /// Implements
 /// %{
@@ -99,10 +99,8 @@ pub fn load_unpacker_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Resu
 /// Implements %{ simple_bootloader_input = bootloader_input %}
 pub fn prepare_simple_bootloader_input(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
     let bootloader_input: BootloaderInput = exec_scopes.get(vars::BOOTLOADER_INPUT)?;
-    exec_scopes.insert_value(
-        vars::SIMPLE_BOOTLOADER_INPUT,
-        bootloader_input.simple_bootloader_input,
-    );
+    exec_scopes
+        .insert_value(vars::SIMPLE_BOOTLOADER_INPUT, bootloader_input.simple_bootloader_input);
 
     Ok(())
 }
@@ -193,10 +191,7 @@ pub fn enter_packed_output_scope(
     let packed_output: Box<dyn Any> = Box::new(packed_outputs[task_id].clone());
 
     // vm_enter_scope(new_scope_locals=dict(packed_output=packed_output))
-    exec_scopes.enter_scope(HashMap::from([(
-        vars::PACKED_OUTPUT.to_string(),
-        packed_output,
-    )]));
+    exec_scopes.enter_scope(HashMap::from([(vars::PACKED_OUTPUT.to_string(), packed_output)]));
 
     Ok(())
 }
@@ -246,12 +241,10 @@ pub fn assert_is_composite_packed_output(
     }
 }
 
-/*
-Implements hint:
-%{
-    output_start = ids.output_ptr
-%}
-*/
+// Implements hint:
+// %{
+// output_start = ids.output_ptr
+// %}
 pub fn save_output_pointer(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -263,12 +256,10 @@ pub fn save_output_pointer(
     Ok(())
 }
 
-/*
-Implements hint:
-%{
-    packed_outputs = bootloader_input.packed_outputs
-%}
-*/
+// Implements hint:
+// %{
+// packed_outputs = bootloader_input.packed_outputs
+// %}
 pub fn save_packed_outputs(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
     let bootloader_input: &BootloaderInput = exec_scopes.get_ref("bootloader_input")?;
     let packed_outputs = bootloader_input.packed_outputs.clone();
@@ -312,9 +303,8 @@ pub fn compute_and_configure_fact_topologies(
     let output_builtin = vm.get_output_builtin_mut()?;
 
     let bootloader_input: BootloaderInput = exec_scopes.get(vars::BOOTLOADER_INPUT)?;
-    let applicative_bootloader_program_hash = bootloader_input
-        .bootloader_config
-        .applicative_bootloader_program_hash;
+    let applicative_bootloader_program_hash =
+        bootloader_input.bootloader_config.applicative_bootloader_program_hash;
 
     let plain_fact_topologies = compute_fact_topologies(
         &packed_outputs,
@@ -329,10 +319,7 @@ pub fn compute_and_configure_fact_topologies(
     exec_scopes.insert_value(vars::OUTPUT_START, output_start);
 
     let bootloader_input: &BootloaderInput = exec_scopes.get_ref(vars::BOOTLOADER_INPUT)?;
-    if let Some(path) = &bootloader_input
-        .simple_bootloader_input
-        .fact_topologies_path
-    {
+    if let Some(path) = &bootloader_input.simple_bootloader_input.fact_topologies_path {
         write_to_fact_topologies_file(path.as_path(), &plain_fact_topologies)
             .map_err(Into::<HintError>::into)?;
     }
@@ -341,23 +328,23 @@ pub fn compute_and_configure_fact_topologies(
 }
 
 /// Implements:
-///# Dump fact topologies to a json file.
-///from starkware.cairo.bootloaders.simple_bootloader.utils import (
+/// # Dump fact topologies to a json file.
+/// from starkware.cairo.bootloaders.simple_bootloader.utils import (
 ///    configure_fact_topologies,
 ///    write_to_fact_topologies_file,
-///)
+/// )
 ///
-///# The task-related output is prefixed by a single word that contains the number of tasks.
-///tasks_output_start = output_builtin.base + 1
+/// # The task-related output is prefixed by a single word that contains the number of tasks.
+/// tasks_output_start = output_builtin.base + 1
 ///
-///if not simple_bootloader_input.single_page:
+/// if not simple_bootloader_input.single_page:
 ///    # Configure the memory pages in the output builtin, based on fact_topologies.
 ///    configure_fact_topologies(
 ///        fact_topologies=fact_topologies, output_start=tasks_output_start,
 ///        output_builtin=output_builtin,
 ///    )
 ///
-///if simple_bootloader_input.fact_topologies_path is not None:
+/// if simple_bootloader_input.fact_topologies_path is not None:
 ///    write_to_fact_topologies_file(
 ///        fact_topologies_path=simple_bootloader_input.fact_topologies_path,
 ///        fact_topologies=fact_topologies,
@@ -367,10 +354,8 @@ pub fn compute_and_configure_fact_topologies_simple(
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
     let output_builtin = vm.get_output_builtin_mut()?;
-    let mut tasks_output_start = Relocatable {
-        segment_index: output_builtin.base() as isize,
-        offset: 1,
-    };
+    let mut tasks_output_start =
+        Relocatable { segment_index: output_builtin.base() as isize, offset: 1 };
     let simple_bootloader_input: &SimpleBootloaderInput =
         exec_scopes.get_ref(vars::SIMPLE_BOOTLOADER_INPUT)?;
     let fact_topologies: Vec<FactTopology> = exec_scopes.get(vars::FACT_TOPOLOGIES)?;
@@ -392,20 +377,16 @@ fn unwrap_composite_output(
 ) -> Result<CompositePackedOutput, HintError> {
     match packed_output {
         PackedOutput::Plain => Err(HintError::CustomHint(
-            "Expected packed output to be composite"
-                .to_string()
-                .into_boxed_str(),
+            "Expected packed output to be composite".to_string().into_boxed_str(),
         )),
         PackedOutput::Composite(composite_packed_output) => Ok(composite_packed_output),
     }
 }
 
-/*
-Implements hint:
-%{
-    packed_outputs = packed_output.subtasks
-%}
-*/
+// Implements hint:
+// %{
+// packed_outputs = packed_output.subtasks
+// %}
 pub fn set_packed_output_to_subtasks(exec_scopes: &mut ExecutionScopes) -> Result<(), HintError> {
     let packed_output: PackedOutput = exec_scopes.get(vars::PACKED_OUTPUT)?;
     let composite_packed_output = unwrap_composite_output(packed_output)?;
@@ -415,14 +396,12 @@ pub fn set_packed_output_to_subtasks(exec_scopes: &mut ExecutionScopes) -> Resul
     Ok(())
 }
 
-/*
-Implements hint:
-%{
-    data = packed_output.elements_for_hash()
-    ids.nested_subtasks_output_len = len(data)
-    ids.nested_subtasks_output = segments.gen_arg(data)";
-%}
-*/
+// Implements hint:
+// %{
+// data = packed_output.elements_for_hash()
+// ids.nested_subtasks_output_len = len(data)
+// ids.nested_subtasks_output = segments.gen_arg(data)";
+// %}
 pub fn guess_pre_image_of_subtasks_output_hash(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -440,11 +419,8 @@ pub fn guess_pre_image_of_subtasks_output_hash(
         ids_data,
         ap_tracking,
     )?;
-    let args = data
-        .iter()
-        .cloned()
-        .map(|x| Box::new(MaybeRelocatable::Int(x)) as Box<dyn Any>)
-        .collect();
+    let args =
+        data.iter().cloned().map(|x| Box::new(MaybeRelocatable::Int(x)) as Box<dyn Any>).collect();
     let nested_subtasks_output = gen_arg(vm, &args)?;
     insert_value_from_var_name(
         "nested_subtasks_output",
@@ -457,13 +433,11 @@ pub fn guess_pre_image_of_subtasks_output_hash(
     Ok(())
 }
 
-/*
-Implements hint:
-%{
-    # Sanity check.
-    assert ids.program_address == program_address"
-%}
-*/
+// Implements hint:
+// %{
+// # Sanity check.
+// assert ids.program_address == program_address"
+// %}
 pub fn assert_program_address(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -484,11 +458,9 @@ pub fn assert_program_address(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::hints::codes::*;
-    use crate::hints::hint_processors::MinimalBootloaderHintProcessor;
-    use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
-    use crate::test_utils::fill_ids_data_for_test;
+    use std::collections::BTreeMap;
+    use std::ops::Add;
+
     use cairo_vm::Felt252;
     use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
     use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_maybe_relocatable_from_var_name;
@@ -499,8 +471,12 @@ mod tests {
     };
     use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
     use rstest::{fixture, rstest};
-    use std::collections::BTreeMap;
-    use std::ops::Add;
+
+    use super::*;
+    use crate::hints::codes::*;
+    use crate::hints::hint_processors::MinimalBootloaderHintProcessor;
+    use crate::hints::types::{BootloaderConfig, SimpleBootloaderInput};
+    use crate::test_utils::fill_ids_data_for_test;
 
     #[fixture]
     fn bootloader_input() -> BootloaderInput {
@@ -539,8 +515,7 @@ mod tests {
 
         let mut output_builtin = OutputBuiltinRunner::new(true);
         output_builtin.initialize_segments(&mut vm.segments);
-        vm.builtin_runners
-            .push(BuiltinRunner::Output(output_builtin.clone()));
+        vm.builtin_runners.push(BuiltinRunner::Output(output_builtin.clone()));
 
         let mut exec_scopes = ExecutionScopes::new();
         let ids_data = fill_ids_data_for_test(&["simple_bootloader_output_start"]);
@@ -555,10 +530,8 @@ mod tests {
         )
         .expect("Hint failed unexpectedly");
 
-        let current_output_builtin = vm
-            .get_output_builtin_mut()
-            .expect("The VM should have an output builtin")
-            .clone();
+        let current_output_builtin =
+            vm.get_output_builtin_mut().expect("The VM should have an output builtin").clone();
         let stored_output_builtin: OutputBuiltinState = exec_scopes
             .get(vars::OUTPUT_BUILTIN_STATE)
             .expect("The output builtin is not stored in the execution scope as expected");
@@ -619,10 +592,7 @@ mod tests {
         let simple_bootloader_input: SimpleBootloaderInput = exec_scopes
             .get(vars::SIMPLE_BOOTLOADER_INPUT)
             .expect("Simple bootloader input not in scope");
-        assert_eq!(
-            simple_bootloader_input,
-            bootloader_input.simple_bootloader_input
-        );
+        assert_eq!(simple_bootloader_input, bootloader_input.simple_bootloader_input);
     }
 
     #[test]
@@ -692,11 +662,8 @@ mod tests {
         let bootloader_config_segment =
             get_ptr_from_var_name("bootloader_config", &vm, &ids_data, &ap_tracking).unwrap();
 
-        let config_segment = vm
-            .segments
-            .memory
-            .get_continuous_range(bootloader_config_segment, 5)
-            .unwrap();
+        let config_segment =
+            vm.segments.memory.get_continuous_range(bootloader_config_segment, 5).unwrap();
 
         let simple_bootloader_hash_list_segment_len = match &config_segment[0] {
             MaybeRelocatable::Int(x) => (*x).to_usize().unwrap(),
@@ -763,10 +730,8 @@ mod tests {
         }
 
         // Assert that the applicative bootloader program hash matches the expected value
-        assert!(
-            matches!(applicative_bootloader_program_hash, MaybeRelocatable::Int(x) if *x ==
-            config.applicative_bootloader_program_hash)
-        );
+        assert!(matches!(applicative_bootloader_program_hash, MaybeRelocatable::Int(x) if *x ==
+            config.applicative_bootloader_program_hash));
     }
 
     #[rstest]
@@ -776,10 +741,8 @@ mod tests {
         // Tests both simple and nested arguments.
         let mut vm = VirtualMachine::new(false, false);
 
-        let nested_args: Vec<Box<dyn Any>> = vec![
-            Box::new(MaybeRelocatable::from(128)),
-            Box::new(MaybeRelocatable::from(42)),
-        ];
+        let nested_args: Vec<Box<dyn Any>> =
+            vec![Box::new(MaybeRelocatable::from(128)), Box::new(MaybeRelocatable::from(42))];
 
         let args: Vec<Box<dyn Any>> = vec![
             Box::new(MaybeRelocatable::from(1001)),
@@ -789,11 +752,8 @@ mod tests {
 
         let args_base: Relocatable = gen_arg(&mut vm, &args).expect("gen_args failed unexpectedly");
 
-        let values = vm
-            .segments
-            .memory
-            .get_integer_range(args_base, 2)
-            .expect("Loading values failed");
+        let values =
+            vm.segments.memory.get_integer_range(args_base, 2).expect("Loading values failed");
 
         assert_eq!(*values[0], 1001.into());
         assert_eq!(*values[1], 2048.into());
@@ -826,10 +786,9 @@ mod tests {
         vm.set_fp(1);
         vm.segments.add();
         vm.segments.add();
-        let _ = vm.segments.load_data(
-            Relocatable::from((1, 0)),
-            &[MaybeRelocatable::Int(Felt252::from(2))],
-        );
+        let _ = vm
+            .segments
+            .load_data(Relocatable::from((1, 0)), &[MaybeRelocatable::Int(Felt252::from(2))]);
 
         let ids_data = fill_ids_data_for_test(&["n_subtasks"]);
 
@@ -851,9 +810,8 @@ mod tests {
         assert_eq!(exec_scopes.data.len(), 2);
         assert_eq!(exec_scopes.data[1].len(), 1);
 
-        let packed_output = exec_scopes
-            .get(vars::PACKED_OUTPUT)
-            .expect("PACKED_OUTPUT not present in scope");
+        let packed_output =
+            exec_scopes.get(vars::PACKED_OUTPUT).expect("PACKED_OUTPUT not present in scope");
 
         assert!(matches!(packed_output, PackedOutput::Composite(_)));
     }
@@ -888,11 +846,7 @@ mod tests {
         // Increment AP to avoid an inconsistent memory error writing in the same slot
         let current_ap = vm.get_ap().offset;
         vm.set_ap(current_ap + 1);
-        assert!(!is_plain(
-            &mut vm,
-            &mut exec_scopes,
-            composite_packed_output
-        ));
+        assert!(!is_plain(&mut vm, &mut exec_scopes, composite_packed_output));
     }
 
     #[test]
@@ -932,11 +886,7 @@ mod tests {
     fn test_save_packed_outputs() {
         // Tests that save_packed_outputs correctly saves the packed outputs from the bootloader
         // input into the execution scopes.
-        let packed_outputs = vec![
-            PackedOutput::Plain,
-            PackedOutput::Plain,
-            PackedOutput::Plain,
-        ];
+        let packed_outputs = vec![PackedOutput::Plain, PackedOutput::Plain, PackedOutput::Plain];
 
         let bootloader_input = BootloaderInput {
             simple_bootloader_input: SimpleBootloaderInput {
@@ -990,25 +940,15 @@ mod tests {
         let mut vm: VirtualMachine = VirtualMachine::new(false, false);
         let mut output_builtin = OutputBuiltinRunner::new(true);
         output_builtin.initialize_segments(&mut vm.segments);
-        vm.builtin_runners
-            .push(BuiltinRunner::Output(output_builtin.clone()));
+        vm.builtin_runners.push(BuiltinRunner::Output(output_builtin.clone()));
 
         let mut exec_scopes = ExecutionScopes::new();
         let packed_outputs = vec![PackedOutput::Plain, PackedOutput::Plain];
         let fact_topologies = vec![
-            FactTopology {
-                tree_structure: vec![],
-                page_sizes: vec![3usize, 1usize],
-            },
-            FactTopology {
-                tree_structure: vec![],
-                page_sizes: vec![10usize],
-            },
+            FactTopology { tree_structure: vec![], page_sizes: vec![3usize, 1usize] },
+            FactTopology { tree_structure: vec![], page_sizes: vec![10usize] },
         ];
-        let output_start = Relocatable {
-            segment_index: output_builtin.base() as isize,
-            offset: 0,
-        };
+        let output_start = Relocatable { segment_index: output_builtin.base() as isize, offset: 0 };
         exec_scopes.insert_value(vars::BOOTLOADER_INPUT, bootloader_input);
         exec_scopes.insert_value(vars::PACKED_OUTPUTS, packed_outputs);
         exec_scopes.insert_value(vars::FACT_TOPOLOGIES, fact_topologies);
@@ -1018,13 +958,7 @@ mod tests {
             .expect("Hint failed unexpectedly");
 
         let output_start: Relocatable = exec_scopes.get(vars::OUTPUT_START).unwrap();
-        assert_eq!(
-            output_start,
-            Relocatable {
-                segment_index: 0,
-                offset: 18
-            }
-        );
+        assert_eq!(output_start, Relocatable { segment_index: 0, offset: 18 });
         assert_eq!(
             vm.get_output_builtin_mut().unwrap().get_state().pages,
             BTreeMap::from([
@@ -1042,10 +976,8 @@ mod tests {
         let mut vm: VirtualMachine = VirtualMachine::new(false, false);
         let mut exec_scopes = ExecutionScopes::new();
 
-        let subtasks = vec![
-            PackedOutput::Plain,
-            PackedOutput::Composite(CompositePackedOutput::default()),
-        ];
+        let subtasks =
+            vec![PackedOutput::Plain, PackedOutput::Composite(CompositePackedOutput::default())];
         exec_scopes.insert_value(
             vars::PACKED_OUTPUT,
             PackedOutput::Composite(CompositePackedOutput {
@@ -1150,10 +1082,7 @@ mod tests {
         let ids_data = fill_ids_data_for_test(&["program_address"]);
         let ap_tracking = ApTracking::new();
 
-        let mut ptr = Relocatable {
-            segment_index: 42,
-            offset: 42,
-        };
+        let mut ptr = Relocatable { segment_index: 42, offset: 42 };
         let _ = insert_value_from_var_name(
             vars::PROGRAM_ADDRESS,
             ptr,
@@ -1164,10 +1093,7 @@ mod tests {
         .map_err(|e| panic!("could not insert var: {e}"));
 
         if expect_fail {
-            ptr = Relocatable {
-                segment_index: 1,
-                offset: 1,
-            };
+            ptr = Relocatable { segment_index: 1, offset: 1 };
         }
 
         let mut exec_scopes = ExecutionScopes::new();

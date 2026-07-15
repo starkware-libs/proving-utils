@@ -13,31 +13,6 @@ use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::runners::cairo_runner::ResourceTracker;
 use cairo_vm::vm::vm_core::VirtualMachine;
 
-use crate::hints::applicative_bootloader_hints::aggregator_program_hash_function_to_ap;
-use crate::hints::bootloader_hints::{
-    assert_is_composite_packed_output, assert_program_address,
-    compute_and_configure_fact_topologies, compute_and_configure_fact_topologies_simple,
-    enter_packed_output_scope, guess_pre_image_of_subtasks_output_hash,
-    import_packed_output_schemas, is_plain_packed_output, load_bootloader_config,
-    load_simple_bootloader_input, prepare_simple_bootloader_input,
-    prepare_simple_bootloader_output_segment, restore_bootloader_output, save_output_pointer,
-    save_packed_outputs, set_packed_output_to_subtasks,
-};
-use crate::hints::codes::*;
-use crate::hints::execute_task_hints::{
-    append_fact_topologies, bootloader_validate_hash, determine_use_prev_hash,
-    execute_task_exit_scope, load_program_hint, setup_subtask_for_execution, validate_hash,
-    write_return_builtins_hint,
-};
-use crate::hints::inner_select_builtins::select_builtin;
-use crate::hints::select_builtins::select_builtins_enter_scope;
-use crate::hints::simple_bootloader_hints::{
-    divide_num_by_2, program_hash_function_to_ap, set_ap_to_zero, set_current_task,
-    setup_run_simple_bootloader_before_task_execution,
-};
-use crate::hints::utils::output_builtin_set_pages_by_size_and_fact_topology;
-use crate::hints::verifier_hints::load_and_parse_proof;
-
 use super::applicative_bootloader_hints::{
     finalize_fact_topologies_and_pages, prepare_aggregator_simple_bootloader_output_segment,
     prepare_root_task_unpacker_bootloader_output_segment, restore_applicative_output_state,
@@ -72,6 +47,30 @@ use super::simple_bootloader_hints::{
 };
 use super::simple_output_hints::{len_output_to_ap, load_simple_output_input, write_simple_output};
 use super::vector_commitment::set_bit_from_index;
+use crate::hints::applicative_bootloader_hints::aggregator_program_hash_function_to_ap;
+use crate::hints::bootloader_hints::{
+    assert_is_composite_packed_output, assert_program_address,
+    compute_and_configure_fact_topologies, compute_and_configure_fact_topologies_simple,
+    enter_packed_output_scope, guess_pre_image_of_subtasks_output_hash,
+    import_packed_output_schemas, is_plain_packed_output, load_bootloader_config,
+    load_simple_bootloader_input, prepare_simple_bootloader_input,
+    prepare_simple_bootloader_output_segment, restore_bootloader_output, save_output_pointer,
+    save_packed_outputs, set_packed_output_to_subtasks,
+};
+use crate::hints::codes::*;
+use crate::hints::execute_task_hints::{
+    append_fact_topologies, bootloader_validate_hash, determine_use_prev_hash,
+    execute_task_exit_scope, load_program_hint, setup_subtask_for_execution, validate_hash,
+    write_return_builtins_hint,
+};
+use crate::hints::inner_select_builtins::select_builtin;
+use crate::hints::select_builtins::select_builtins_enter_scope;
+use crate::hints::simple_bootloader_hints::{
+    divide_num_by_2, program_hash_function_to_ap, set_ap_to_zero, set_current_task,
+    setup_run_simple_bootloader_before_task_execution,
+};
+use crate::hints::utils::output_builtin_set_pages_by_size_and_fact_topology;
+use crate::hints::verifier_hints::load_and_parse_proof;
 
 /// A hint processor that can only execute the hints defined in this library.
 /// For large projects, you may want to compose a hint processor from multiple parts
@@ -96,9 +95,8 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
         exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
     ) -> Result<(), HintError> {
-        let hint_data = hint_data
-            .downcast_ref::<HintProcessorData>()
-            .ok_or(HintError::WrongHintData)?;
+        let hint_data =
+            hint_data.downcast_ref::<HintProcessorData>().ok_or(HintError::WrongHintData)?;
 
         let ids_data = &hint_data.ids_data;
         let ap_tracking = &hint_data.ap_tracking;
@@ -266,9 +264,9 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             SIMULATE_ECDSA_FILL_MEM_WITH_FELT_96_BIT_LIMBS => {
                 simulate_ecdsa_fill_mem_with_felt_96_bit_limbs(vm, ids_data, ap_tracking)
             }
-            unknown_hint_code => Err(HintError::UnknownHint(
-                unknown_hint_code.to_string().into_boxed_str(),
-            )),
+            unknown_hint_code => {
+                Err(HintError::UnknownHint(unknown_hint_code.to_string().into_boxed_str()))
+            }
         }
     }
 }
@@ -291,9 +289,8 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
         exec_scopes: &mut ExecutionScopes,
         hint_data: &Box<dyn Any>,
     ) -> Result<(), HintError> {
-        let hint_data = hint_data
-            .downcast_ref::<HintProcessorData>()
-            .ok_or(HintError::WrongHintData)?;
+        let hint_data =
+            hint_data.downcast_ref::<HintProcessorData>().ok_or(HintError::WrongHintData)?;
 
         let ids_data = &hint_data.ids_data;
         let ap_tracking = &hint_data.ap_tracking;
@@ -362,9 +359,9 @@ impl HintProcessorLogic for MinimalTestProgramsHintProcessor {
             PEDERSEN_MERKLE_UPDATE_RIGHT => {
                 pedersen_merkle_update(vm, exec_scopes, ids_data, ap_tracking, false)
             }
-            unknown_hint_code => Err(HintError::UnknownHint(
-                unknown_hint_code.to_string().into_boxed_str(),
-            )),
+            unknown_hint_code => {
+                Err(HintError::UnknownHint(unknown_hint_code.to_string().into_boxed_str()))
+            }
         }
     }
 }
@@ -399,16 +396,13 @@ impl<'a> BootloaderHintProcessor<'a> {
     }
 
     pub fn add_hint(&mut self, hint_code: String, hint_func: Rc<HintFunc>) {
-        self.builtin_hint_processor
-            .extra_hints
-            .insert(hint_code, hint_func);
+        self.builtin_hint_processor.extra_hints.insert(hint_code, hint_func);
     }
 
     /// Push new subtask state onto the stacks.
     /// Pass an an optional Cairo hint processor.
     pub fn spawn_subtask(&mut self, cairo_hint_processor: Option<CairoHintProcessor<'a>>) {
-        self.subtask_cairo1_hint_processor_stack
-            .push(cairo_hint_processor);
+        self.subtask_cairo1_hint_processor_stack.push(cairo_hint_processor);
     }
 
     /// Pop the current subtask state off the stacks.
@@ -467,19 +461,15 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             }
         }
 
-        match self
-            .bootloader_hint_processor
-            .execute_hint_extensive(vm, exec_scopes, hint_data)
-        {
+        match self.bootloader_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
             Err(HintError::UnknownHint(_)) => {}
             result => {
                 return result;
             }
         }
 
-        let hint_data_dc = hint_data
-            .downcast_ref::<HintProcessorData>()
-            .ok_or(HintError::WrongHintData)?;
+        let hint_data_dc =
+            hint_data.downcast_ref::<HintProcessorData>().ok_or(HintError::WrongHintData)?;
         match hint_data_dc.code.as_str() {
             EXECUTE_TASK_CALL_TASK => {
                 return setup_subtask_for_execution(
@@ -494,18 +484,14 @@ impl HintProcessorLogic for BootloaderHintProcessor<'_> {
             _ => {}
         }
 
-        match self
-            .builtin_hint_processor
-            .execute_hint_extensive(vm, exec_scopes, hint_data)
-        {
+        match self.builtin_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data) {
             Err(HintError::UnknownHint(_)) => {}
             result => {
                 return result;
             }
         }
 
-        self.test_programs_hint_processor
-            .execute_hint_extensive(vm, exec_scopes, hint_data)
+        self.test_programs_hint_processor.execute_hint_extensive(vm, exec_scopes, hint_data)
     }
 }
 

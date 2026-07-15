@@ -1,8 +1,7 @@
-use cairo_vm::{
-    hint_processor::builtin_hint_processor::hint_utils::insert_value_into_ap,
-    types::exec_scope::ExecutionScopes,
-    vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
-};
+use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::insert_value_into_ap;
+use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::vm::errors::hint_errors::HintError;
+use cairo_vm::vm::vm_core::VirtualMachine;
 
 use super::types::FibonacciInput;
 use super::utils::get_program_input_value;
@@ -30,11 +29,12 @@ pub fn fibonacci_load_claim_idx(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{PROGRAM_INPUT, ProgramInput};
     use cairo_vm::Felt252;
     use cairo_vm::types::relocatable::Relocatable;
     use cairo_vm::vm::vm_core::VirtualMachine;
+
+    use super::*;
+    use crate::{PROGRAM_INPUT, ProgramInput};
 
     fn prepare_vm_for_fibonacci_test(
         fibonacci_input: &FibonacciInput,
@@ -57,21 +57,14 @@ mod tests {
         // Runs fibonacci_load_second_element hint and asserts that the second element is loaded
         // correctly into ap.
 
-        let fibonacci_input = FibonacciInput {
-            second_element: 5,
-            fibonacci_claim_index: 3,
-        };
+        let fibonacci_input = FibonacciInput { second_element: 5, fibonacci_claim_index: 3 };
 
         let (mut vm, mut exec_scopes) = prepare_vm_for_fibonacci_test(&fibonacci_input);
         let result = fibonacci_load_second_element(&mut vm, &mut exec_scopes);
         assert!(result.is_ok());
         assert_eq!(vm.get_ap(), Relocatable::from((1, 0)));
         assert_eq!(
-            vm.segments
-                .memory
-                .get_integer(vm.get_ap())
-                .unwrap()
-                .as_ref(),
+            vm.segments.memory.get_integer(vm.get_ap()).unwrap().as_ref(),
             &Felt252::from(fibonacci_input.second_element)
         );
     }
@@ -80,10 +73,7 @@ mod tests {
     fn test_fibonacci_load_claim_idx() {
         // Runs fibonacci_load_second_element and afterwards fibonacci_load_claim_idx hint and
         // asserts that the claim index is loaded correctly into ap.
-        let fibonacci_input = FibonacciInput {
-            second_element: 5,
-            fibonacci_claim_index: 3,
-        };
+        let fibonacci_input = FibonacciInput { second_element: 5, fibonacci_claim_index: 3 };
 
         let (mut vm, mut exec_scopes) = prepare_vm_for_fibonacci_test(&fibonacci_input);
         fibonacci_load_second_element(&mut vm, &mut exec_scopes).unwrap();
@@ -91,11 +81,7 @@ mod tests {
         fibonacci_load_claim_idx(&mut vm, &mut exec_scopes).unwrap();
         assert_eq!(vm.get_ap(), Relocatable::from((1, 1)));
         assert_eq!(
-            vm.segments
-                .memory
-                .get_integer(vm.get_ap())
-                .unwrap()
-                .as_ref(),
+            vm.segments.memory.get_integer(vm.get_ap()).unwrap().as_ref(),
             &Felt252::from(fibonacci_input.fibonacci_claim_index)
         );
     }

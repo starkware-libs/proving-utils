@@ -51,13 +51,7 @@ pub fn determine_use_prev_hash(
     ap_tracking: &ApTracking,
 ) -> Result<(), HintError> {
     let use_prev_hash: i32 = exec_scopes.get(vars::USE_PREV_HASH)?;
-    insert_value_from_var_name(
-        "use_prev_hash",
-        use_prev_hash as usize,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name("use_prev_hash", use_prev_hash as usize, vm, ids_data, ap_tracking)?;
 
     Ok(())
 }
@@ -99,11 +93,7 @@ pub fn load_program_hint(
         .load_program(program_header_ptr, &program, Some(bootloader_version))
         .map_err(Into::<HintError>::into)?;
 
-    vm.segments.finalize(
-        Some(loaded_program.size),
-        program_data_base.segment_index as usize,
-        None,
-    );
+    vm.segments.finalize(Some(loaded_program.size), program_data_base.segment_index as usize, None);
 
     exec_scopes.insert_value(vars::PROGRAM_DATA_BASE, program_data_base);
     exec_scopes.insert_value(vars::PROGRAM_ADDRESS, loaded_program.code_address);
@@ -183,9 +173,7 @@ pub fn validate_hash(
 
     if program_hash != computed_program_hash {
         return Err(HintError::AssertionFailed(
-            "Computed hash does not match input"
-                .to_string()
-                .into_boxed_str(),
+            "Computed hash does not match input".to_string().into_boxed_str(),
         ));
     }
 
@@ -225,9 +213,7 @@ fn check_cairo_pie_builtin_usage(
 
     if builtin_size != expected_builtin_size {
         return Err(HintError::AssertionFailed(
-            "Builtin usage is inconsistent with the CairoPie."
-                .to_string()
-                .into_boxed_str(),
+            "Builtin usage is inconsistent with the CairoPie.".to_string().into_boxed_str(),
         ));
     }
 
@@ -334,10 +320,7 @@ pub fn write_return_builtins_hint(
 
     // vm_enter_scope({'n_selected_builtins': n_builtins})
     let n_builtins: Box<dyn Any> = Box::new(n_builtins);
-    exec_scopes.enter_scope(HashMap::from([(
-        vars::N_SELECTED_BUILTINS.to_string(),
-        n_builtins,
-    )]));
+    exec_scopes.enter_scope(HashMap::from([(vars::N_SELECTED_BUILTINS.to_string(), n_builtins)]));
 
     Ok(())
 }
@@ -358,33 +341,30 @@ fn process_program_common_logic(
     let program_address: Relocatable = exec_scopes.get(vars::PROGRAM_ADDRESS)?;
     let references = &program.shared_program_data.reference_manager;
 
-    program_hints_collection
-        .hints_ranges
-        .iter()
-        .try_for_each(|(pc, hint_range)| {
-            let adjusted_pc = (program_address + pc.offset)?;
-            let start = hint_range.0;
-            let end = start + hint_range.1.get();
-            let compiled_hints = program_hints_collection.hints[start..end]
-                .iter()
-                .map(|hint| {
-                    hint_compiler
-                        .compile_hint(
-                            &hint.code,
-                            &hint.flow_tracking_data.ap_tracking,
-                            &hint.flow_tracking_data.reference_ids,
-                            references,
-                            &hint.accessible_scopes,
-                            program.constants.clone(),
-                        )
-                        .map_err(|err| {
-                            HintError::CustomHint(format!("{err} for hint: {}", hint.code).into())
-                        })
-                })
-                .collect::<Result<Vec<_>, HintError>>()?;
-            hint_extension.insert(adjusted_pc, compiled_hints);
-            Ok::<(), HintError>(())
-        })?;
+    program_hints_collection.hints_ranges.iter().try_for_each(|(pc, hint_range)| {
+        let adjusted_pc = (program_address + pc.offset)?;
+        let start = hint_range.0;
+        let end = start + hint_range.1.get();
+        let compiled_hints = program_hints_collection.hints[start..end]
+            .iter()
+            .map(|hint| {
+                hint_compiler
+                    .compile_hint(
+                        &hint.code,
+                        &hint.flow_tracking_data.ap_tracking,
+                        &hint.flow_tracking_data.reference_ids,
+                        references,
+                        &hint.accessible_scopes,
+                        program.constants.clone(),
+                    )
+                    .map_err(|err| {
+                        HintError::CustomHint(format!("{err} for hint: {}", hint.code).into())
+                    })
+            })
+            .collect::<Result<Vec<_>, HintError>>()?;
+        hint_extension.insert(adjusted_pc, compiled_hints);
+        Ok::<(), HintError>(())
+    })?;
 
     Ok(())
 }
@@ -441,7 +421,8 @@ pub fn setup_subtask_for_execution(
             let bootloader_identifiers = get_program_identifies(exec_scopes, PROGRAM_OBJECT)?;
             let ret_pc_label = get_identifier(
                 &bootloader_identifiers,
-                "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.ret_pc_label",
+                "starkware.cairo.bootloaders.simple_bootloader.execute_task.execute_task.\
+                 ret_pc_label",
             )?;
             let call_task = get_identifier(
                 &bootloader_identifiers,
@@ -557,9 +538,7 @@ pub fn bootloader_validate_hash(
     let computed_program_hash = felt_to_felt252(computed_program_hash);
     if program_hash != computed_program_hash {
         return Err(HintError::AssertionFailed(
-            "Computed hash does not match input"
-                .to_string()
-                .into_boxed_str(),
+            "Computed hash does not match input".to_string().into_boxed_str(),
         ));
     }
     Ok(())
@@ -596,18 +575,22 @@ mod util {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::hints::codes::*;
-    use crate::hints::types::{Cairo0Executable, Task};
-    use crate::test_utils::{fill_ids_data_for_test, prepare_vm_for_load_program_loading_test};
-    use crate::test_utils::{get_hint_codes_at_pc, prepare_non_continuous_ids_data_for_test};
+    use std::collections::BTreeMap;
+
     use cairo_vm::any_box;
     use cairo_vm::hint_processor::builtin_hint_processor::builtin_hint_processor_definition::HintProcessorData;
     use cairo_vm::hint_processor::hint_processor_definition::HintProcessorLogic;
     use cairo_vm::vm::runners::builtin_runner::BuiltinRunner;
     use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
     use rstest::{fixture, rstest};
-    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::hints::codes::*;
+    use crate::hints::types::{Cairo0Executable, Task};
+    use crate::test_utils::{
+        fill_ids_data_for_test, get_hint_codes_at_pc, prepare_non_continuous_ids_data_for_test,
+        prepare_vm_for_load_program_loading_test,
+    };
 
     /// This test checks that the program data is allocated in a new segment and that the
     /// pointers in the ids_data point to it.
@@ -640,16 +623,10 @@ mod tests {
         assert_eq!(program_data_ptr, program_data_base);
 
         // Check that we allocated a new segment and that the pointers point to it
-        assert_eq!(
-            vm.segments.num_segments(),
-            expected_program_data_segment_index + 1
-        );
+        assert_eq!(vm.segments.num_segments(), expected_program_data_segment_index + 1);
         assert_eq!(
             program_data_ptr,
-            Relocatable {
-                segment_index: expected_program_data_segment_index as isize,
-                offset: 0
-            }
+            Relocatable { segment_index: expected_program_data_segment_index as isize, offset: 0 }
         );
     }
 
@@ -753,9 +730,7 @@ mod tests {
         // Allocate space for pre-execution (8 felts), which mimics the `BuiltinData` struct in
         // the Bootloader's Cairo code. Our code only uses the first felt (`output` field in
         // the struct)
-        let _ = vm
-            .segments
-            .load_data(Relocatable::from((1, 3)), &[MaybeRelocatable::from((3, 0))]);
+        let _ = vm.segments.load_data(Relocatable::from((1, 3)), &[MaybeRelocatable::from((3, 0))]);
         // Set FP to 3 + 8 = 11, Since now the memory at segment 1 is:
         // (1, 0): (2, 0) // program segment pointer
         // (1, 1): (2, 0) // program header pointer
@@ -769,8 +744,7 @@ mod tests {
 
         let mut output_builtin = OutputBuiltinRunner::new(true);
         output_builtin.initialize_segments(&mut vm.segments);
-        vm.builtin_runners
-            .push(BuiltinRunner::Output(output_builtin));
+        vm.builtin_runners.push(BuiltinRunner::Output(output_builtin));
 
         let task = Rc::new(Task::Cairo0Program(Cairo0Executable {
             program: fibonacci.clone(),
@@ -886,8 +860,7 @@ mod tests {
 
         let mut output_builtin = OutputBuiltinRunner::new(true);
         output_builtin.initialize_segments(&mut vm.segments);
-        vm.builtin_runners
-            .push(BuiltinRunner::Output(output_builtin));
+        vm.builtin_runners.push(BuiltinRunner::Output(output_builtin));
 
         let task = Rc::new(Task::Pie(fibonacci_pie.clone()));
         exec_scopes.insert_value(vars::TASK, task);
@@ -911,13 +884,11 @@ mod tests {
         for (offset, value) in pie_memory.0.iter() {
             let (segment_index, base_offset) = match offset.0 {
                 0 => (2, 5),
-                1 => break, //checking only the code segment, so we break after the first segment
+                1 => break, // checking only the code segment, so we break after the first segment
                 _ => panic!("Unexpected segment index: {}", offset.0),
             };
             let vm_addr = Relocatable::from((segment_index, base_offset + offset.1));
-            let vm_value = vm
-                .get_maybe(&vm_addr)
-                .expect("Failed to get VM memory value");
+            let vm_value = vm.get_maybe(&vm_addr).expect("Failed to get VM memory value");
             assert_eq!(&vm_value, value, "Mismatch at offset {}", offset.1);
         }
 
@@ -957,11 +928,8 @@ mod tests {
 
         vm.load_data(Relocatable::from((1, 0)), &[MaybeRelocatable::from((2, 0))])
             .expect("Failed to load data into VM segments");
-        vm.load_data(
-            Relocatable::from((1, 8)),
-            &[MaybeRelocatable::from((2, 10))],
-        )
-        .expect("Failed to load data into VM segments");
+        vm.load_data(Relocatable::from((1, 8)), &[MaybeRelocatable::from((2, 10))])
+            .expect("Failed to load data into VM segments");
         vm.set_fp(16);
 
         let tree_structure = vec![1, 2, 3, 4];
@@ -978,8 +946,7 @@ mod tests {
         let mut output_builtin = OutputBuiltinRunner::new(true);
         output_builtin.set_state(output_builtin_state.clone());
         output_builtin.initialize_segments(&mut vm.segments);
-        vm.builtin_runners
-            .push(BuiltinRunner::Output(output_builtin));
+        vm.builtin_runners.push(BuiltinRunner::Output(output_builtin));
 
         let ids_data = prepare_non_continuous_ids_data_for_test(&[
             ("pre_execution_builtin_ptrs", -16),
@@ -1102,19 +1069,10 @@ mod tests {
         }
 
         // Check that the exec scope changed
-        assert_eq!(
-            exec_scopes.data.len(),
-            2,
-            "A new scope should have been declared"
-        );
-        assert_eq!(
-            exec_scopes.data[1].len(),
-            1,
-            "The new scope should only contain one variable"
-        );
-        let n_selected_builtins: Felt = exec_scopes
-            .get(vars::N_SELECTED_BUILTINS)
-            .expect("n_selected_builtins should be set");
+        assert_eq!(exec_scopes.data.len(), 2, "A new scope should have been declared");
+        assert_eq!(exec_scopes.data[1].len(), 1, "The new scope should only contain one variable");
+        let n_selected_builtins: Felt =
+            exec_scopes.get(vars::N_SELECTED_BUILTINS).expect("n_selected_builtins should be set");
         assert_eq!(n_selected_builtins, n_builtins);
     }
 
@@ -1137,9 +1095,7 @@ mod tests {
 
         // Check that the use_prev_hash variable is set correctly in the execution scope
         assert_eq!(
-            vm.get_integer(Relocatable::from((1, 0)))
-                .unwrap()
-                .into_owned(),
+            vm.get_integer(Relocatable::from((1, 0))).unwrap().into_owned(),
             Felt252::from(use_prev_hash)
         );
     }

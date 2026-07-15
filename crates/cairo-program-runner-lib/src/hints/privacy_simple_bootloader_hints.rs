@@ -9,11 +9,9 @@ use cairo_vm::vm::errors::hint_errors::HintError;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use starknet_types_core::felt::Felt;
 
-use crate::hints::SIMPLE_BOOTLOADER_INPUT;
-use crate::hints::types::PrivacySimpleBootloaderInput;
-use crate::hints::vars;
-
 use super::utils::get_program_input_value;
+use crate::hints::types::PrivacySimpleBootloaderInput;
+use crate::hints::{SIMPLE_BOOTLOADER_INPUT, vars};
 
 /// Loads privacy simple bootloader input from the program input.
 /// Stores the inner `SimpleBootloaderInput` and the `output_preimage_dump_path` separately
@@ -22,14 +20,9 @@ pub fn load_privacy_simple_bootloader_input(
     exec_scopes: &mut ExecutionScopes,
 ) -> Result<(), HintError> {
     let privacy_input: PrivacySimpleBootloaderInput = get_program_input_value(exec_scopes)?;
-    exec_scopes.insert_value(
-        SIMPLE_BOOTLOADER_INPUT,
-        privacy_input.simple_bootloader_input,
-    );
-    exec_scopes.insert_value(
-        vars::OUTPUT_PREIMAGE_DUMP_PATH,
-        privacy_input.output_preimage_dump_path,
-    );
+    exec_scopes.insert_value(SIMPLE_BOOTLOADER_INPUT, privacy_input.simple_bootloader_input);
+    exec_scopes
+        .insert_value(vars::OUTPUT_PREIMAGE_DUMP_PATH, privacy_input.output_preimage_dump_path);
     Ok(())
 }
 
@@ -45,11 +38,8 @@ pub fn dump_privacy_simple_bootloader_output_preimage(
     let output_end = get_ptr_from_var_name("simple_bl_output", vm, ids_data, ap_tracking)?;
     let size = (output_end - output_start)?;
 
-    let elements: Vec<Felt> = vm
-        .get_integer_range(output_start, size)?
-        .into_iter()
-        .map(|v| v.into_owned())
-        .collect();
+    let elements: Vec<Felt> =
+        vm.get_integer_range(output_start, size)?.into_iter().map(|v| v.into_owned()).collect();
 
     let dump_path: PathBuf = exec_scopes.get(vars::OUTPUT_PREIMAGE_DUMP_PATH)?;
     let json = serde_json::to_string_pretty(&elements).map_err(|e| {
@@ -126,20 +116,14 @@ mod tests {
         //   simple_bl_output       -> (0, n)
         vm.load_data(
             Relocatable::from((1, 0)),
-            &[
-                MaybeRelocatable::from((0, 0)),
-                MaybeRelocatable::from((0, expected_felts.len())),
-            ],
+            &[MaybeRelocatable::from((0, 0)), MaybeRelocatable::from((0, expected_felts.len()))],
         )
         .expect("Failed to load pointer data");
 
         // Place output felts at (0, 0)..(0, n)
-        let output_data: Vec<MaybeRelocatable> = expected_felts
-            .iter()
-            .map(|f| MaybeRelocatable::from(*f))
-            .collect();
-        vm.load_data(Relocatable::from((0, 0)), &output_data)
-            .expect("Failed to load output data");
+        let output_data: Vec<MaybeRelocatable> =
+            expected_felts.iter().map(|f| MaybeRelocatable::from(*f)).collect();
+        vm.load_data(Relocatable::from((0, 0)), &output_data).expect("Failed to load output data");
 
         // fp = 2 so that ids resolve: simple_bl_output_start at fp-2 = (1,0), simple_bl_output at
         // fp-1 = (1,1)
@@ -188,9 +172,8 @@ mod tests {
             .expect("Could not load privacy simple bootloader program.");
         let simple_output_program = Program::from_file(simple_output_path.as_path(), Some("main"))
             .expect("Could not load simple output program.");
-        let stripped_program = simple_output_program
-            .get_stripped_program()
-            .expect("Could not get stripped program.");
+        let stripped_program =
+            simple_output_program.get_stripped_program().expect("Could not get stripped program.");
 
         let dump_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
         let dump_path = dump_file.path().to_path_buf();
@@ -246,11 +229,7 @@ mod tests {
                 .expect("Failed to compute program hash.");
         let expected_task_size = 2 + task_output.len(); // task_size word + program_hash + output elements
 
-        assert_eq!(
-            preimage_felts[0],
-            Felt::ONE,
-            "First preimage element should be n_tasks = 1"
-        );
+        assert_eq!(preimage_felts[0], Felt::ONE, "First preimage element should be n_tasks = 1");
         assert_eq!(
             preimage_felts[1],
             Felt::from(expected_task_size as u64),
@@ -278,10 +257,7 @@ mod tests {
         let expected_hash = Blake2Felt252::encode_felt252_data_and_calc_blake_hash(&preimage_felts);
 
         let mut output_buffer = String::new();
-        runner
-            .vm
-            .write_output(&mut output_buffer)
-            .expect("Failed to write VM output.");
+        runner.vm.write_output(&mut output_buffer).expect("Failed to write VM output.");
 
         let expected_hash_str =
             signed_felt(Felt252::from_bytes_be(&expected_hash.to_bytes_be())).to_string();

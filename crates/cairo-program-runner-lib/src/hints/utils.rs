@@ -3,11 +3,6 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use super::PROGRAM_INPUT;
-use super::types::Task;
-use crate::hints::fact_topologies::GPS_FACT_TOPOLOGY;
-use crate::hints::types::ProgramIdentifiers;
-use crate::utils::ProgramInput;
 use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::get_ptr_from_var_name;
 use cairo_vm::hint_processor::hint_processor_definition::HintReference;
 use cairo_vm::serde::deserialize_program::{ApTracking, Identifier};
@@ -20,6 +15,12 @@ use cairo_vm::vm::runners::builtin_runner::OutputBuiltinRunner;
 use cairo_vm::vm::runners::cairo_pie::StrippedProgram;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use serde::de::DeserializeOwned;
+
+use super::PROGRAM_INPUT;
+use super::types::Task;
+use crate::hints::fact_topologies::GPS_FACT_TOPOLOGY;
+use crate::hints::types::ProgramIdentifiers;
+use crate::utils::ProgramInput;
 
 #[macro_export]
 macro_rules! maybe_relocatable_box {
@@ -48,15 +49,10 @@ pub fn get_program_identifies(
     program: &str,
 ) -> Result<ProgramIdentifiers, HintError> {
     if let Ok(program) = exec_scopes.get::<Program>(program) {
-        return Ok(program
-            .iter_identifiers()
-            .map(|(k, v)| (k.to_string(), v.clone()))
-            .collect());
+        return Ok(program.iter_identifiers().map(|(k, v)| (k.to_string(), v.clone())).collect());
     }
 
-    Err(HintError::VariableNotInScopeError(
-        program.to_string().into_boxed_str(),
-    ))
+    Err(HintError::VariableNotInScopeError(program.to_string().into_boxed_str()))
 }
 
 fn parse_program_input_from_str<T: DeserializeOwned>(json: &str) -> Result<T, HintError> {
@@ -76,11 +72,9 @@ pub fn get_program_input_value<T>(exec_scopes: &ExecutionScopes) -> Result<T, Hi
 where
     T: DeserializeOwned + Clone + 'static,
 {
-    let program_input = exec_scopes
-        .get_ref::<ProgramInput>(PROGRAM_INPUT)
-        .map_err(|_| {
-            HintError::CustomHint("Program input was not found in execution scopes.".into())
-        })?;
+    let program_input = exec_scopes.get_ref::<ProgramInput>(PROGRAM_INPUT).map_err(|_| {
+        HintError::CustomHint("Program input was not found in execution scopes.".into())
+    })?;
     match program_input {
         ProgramInput::Json(json) => parse_program_input_from_str(json),
         ProgramInput::Path(path) => parse_program_input_from_path(path),
@@ -89,9 +83,7 @@ where
                 // TODO: avoid clone by returning a borrowed value after refactor.
                 return Ok(typed.clone());
             }
-            Err(HintError::CustomHint(
-                "Program input value has unsupported in-memory type.".into(),
-            ))
+            Err(HintError::CustomHint("Program input value has unsupported in-memory type.".into()))
         }
     }
 }
@@ -121,9 +113,7 @@ pub fn get_identifier(
         return Ok(pc);
     }
 
-    Err(HintError::VariableNotInScopeError(
-        name.to_string().into_boxed_str(),
-    ))
+    Err(HintError::VariableNotInScopeError(name.to_string().into_boxed_str()))
 }
 
 /// Mimics the behaviour of the Python VM `gen_arg`.
@@ -160,8 +150,7 @@ pub fn gen_arg(
 }
 
 pub fn get_program_from_task(task: &Task) -> Result<StrippedProgram, HintError> {
-    task.get_program()
-        .map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
+    task.get_program().map_err(|e| HintError::CustomHint(e.to_string().into_boxed_str()))
 }
 
 // Splits the outputs into pages of a given size, starting from `output_start` and
@@ -177,11 +166,9 @@ pub fn split_outputs_to_pages(
     while next_page_start < output_ptr {
         let current_page_size = min(output_ptr.offset - next_page_start.offset, page_size);
 
-        output_builtin
-            .add_page(next_page_id, next_page_start, current_page_size)
-            .map_err(|e| {
-                HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
-            })?;
+        output_builtin.add_page(next_page_id, next_page_start, current_page_size).map_err(|e| {
+            HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
+        })?;
 
         next_page_start = (next_page_start + page_size)?;
         next_page_id += 1;
@@ -194,10 +181,8 @@ pub fn add_fact_topology(output_builtin: &mut OutputBuiltinRunner, n_pages: usiz
     if n_pages == 1 {
         output_builtin.add_attribute(GPS_FACT_TOPOLOGY.into(), [1, 0].to_vec());
     } else {
-        output_builtin.add_attribute(
-            GPS_FACT_TOPOLOGY.into(),
-            [n_pages, n_pages - 1, 0, 2].to_vec(),
-        );
+        output_builtin
+            .add_attribute(GPS_FACT_TOPOLOGY.into(), [n_pages, n_pages - 1, 0, 2].to_vec());
     }
 }
 

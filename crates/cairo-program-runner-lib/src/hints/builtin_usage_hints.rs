@@ -1,21 +1,20 @@
-use super::{
-    execute_task_hints::felt_to_felt252, fact_topologies::GPS_FACT_TOPOLOGY,
-    types::FlexibleBuiltinUsageInput, utils::get_program_input_value,
-};
-use cairo_vm::{
-    Felt252,
-    hint_processor::{
-        builtin_hint_processor::hint_utils::{
-            get_ptr_from_var_name, insert_value_from_var_name, insert_value_into_ap,
-        },
-        hint_processor_definition::HintReference,
-    },
-    serde::deserialize_program::ApTracking,
-    types::exec_scope::ExecutionScopes,
-    vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
-};
-use starknet_crypto::{Felt, pedersen_hash};
 use std::collections::HashMap;
+
+use cairo_vm::Felt252;
+use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
+    get_ptr_from_var_name, insert_value_from_var_name, insert_value_into_ap,
+};
+use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+use cairo_vm::serde::deserialize_program::ApTracking;
+use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::vm::errors::hint_errors::HintError;
+use cairo_vm::vm::vm_core::VirtualMachine;
+use starknet_crypto::{Felt, pedersen_hash};
+
+use super::execute_task_hints::felt_to_felt252;
+use super::fact_topologies::GPS_FACT_TOPOLOGY;
+use super::types::FlexibleBuiltinUsageInput;
+use super::utils::get_program_input_value;
 
 /// Implements hint:
 /// %{
@@ -41,8 +40,7 @@ pub fn builtin_usage_add_other_segment(
     insert_value_from_var_name("other_segment", new_segment_base, vm, ids_data, ap_tracking)?;
 
     if finalize {
-        vm.segments
-            .finalize(Some(1), new_segment_base.segment_index as usize, None);
+        vm.segments.finalize(Some(1), new_segment_base.segment_index as usize, None);
     }
     Ok(())
 }
@@ -103,16 +101,12 @@ pub fn builtin_usage_set_pages_and_fact_topology(
         ));
     }
     let output_builtin = vm.get_output_builtin_mut()?;
-    output_builtin
-        .add_page(1, (output_ptr + 1)?, 2)
-        .map_err(|e| {
-            HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
-        })?;
-    output_builtin
-        .add_page(2, (output_ptr + 3)?, 2)
-        .map_err(|e| {
-            HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
-        })?;
+    output_builtin.add_page(1, (output_ptr + 1)?, 2).map_err(|e| {
+        HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
+    })?;
+    output_builtin.add_page(2, (output_ptr + 3)?, 2).map_err(|e| {
+        HintError::CustomHint(format!("Failed to add page to output builtin: {e:?}").into())
+    })?;
     output_builtin.add_attribute(GPS_FACT_TOPOLOGY.into(), [3, 2, 0, 1, 0, 2].to_vec());
     Ok(())
 }
@@ -142,13 +136,7 @@ pub fn flexible_builtin_usage_from_input(
     let usage_input: FlexibleBuiltinUsageInput = get_program_input_value(exec_scopes)?;
 
     insert_value_from_var_name("n_output", usage_input.n_output, vm, ids_data, ap_tracking)?;
-    insert_value_from_var_name(
-        "n_pedersen",
-        usage_input.n_pedersen,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name("n_pedersen", usage_input.n_pedersen, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name(
         "n_range_check",
         usage_input.n_range_check,
@@ -157,22 +145,10 @@ pub fn flexible_builtin_usage_from_input(
         ap_tracking,
     )?;
     insert_value_from_var_name("n_ecdsa", usage_input.n_ecdsa, vm, ids_data, ap_tracking)?;
-    insert_value_from_var_name(
-        "n_bitwise",
-        usage_input.n_bitwise,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name("n_bitwise", usage_input.n_bitwise, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name("n_ec_op", usage_input.n_ec_op, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name("n_keccak", usage_input.n_keccak, vm, ids_data, ap_tracking)?;
-    insert_value_from_var_name(
-        "n_poseidon",
-        usage_input.n_poseidon,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name("n_poseidon", usage_input.n_poseidon, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name(
         "n_range_check96",
         usage_input.n_range_check96,
@@ -180,20 +156,8 @@ pub fn flexible_builtin_usage_from_input(
         ids_data,
         ap_tracking,
     )?;
-    insert_value_from_var_name(
-        "n_add_mod",
-        usage_input.n_add_mod,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
-    insert_value_from_var_name(
-        "n_mul_mod",
-        usage_input.n_mul_mod,
-        vm,
-        ids_data,
-        ap_tracking,
-    )?;
+    insert_value_from_var_name("n_add_mod", usage_input.n_add_mod, vm, ids_data, ap_tracking)?;
+    insert_value_from_var_name("n_mul_mod", usage_input.n_mul_mod, vm, ids_data, ap_tracking)?;
     insert_value_from_var_name(
         "n_memory_holes",
         usage_input.n_memory_holes,
@@ -201,39 +165,29 @@ pub fn flexible_builtin_usage_from_input(
         ids_data,
         ap_tracking,
     )?;
-    insert_value_from_var_name(
-        "n_blake2s",
-        usage_input.n_blake2s,
-        vm,
-        ids_data,
-        ap_tracking,
-    )
+    insert_value_from_var_name("n_blake2s", usage_input.n_blake2s, vm, ids_data, ap_tracking)
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_utils::fill_ids_data_for_test;
-    use crate::{PROGRAM_INPUT, ProgramInput};
+    use std::borrow::Cow;
+    use std::collections::BTreeMap;
+
     use cairo_vm::serde::deserialize_program::OffsetValue;
-    use cairo_vm::types::relocatable::MaybeRelocatable;
-    use cairo_vm::types::relocatable::Relocatable;
+    use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
     use cairo_vm::vm::runners::builtin_runner::{
         BuiltinRunner, OutputBuiltinRunner, OutputBuiltinState, SignatureBuiltinRunner,
     };
     use cairo_vm::vm::runners::cairo_pie::PublicMemoryPage;
     use cairo_vm::vm::vm_core::VirtualMachine;
     use rstest::rstest;
-    use std::borrow::Cow;
-    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::test_utils::fill_ids_data_for_test;
+    use crate::{PROGRAM_INPUT, ProgramInput};
 
     fn prepare_vm_for_flexible_builtin_usage_test(
         input: &FlexibleBuiltinUsageInput,
-    ) -> (
-        VirtualMachine,
-        ExecutionScopes,
-        HashMap<String, HintReference>,
-        ApTracking,
-    ) {
+    ) -> (VirtualMachine, ExecutionScopes, HashMap<String, HintReference>, ApTracking) {
         // Prepare a VirtualMachine instance, ids_data, exec_scopes, and ap_tracking for testing.
         // Should mimic the vm's state after running the following Cairo0 code:
         // alloc_locals;
@@ -267,10 +221,8 @@ mod tests {
             "n_blake2s",
         ]);
         let mut exec_scopes = ExecutionScopes::new();
-        exec_scopes.insert_value(
-            PROGRAM_INPUT,
-            ProgramInput::Json(serde_json::to_string(input).unwrap()),
-        );
+        exec_scopes
+            .insert_value(PROGRAM_INPUT, ProgramInput::Json(serde_json::to_string(input).unwrap()));
         let ap_tracking = ApTracking::default();
         vm.set_fp(13);
         vm.set_ap(13);
@@ -373,28 +325,20 @@ mod tests {
         assert!(result.is_ok());
         // Check that the value 5 was inserted into the AP.
         let ap = vm.get_ap();
-        let value = vm
-            .segments
-            .memory
-            .get_integer(ap)
-            .expect("Failed to get AP value");
+        let value = vm.segments.memory.get_integer(ap).expect("Failed to get AP value");
         assert_eq!(value, Cow::Borrowed(&Felt252::from(5)));
 
-        //Check that 6 is not in ap.
+        // Check that 6 is not in ap.
         assert_ne!(value, Cow::Borrowed(&Felt252::from(6)));
 
-        //Also check that 5 is still in ap.
+        // Also check that 5 is still in ap.
         assert_eq!(value, Cow::Borrowed(&Felt252::from(5)));
     }
 
     /// Test the builtin_usage_set_pages_and_fact_topology function.
     /// Checks the assertion of the pedersen hash and the addition of pages and fact topology to the
     /// output builtin.
-    #[rstest(
-        left_pedersen_hash,
-        case::hash_matches(123_usize),
-        case::hash_mismatch(122_usize)
-    )]
+    #[rstest(left_pedersen_hash, case::hash_matches(123_usize), case::hash_mismatch(122_usize))]
     fn test_builtin_usage_set_pages_and_fact_topology(left_pedersen_hash: usize) {
         let mut vm = VirtualMachine::new(false, false);
         let ids_data = fill_ids_data_for_test(&["output_ptr"]);
@@ -427,10 +371,7 @@ mod tests {
         let ped_hash = pedersen_hash(&Felt::from(left_pedersen_hash), &Felt::from(456_usize));
         let ped_hash_felt = felt_to_felt252(ped_hash);
         let _ = vm
-            .load_data(
-                Relocatable::from((2, 0)),
-                &[MaybeRelocatable::from(ped_hash_felt)],
-            )
+            .load_data(Relocatable::from((2, 0)), &[MaybeRelocatable::from(ped_hash_felt)])
             .unwrap();
 
         let result = builtin_usage_set_pages_and_fact_topology(&mut vm, &ids_data, &ap_tracking);
@@ -535,11 +476,7 @@ mod tests {
             let addr = Relocatable::from((fp.segment_index, (fp.offset as i32 + offset) as usize));
             let value_owned = vm.segments.memory.get_integer(addr).unwrap();
             let value = value_owned.as_ref();
-            assert_eq!(
-                value,
-                &Felt252::from(expected),
-                "Mismatch for {name} at local {i}"
-            );
+            assert_eq!(value, &Felt252::from(expected), "Mismatch for {name} at local {i}");
         }
     }
 }

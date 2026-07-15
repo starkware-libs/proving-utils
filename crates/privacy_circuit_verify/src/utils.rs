@@ -11,15 +11,9 @@ impl Version {
     /// Returns the version of the privacy crates.
     pub fn current() -> Self {
         Self {
-            major: env!("CARGO_PKG_VERSION_MAJOR")
-                .parse()
-                .expect("major version fits in u8"),
-            minor: env!("CARGO_PKG_VERSION_MINOR")
-                .parse()
-                .expect("minor version fits in u8"),
-            patch: env!("CARGO_PKG_VERSION_PATCH")
-                .parse()
-                .expect("patch version fits in u8"),
+            major: env!("CARGO_PKG_VERSION_MAJOR").parse().expect("major version fits in u8"),
+            minor: env!("CARGO_PKG_VERSION_MINOR").parse().expect("minor version fits in u8"),
+            patch: env!("CARGO_PKG_VERSION_PATCH").parse().expect("patch version fits in u8"),
         }
     }
 
@@ -30,10 +24,6 @@ impl Version {
 
     /// Deserializes a version from its byte representation.
     pub fn deserialize(bytes: [u8; VERSION_BYTES]) -> Self {
-        Self {
-            major: bytes[0],
-            minor: bytes[1],
-            patch: bytes[2],
-        }
+        Self { major: bytes[0], minor: bytes[1], patch: bytes[2] }
     }
 }

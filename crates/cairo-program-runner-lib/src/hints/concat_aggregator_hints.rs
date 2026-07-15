@@ -1,20 +1,19 @@
 use std::collections::HashMap;
 
+use cairo_vm::Felt252;
+use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
+    get_integer_from_var_name, get_ptr_from_var_name, insert_value_from_var_name,
+};
+use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+use cairo_vm::serde::deserialize_program::ApTracking;
+use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::types::relocatable::MaybeRelocatable;
+use cairo_vm::vm::errors::hint_errors::HintError;
+use cairo_vm::vm::vm_core::VirtualMachine;
+use num_traits::ToPrimitive;
+
 use super::types::{BOOTLOADER_CONFIG_SIZE, ConcatAggregatorInput};
 use super::utils::get_program_input_value;
-use cairo_vm::{
-    Felt252,
-    hint_processor::{
-        builtin_hint_processor::hint_utils::{
-            get_integer_from_var_name, get_ptr_from_var_name, insert_value_from_var_name,
-        },
-        hint_processor_definition::HintReference,
-    },
-    serde::deserialize_program::ApTracking,
-    types::{exec_scope::ExecutionScopes, relocatable::MaybeRelocatable},
-    vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
-};
-use num_traits::ToPrimitive;
 
 const TASKS_OUTPUTS: &str = "tasks_outputs";
 
@@ -84,21 +83,15 @@ pub fn concat_aggregator_parse_task(
     let tasks_outputs = (0..n_tasks)
         .map(|_| -> Result<Vec<MaybeRelocatable>, HintError> {
             let task_size = extract_usize(next_item()?)?;
-            (0..task_size.saturating_sub(1))
-                .map(|_| next_item())
-                .collect()
+            (0..task_size.saturating_sub(1)).map(|_| next_item()).collect()
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     if iter.next().is_some() {
-        return Err(HintError::CustomHint(
-            "Bootloader output wasn't fully consumed.".into(),
-        ));
+        return Err(HintError::CustomHint("Bootloader output wasn't fully consumed.".into()));
     }
     if tasks_outputs.is_empty() {
-        return Err(HintError::CustomHint(
-            "No tasks found in the bootloader output.".into(),
-        ));
+        return Err(HintError::CustomHint("No tasks found in the bootloader output.".into()));
     }
 
     insert_value_from_var_name("n_tasks", tasks_outputs.len(), vm, ids_data, ap_tracking)?;
@@ -126,8 +119,7 @@ pub fn concat_aggregator_get_handle_task_output(
         .ok_or_else(|| HintError::CustomHint("Failed to convert value to usize.".into()))?;
     let task_index = tasks_outputs.len() - n_tasks;
     let output_ptr = get_ptr_from_var_name("output_ptr", vm, ids_data, ap_tracking)?;
-    vm.segments
-        .load_data(output_ptr, &tasks_outputs[task_index])?;
+    vm.segments.load_data(output_ptr, &tasks_outputs[task_index])?;
 
     insert_value_from_var_name(
         "output_size",
@@ -174,15 +166,12 @@ mod tests {
 
         // n_tasks is written to the `n_tasks` id.
         assert_eq!(
-            get_integer_from_var_name("n_tasks", &vm, &ids_data, &ap_tracking)
-                .unwrap()
-                .to_usize(),
+            get_integer_from_var_name("n_tasks", &vm, &ids_data, &ap_tracking).unwrap().to_usize(),
             Some(2)
         );
 
-        let tasks_outputs: Vec<Vec<MaybeRelocatable>> = exec_scopes
-            .get(TASKS_OUTPUTS)
-            .expect("tasks_outputs not found in execution scope");
+        let tasks_outputs: Vec<Vec<MaybeRelocatable>> =
+            exec_scopes.get(TASKS_OUTPUTS).expect("tasks_outputs not found in execution scope");
         assert_eq!(
             tasks_outputs,
             vec![

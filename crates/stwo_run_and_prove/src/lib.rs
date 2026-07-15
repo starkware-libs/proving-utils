@@ -1,16 +1,16 @@
+use std::fs;
+use std::path::PathBuf;
+
 use anyhow::Result;
 use cairo_air::utils::ProofFormat;
-use cairo_program_runner_lib::ProgramInput;
-use cairo_program_runner_lib::cairo_run_program;
 use cairo_program_runner_lib::utils::{get_cairo_run_config, get_program, write_output_to_file};
+use cairo_program_runner_lib::{ProgramInput, cairo_run_program};
 use cairo_vm::hint_processor::hint_processor_definition::HintProcessor;
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::errors::cairo_run_errors::CairoRunError;
 use cairo_vm::vm::errors::runner_errors::RunnerError;
 use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
-use std::fs;
-use std::path::PathBuf;
 use stwo_cairo_adapter::ProverInput;
 use stwo_cairo_adapter::adapter::adapt;
 pub use stwo_run_and_prove_common::{ProverTrait, StwoProverEntryPoint};
@@ -99,12 +99,8 @@ pub fn stwo_run_and_prove(
 
     let program = get_program(program_path.as_path())
         .map_err(|e| StwoRunAndProveError::Program(e, program_path))?;
-    let mut runner = cairo_run_program(
-        &program,
-        program_input,
-        cairo_run_config,
-        extra_hint_processor,
-    )?;
+    let mut runner =
+        cairo_run_program(&program, program_input, cairo_run_config, extra_hint_processor)?;
     let prover_input = adapt(&runner)?;
     let result = prove(prover_input.clone(), prove_config, prover);
 
@@ -114,11 +110,8 @@ pub fn stwo_run_and_prove(
         // create the directory if it doesn't exist.
         std::fs::create_dir_all(&data_dir)?;
         let prover_input_path = data_dir.join(PROVER_INPUT_FILE_NAME);
-        std::fs::write(
-            &prover_input_path,
-            sonic_rs::to_string_pretty(&prover_input)?,
-        )
-        .map_err(|e| StwoRunAndProveError::PathIO(e, data_dir))?
+        std::fs::write(&prover_input_path, sonic_rs::to_string_pretty(&prover_input)?)
+            .map_err(|e| StwoRunAndProveError::PathIO(e, data_dir))?
     }
 
     if let Some(output_path) = program_output
@@ -140,12 +133,7 @@ fn prove(
 ) -> Result<(), StwoRunAndProveError> {
     let _span = span!(Level::INFO, "prove").entered();
 
-    let ProveConfig {
-        verify: _,
-        proof_path,
-        proof_format,
-        prover_params_json,
-    } = prove_config;
+    let ProveConfig { verify: _, proof_path, proof_format, prover_params_json } = prove_config;
 
     match prover.create_and_serialize_proof(
         prover_input,
@@ -164,7 +152,8 @@ fn prove(
                 error!("Proving failed with error {e}");
             } else {
                 error!(
-                    "Proof was generated successfully, but its verification failed with error {e}. The failed proof was written to the proof file."
+                    "Proof was generated successfully, but its verification failed with error \
+                     {e}. The failed proof was written to the proof file."
                 );
             }
             Err(e.into())
@@ -190,14 +179,16 @@ fn file_missing_or_empty(path: &PathBuf) -> std::io::Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::env;
+
     use cairo_vm::Felt252;
     use ctor::ctor;
     use serde_json::Value;
-    use std::env;
     use stwo_cairo_utils::logging_utils::init_logging;
     use stwo_run_and_prove_common::MockProverTrait;
     use tempfile::{NamedTempFile, TempDir, TempPath};
+
+    use super::*;
 
     const ARRAY_SUM_EXPECTED_OUTPUT: [Felt252; 1] = [Felt252::from_hex_unchecked("0x32")];
     const RESOURCES_PATH: &str = "resources";
@@ -232,9 +223,8 @@ mod tests {
         let program_output_tempfile = NamedTempFile::new()
             .expect("Failed to create temp file for program output")
             .into_temp_path();
-        let proof_tempfile = NamedTempFile::new()
-            .expect("Failed to create temp file for proof")
-            .into_temp_path();
+        let proof_tempfile =
+            NamedTempFile::new().expect("Failed to create temp file for proof").into_temp_path();
         let debug_data_tempdir =
             TempDir::new().expect("Failed to create temp directory for debug data");
         let args = TestArgs {
@@ -249,12 +239,7 @@ mod tests {
             verify: true,
         };
 
-        (
-            args,
-            program_output_tempfile,
-            proof_tempfile,
-            debug_data_tempdir,
-        )
+        (args, program_output_tempfile, proof_tempfile, debug_data_tempdir)
     }
 
     fn run_stwo_run_and_prove(
@@ -283,14 +268,13 @@ mod tests {
         let (args, program_output_tempfile, proof_tempfile, _) = prepare_args();
 
         let mut mock_prover = Box::new(MockProverTrait::new());
-        mock_prover
-            .expect_create_and_serialize_proof()
-            .times(1)
-            .returning(move |_, _, proof_file, _, _| {
+        mock_prover.expect_create_and_serialize_proof().times(1).returning(
+            move |_, _, proof_file, _, _| {
                 let expected_proof_file = get_path(EXPECTED_PROOF_FILE_NAME);
                 fs::copy(&expected_proof_file, &proof_file).expect("Failed to copy proof file.");
                 Ok(())
-            });
+            },
+        );
 
         run_stwo_run_and_prove(args, mock_prover).expect("failed to run stwo_run_and_prove");
 

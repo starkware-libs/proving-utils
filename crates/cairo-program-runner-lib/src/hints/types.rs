@@ -21,9 +21,8 @@ use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
 
-use crate::tasks::{create_cairo0_program_task, create_cairo1_program_task, create_pie_task};
-
 use super::fact_topologies::FactTopology;
+use crate::tasks::{create_cairo0_program_task, create_cairo1_program_task, create_pie_task};
 
 pub type BootloaderVersion = u64;
 
@@ -84,13 +83,11 @@ impl CompositePackedOutput {
 
         // Validate that the number of subtasks matches the number of tasks
         if self.subtasks.len()
-            != n_tasks
-                .to_usize()
-                .ok_or("Failed to convert number of tasks to usize")?
+            != n_tasks.to_usize().ok_or("Failed to convert number of tasks to usize")?
         {
             return Err(format!(
-                "Number of subtasks does not match the number of tasks in outputs. \
-                Expected: {} in outputs, got: {} in subtasks.",
+                "Number of subtasks does not match the number of tasks in outputs. Expected: {} \
+                 in outputs, got: {} in subtasks.",
                 n_tasks,
                 self.subtasks.len()
             ));
@@ -102,10 +99,8 @@ impl CompositePackedOutput {
 
         for (index, subtask) in self.subtasks.iter().enumerate() {
             // Retrieve subtask size and program hash from outputs
-            let subtask_size = self
-                .outputs
-                .get(curr_subtask_offset)
-                .ok_or("Subtask size not found in outputs")?;
+            let subtask_size =
+                self.outputs.get(curr_subtask_offset).ok_or("Subtask size not found in outputs")?;
             let program_hash = self
                 .outputs
                 .get(curr_subtask_offset + 1)
@@ -147,8 +142,8 @@ impl CompositePackedOutput {
         // Validate that the total offset matches the length of outputs
         if curr_subtask_offset != self.outputs.len() {
             return Err(format!(
-                "The sum of the subtask sizes does not match the size of the outputs. \
-                Expected: {}, got: {}.",
+                "The sum of the subtask sizes does not match the size of the outputs. Expected: \
+                 {}, got: {}.",
                 self.outputs.len(),
                 curr_subtask_offset
             ));
@@ -193,9 +188,8 @@ impl<'de> Deserialize<'de> for PackedOutput {
                     .into_iter()
                     .map(|x| Felt252::from_str(x.to_string().as_str()).unwrap())
                     .collect();
-                let subtasks = helper
-                    .subtasks
-                    .ok_or_else(|| D::Error::missing_field("subtasks"))?;
+                let subtasks =
+                    helper.subtasks.ok_or_else(|| D::Error::missing_field("subtasks"))?;
                 let fact_topologies = helper
                     .fact_topologies
                     .ok_or_else(|| D::Error::missing_field("fact_topologies"))?;
@@ -206,10 +200,7 @@ impl<'de> Deserialize<'de> for PackedOutput {
                 }))
             }
             "PlainPackedOutput" => Ok(PackedOutput::Plain),
-            _ => Err(D::Error::custom(format!(
-                "Unsupported type: {}",
-                helper.output_type
-            ))),
+            _ => Err(D::Error::custom(format!("Unsupported type: {}", helper.output_type))),
         }
     }
 }
@@ -348,10 +339,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
                         Program::from_bytes(&program_bytes, Some("main")).map_err(|e| {
                             D::Error::custom(format!("Failed to deserialize program: {e:?}"))
                         })?;
-                    Task::Cairo0Program(Cairo0Executable {
-                        program,
-                        program_input,
-                    })
+                    Task::Cairo0Program(Cairo0Executable { program, program_input })
                 } else if let Some(path) = &helper.path {
                     create_cairo0_program_task(path, program_input).map_err(|e| {
                         D::Error::custom(format!("Error creating Program task: {e:?}"))
@@ -373,10 +361,7 @@ impl<'de> Deserialize<'de> for TaskSpec {
                 }
             }
             _ => {
-                return Err(D::Error::custom(format!(
-                    "Unsupported type: {}",
-                    helper.task_type
-                )));
+                return Err(D::Error::custom(format!("Unsupported type: {}", helper.task_type)));
             }
         };
 
@@ -515,10 +500,7 @@ impl RunMode {
                 allow_missing_builtins: None,
                 dynamic_layout_params,
             },
-            RunMode::Validation {
-                layout,
-                allow_missing_builtins,
-            } => CairoRunConfig {
+            RunMode::Validation { layout, allow_missing_builtins } => CairoRunConfig {
                 entrypoint: "main",
                 trace_enabled: false,
                 relocate_mem: false,

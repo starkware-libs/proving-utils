@@ -6,9 +6,7 @@ use tempfile::TempDir;
 const BINARY: &str = env!("CARGO_BIN_EXE_stwo-vm-runner");
 
 fn resource_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("resources").join(name)
 }
 
 #[test]
@@ -24,10 +22,8 @@ fn runs_with_all_optional_args() {
     // hard-coded absolute path does not leak into CI; substitute a tempfile here.
     let program_input_template = std::fs::read_to_string(resource_path("bl_input.json"))
         .expect("failed to read bl_input.json fixture");
-    let program_input_contents = program_input_template.replace(
-        "__OUTPUT_PREIMAGE_DUMP_PATH__",
-        &output_preimage_dump.to_string_lossy(),
-    );
+    let program_input_contents = program_input_template
+        .replace("__OUTPUT_PREIMAGE_DUMP_PATH__", &output_preimage_dump.to_string_lossy());
     let program_input = tempdir.path().join("bl_input.json");
     std::fs::write(&program_input, program_input_contents)
         .expect("failed to write resolved program input");

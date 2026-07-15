@@ -145,10 +145,7 @@ impl RecursiveJobData {
     /// `outputs` are passed separately because they live on the leaf's `packed_output` rather
     /// than on `LeafInput` directly (single source of truth — see `LeafInput.packed_output`).
     fn from_leaf(leaf: &LeafInput, outputs: Vec<Felt252>) -> Self {
-        Self {
-            outputs,
-            counters: leaf.counters.clone(),
-        }
+        Self { outputs, counters: leaf.counters.clone() }
     }
 
     /// Aggregates two children's counters when reducing them under a new parent layer node.
@@ -269,8 +266,8 @@ pub fn stwo_run_and_prove_recursive_tree(
                 PackedOutput::Composite(c) => (c.outputs.clone(), c.fact_topologies.clone()),
                 PackedOutput::Plain => {
                     return Err(RecursiveTreeError::Anyhow(anyhow::anyhow!(
-                        "Expected Composite packed_output for leaf train_id={}; got Plain. \
-                         Python should always pass a Composite wrap via \
+                        "Expected Composite packed_output for leaf train_id={}; got Plain. Python \
+                         should always pass a Composite wrap via \
                          packed_output_from_data(create_recursive_data(...)).",
                         leaf.train_id
                     )));
@@ -288,11 +285,7 @@ pub fn stwo_run_and_prove_recursive_tree(
 
     let mut layer_idx: usize = 0;
     while current_layer.len() > 1 {
-        info!(
-            layer_idx,
-            n_entries = current_layer.len(),
-            "Reducing recursive-tree layer."
-        );
+        info!(layer_idx, n_entries = current_layer.len(), "Reducing recursive-tree layer.");
         let mut next_layer: Vec<LayerEntry> = Vec::with_capacity(current_layer.len().div_ceil(2));
         let mut pairs = current_layer.into_iter();
         let mut pair_idx: usize = 0;
@@ -316,10 +309,7 @@ pub fn stwo_run_and_prove_recursive_tree(
                 }
                 None => {
                     // Odd carry: pass the unpaired entry through to the next layer unchanged.
-                    info!(
-                        layer_idx,
-                        pair_idx, "Carrying unpaired entry to next layer."
-                    );
+                    info!(layer_idx, pair_idx, "Carrying unpaired entry to next layer.");
                     next_layer.push(left);
                 }
             }
@@ -379,10 +369,7 @@ fn reduce_pair(
             verifier_task_for_child(verifier_program, &right.proof_path, layer_idx, pair_idx, "right"),
         ],
     });
-    fs::write(
-        &bootloader_input_path,
-        serde_json::to_string(&bootloader_input_json)?,
-    )?;
+    fs::write(&bootloader_input_path, serde_json::to_string(&bootloader_input_json)?)?;
 
     let cairo_run_config = get_cairo_run_config(
         // We don't use dynamic layout in stwo.
@@ -432,8 +419,8 @@ fn reduce_pair(
     let task_fact_topologies = read_fact_topologies_file(&fact_topologies_dump_path)?;
     if task_fact_topologies.len() != 2 {
         return Err(RecursiveTreeError::Anyhow(anyhow::anyhow!(
-            "Expected exactly two fact topologies from a 2-task simple bootloader run \
-             (one per child verifier task), got {}.",
+            "Expected exactly two fact topologies from a 2-task simple bootloader run (one per \
+             child verifier task), got {}.",
             task_fact_topologies.len()
         )));
     }
@@ -465,14 +452,8 @@ fn verifier_task_for_child(
     pair_idx: usize,
     side_label: &str,
 ) -> serde_json::Value {
-    let _span = span!(
-        Level::DEBUG,
-        "verifier_task_for_child",
-        layer_idx,
-        pair_idx,
-        side_label
-    )
-    .entered();
+    let _span =
+        span!(Level::DEBUG, "verifier_task_for_child", layer_idx, pair_idx, side_label).entered();
     serde_json::json!({
         "type": "Cairo1Executable",
         "path": verifier_program,
@@ -534,11 +515,8 @@ fn write_root_outputs(
         .map_err(|e| RecursiveTreeError::PathIO(e, program_output.clone()))?;
     write_to_fact_topologies_file(fact_topologies_path, &root.fact_topologies)
         .map_err(|e| RecursiveTreeError::Anyhow(anyhow::anyhow!("{e}")))?;
-    fs::write(
-        packed_output_path,
-        serde_json::to_string(&root.packed_output)?,
-    )
-    .map_err(|e| RecursiveTreeError::PathIO(e, packed_output_path.clone()))?;
+    fs::write(packed_output_path, serde_json::to_string(&root.packed_output)?)
+        .map_err(|e| RecursiveTreeError::PathIO(e, packed_output_path.clone()))?;
     Ok(())
 }
 

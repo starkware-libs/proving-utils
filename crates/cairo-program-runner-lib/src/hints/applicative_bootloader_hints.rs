@@ -1,32 +1,25 @@
 use std::collections::HashMap;
 
-use cairo_vm::{
-    hint_processor::{
-        builtin_hint_processor::hint_utils::{
-            get_ptr_from_var_name, insert_value_from_var_name, insert_value_into_ap,
-        },
-        hint_processor_definition::HintReference,
-    },
-    serde::deserialize_program::ApTracking,
-    types::exec_scope::ExecutionScopes,
-    vm::{
-        errors::hint_errors::HintError, runners::builtin_runner::OutputBuiltinState,
-        vm_core::VirtualMachine,
-    },
+use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
+    get_ptr_from_var_name, insert_value_from_var_name, insert_value_into_ap,
 };
+use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+use cairo_vm::serde::deserialize_program::ApTracking;
+use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::vm::errors::hint_errors::HintError;
+use cairo_vm::vm::runners::builtin_runner::OutputBuiltinState;
+use cairo_vm::vm::vm_core::VirtualMachine;
 
-use crate::hints::{
-    fact_topologies::{
-        GPS_FACT_TOPOLOGY, add_consecutive_output_pages, write_to_fact_topologies_file,
-    },
-    types::BOOTLOADER_CONFIG_SIZE,
-    utils::get_program_input_value,
-};
-
+use super::fact_topologies::FactTopology;
 use super::{
     APPLICATIVE_BOOTLOADER_INPUT, ApplicativeBootloaderInput, BootloaderInput,
-    SimpleBootloaderInput, fact_topologies::FactTopology, vars,
+    SimpleBootloaderInput, vars,
 };
+use crate::hints::fact_topologies::{
+    GPS_FACT_TOPOLOGY, add_consecutive_output_pages, write_to_fact_topologies_file,
+};
+use crate::hints::types::BOOTLOADER_CONFIG_SIZE;
+use crate::hints::utils::get_program_input_value;
 
 /// Implements nondet %{ aggregator_program_hash_function %}
 /// Compiles to: memory[ap] = to_felt_or_relocatable(aggregator_program_hash_function)
@@ -36,9 +29,7 @@ pub fn aggregator_program_hash_function_to_ap(
 ) -> Result<(), HintError> {
     let applicative_bootloader_input: &ApplicativeBootloaderInput =
         exec_scopes.get_ref(vars::APPLICATIVE_BOOTLOADER_INPUT)?;
-    let program_hash_function = applicative_bootloader_input
-        .aggregator_task
-        .program_hash_function;
+    let program_hash_function = applicative_bootloader_input.aggregator_task.program_hash_function;
     insert_value_into_ap(vm, program_hash_function as usize)
 }
 
@@ -106,10 +97,8 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
     let output_builtin = vm.get_output_builtin_mut()?;
     let applicative_output_builtin_state = output_builtin.get_state();
     output_builtin.new_state(new_segment_base.segment_index as usize, 0, true);
-    exec_scopes.insert_value(
-        vars::APPLICATIVE_OUTPUT_BUILTIN_STATE,
-        applicative_output_builtin_state,
-    );
+    exec_scopes
+        .insert_value(vars::APPLICATIVE_OUTPUT_BUILTIN_STATE, applicative_output_builtin_state);
 
     insert_value_from_var_name(
         "aggregator_output_ptr",
@@ -123,7 +112,7 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
 }
 
 /// Implements
-///%{
+/// %{
 ///    from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
 ///
 ///    # Save the aggregator's fact_topologies before running the bootloader.
@@ -145,7 +134,7 @@ pub fn prepare_aggregator_simple_bootloader_output_segment(
 ///    # Change output builtin state to a different segment in preparation for running the
 ///    # bootloader.
 ///    output_builtin.new_state(base=ids.bootloader_output_ptr)
-///%}
+/// %}
 pub fn prepare_root_task_unpacker_bootloader_output_segment(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -180,25 +169,15 @@ pub fn prepare_root_task_unpacker_bootloader_output_segment(
     //    )
 
     let simple_bootloader_input = SimpleBootloaderInput {
-        tasks: applicative_bootloader_input
-            .bootloader_input
-            .simple_bootloader_input
-            .tasks
-            .clone(),
+        tasks: applicative_bootloader_input.bootloader_input.simple_bootloader_input.tasks.clone(),
         fact_topologies_path: None,
         single_page: true,
     };
 
     let bootloader_input = BootloaderInput {
         simple_bootloader_input,
-        bootloader_config: applicative_bootloader_input
-            .bootloader_input
-            .bootloader_config
-            .clone(),
-        packed_outputs: applicative_bootloader_input
-            .bootloader_input
-            .packed_outputs
-            .clone(),
+        bootloader_config: applicative_bootloader_input.bootloader_input.bootloader_config.clone(),
+        packed_outputs: applicative_bootloader_input.bootloader_input.packed_outputs.clone(),
     };
 
     exec_scopes.insert_value(vars::BOOTLOADER_INPUT, bootloader_input);
@@ -211,7 +190,7 @@ pub fn prepare_root_task_unpacker_bootloader_output_segment(
 }
 
 /// Implements
-///%{
+/// %{
 ///     # Restore the output builtin state.
 ///     output_builtin.set_state(applicative_output_builtin_state)
 /// %}
@@ -227,7 +206,7 @@ pub fn restore_applicative_output_state(
 }
 
 /// Implements
-///%{
+/// %{
 ///    from starkware.cairo.bootloaders.fact_topology import GPS_FACT_TOPOLOGY, FactTopology
 ///    from starkware.cairo.bootloaders.simple_bootloader.utils import (
 ///        add_consecutive_output_pages,
@@ -269,7 +248,7 @@ pub fn restore_applicative_output_state(
 ///            fact_topologies_path=applicative_bootloader_input.fact_topologies_path,
 ///            fact_topologies=[fact_topology],
 ///        )
-///%}
+/// %}
 pub fn finalize_fact_topologies_and_pages(
     vm: &mut VirtualMachine,
     exec_scopes: &mut ExecutionScopes,
@@ -314,10 +293,7 @@ pub fn finalize_fact_topologies_and_pages(
 
     let output_start = get_ptr_from_var_name("output_start", vm, ids_data, ap_tracking)?;
     let output_builtin = vm.get_output_builtin_mut()?;
-    output_builtin.add_attribute(
-        GPS_FACT_TOPOLOGY.into(),
-        fact_topology[0].tree_structure.clone(),
-    );
+    output_builtin.add_attribute(GPS_FACT_TOPOLOGY.into(), fact_topology[0].tree_structure.clone());
 
     let output_start = (output_start + fact_topology[0].page_sizes[0])?;
     let _ = add_consecutive_output_pages(
@@ -330,10 +306,8 @@ pub fn finalize_fact_topologies_and_pages(
     let applicative_bootloader_input: &ApplicativeBootloaderInput =
         exec_scopes.get_ref(vars::APPLICATIVE_BOOTLOADER_INPUT)?;
 
-    if let Some(path) = &applicative_bootloader_input
-        .bootloader_input
-        .simple_bootloader_input
-        .fact_topologies_path
+    if let Some(path) =
+        &applicative_bootloader_input.bootloader_input.simple_bootloader_input.fact_topologies_path
     {
         write_to_fact_topologies_file(path.as_path(), &fact_topology)
             .map_err(Into::<HintError>::into)?;

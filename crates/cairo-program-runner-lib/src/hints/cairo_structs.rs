@@ -171,34 +171,22 @@ impl ToVec for VectorCommitmentConfig {
 
 impl ToVec for TableCommitmentConfig {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        vec![
-            maybe_relocatable_box!(self.n_columns),
-            Box::new(self.vector.to_vec()),
-        ]
+        vec![maybe_relocatable_box!(self.n_columns), Box::new(self.vector.to_vec())]
     }
 }
 
 impl ToVec for TracesConfig {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        vec![
-            Box::new(self.original.to_vec()),
-            Box::new(self.interaction.to_vec()),
-        ]
+        vec![Box::new(self.original.to_vec()), Box::new(self.interaction.to_vec())]
     }
 }
 
 impl ToVec for FriConfig {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let inner_layers_vec: Vec<Box<dyn Any>> = self
-            .inner_layers
-            .iter()
-            .flat_map(|layer| layer.to_vec())
-            .collect();
-        let fri_step_sizes_vec: Vec<Box<dyn Any>> = self
-            .fri_step_sizes
-            .iter()
-            .map(|size| maybe_relocatable_box!(*size))
-            .collect();
+        let inner_layers_vec: Vec<Box<dyn Any>> =
+            self.inner_layers.iter().flat_map(|layer| layer.to_vec()).collect();
+        let fri_step_sizes_vec: Vec<Box<dyn Any>> =
+            self.fri_step_sizes.iter().map(|size| maybe_relocatable_box!(*size)).collect();
         vec![
             maybe_relocatable_box!(self.log_input_size),
             maybe_relocatable_box!(self.n_layers),
@@ -232,29 +220,20 @@ impl ToVec for StarkConfig {
 
 impl ToVec for TracesUnsentCommitment {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        vec![
-            maybe_relocatable_box!(self.original),
-            maybe_relocatable_box!(self.interaction),
-        ]
+        vec![maybe_relocatable_box!(self.original), maybe_relocatable_box!(self.interaction)]
     }
 }
 
 impl ToVec for FriUnsentCommitment {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let inner_layers_vec: Vec<Box<dyn Any>> = self
-            .inner_layers
-            .iter()
-            .map(|layer| maybe_relocatable_box!(*layer))
-            .collect();
+        let inner_layers_vec: Vec<Box<dyn Any>> =
+            self.inner_layers.iter().map(|layer| maybe_relocatable_box!(*layer)).collect();
         let last_layer_coefficients_vec: Vec<Box<dyn Any>> = self
             .last_layer_coefficients
             .iter()
             .map(|coeff| maybe_relocatable_box!(*coeff))
             .collect();
-        vec![
-            Box::new(inner_layers_vec),
-            Box::new(last_layer_coefficients_vec),
-        ]
+        vec![Box::new(inner_layers_vec), Box::new(last_layer_coefficients_vec)]
     }
 }
 
@@ -266,11 +245,8 @@ impl ToVec for ProofOfWorkUnsentCommitment {
 
 impl ToVec for StarkUnsentCommitment {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let oods_values_vec: Vec<Box<dyn Any>> = self
-            .oods_values
-            .iter()
-            .map(|value| maybe_relocatable_box!(*value))
-            .collect();
+        let oods_values_vec: Vec<Box<dyn Any>> =
+            self.oods_values.iter().map(|value| maybe_relocatable_box!(*value)).collect();
         vec![
             Box::new(self.traces.to_vec()),
             maybe_relocatable_box!(self.composition),
@@ -283,15 +259,9 @@ impl ToVec for StarkUnsentCommitment {
 
 impl ToVec for VectorCommitmentWitness {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let authentications_vec: Vec<Box<dyn Any>> = self
-            .authentications
-            .iter()
-            .map(|auth| maybe_relocatable_box!(*auth))
-            .collect();
-        vec![
-            maybe_relocatable_box!(self.n_authentications),
-            Box::new(authentications_vec),
-        ]
+        let authentications_vec: Vec<Box<dyn Any>> =
+            self.authentications.iter().map(|auth| maybe_relocatable_box!(*auth)).collect();
+        vec![maybe_relocatable_box!(self.n_authentications), Box::new(authentications_vec)]
     }
 }
 
@@ -303,40 +273,28 @@ impl ToVec for TableCommitmentWitness {
 
 impl ToVec for TableDecommitment {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let values_vec: Vec<Box<dyn Any>> = self
-            .values
-            .iter()
-            .map(|value| maybe_relocatable_box!(*value))
-            .collect();
+        let values_vec: Vec<Box<dyn Any>> =
+            self.values.iter().map(|value| maybe_relocatable_box!(*value)).collect();
         vec![maybe_relocatable_box!(self.n_values), Box::new(values_vec)]
     }
 }
 
 impl ToVec for TracesDecommitment {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        vec![
-            Box::new(self.original.to_vec()),
-            Box::new(self.interaction.to_vec()),
-        ]
+        vec![Box::new(self.original.to_vec()), Box::new(self.interaction.to_vec())]
     }
 }
 
 impl ToVec for TracesWitness {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        vec![
-            Box::new(self.original.to_vec()),
-            Box::new(self.interaction.to_vec()),
-        ]
+        vec![Box::new(self.original.to_vec()), Box::new(self.interaction.to_vec())]
     }
 }
 
 impl ToVec for FriLayerWitness {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let leaves_vec: Vec<Box<dyn Any>> = self
-            .leaves
-            .iter()
-            .map(|leaf| maybe_relocatable_box!(*leaf))
-            .collect();
+        let leaves_vec: Vec<Box<dyn Any>> =
+            self.leaves.iter().map(|leaf| maybe_relocatable_box!(*leaf)).collect();
         vec![
             maybe_relocatable_box!(self.n_leaves),
             Box::new(leaves_vec),
@@ -347,11 +305,8 @@ impl ToVec for FriLayerWitness {
 
 impl ToVec for FriWitness {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let layers_vec: Vec<Box<dyn Any>> = self
-            .layers
-            .iter()
-            .flat_map(|layer| layer.to_vec())
-            .collect();
+        let layers_vec: Vec<Box<dyn Any>> =
+            self.layers.iter().flat_map(|layer| layer.to_vec()).collect();
         vec![Box::new(layers_vec)]
     }
 }
@@ -370,30 +325,18 @@ impl ToVec for StarkWitness {
 
 impl ToVec for SegmentInfo {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        vec![
-            maybe_relocatable_box!(self.begin_addr),
-            maybe_relocatable_box!(self.stop_ptr),
-        ]
+        vec![maybe_relocatable_box!(self.begin_addr), maybe_relocatable_box!(self.stop_ptr)]
     }
 }
 
 impl ToVec for CairoPublicInput {
     fn to_vec(&self) -> Vec<Box<dyn Any>> {
-        let dynamic_params_vec: Vec<Box<dyn Any>> = self
-            .dynamic_params
-            .iter()
-            .map(|param| maybe_relocatable_box!(*param))
-            .collect();
-        let segments_vec: Vec<Box<dyn Any>> = self
-            .segments
-            .iter()
-            .flat_map(|segment| segment.to_vec())
-            .collect();
-        let main_page_vec: Vec<Box<dyn Any>> = self
-            .main_page
-            .iter()
-            .map(|page| maybe_relocatable_box!(*page))
-            .collect();
+        let dynamic_params_vec: Vec<Box<dyn Any>> =
+            self.dynamic_params.iter().map(|param| maybe_relocatable_box!(*param)).collect();
+        let segments_vec: Vec<Box<dyn Any>> =
+            self.segments.iter().flat_map(|segment| segment.to_vec()).collect();
+        let main_page_vec: Vec<Box<dyn Any>> =
+            self.main_page.iter().map(|page| maybe_relocatable_box!(*page)).collect();
         let continuous_page_headers_vec: Vec<Box<dyn Any>> = self
             .continuous_page_headers
             .iter()

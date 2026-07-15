@@ -1,17 +1,14 @@
 use std::collections::HashMap;
 
-use cairo_vm::{
-    Felt252,
-    hint_processor::{
-        builtin_hint_processor::hint_utils::{
-            get_integer_from_var_name, get_ptr_from_var_name, insert_value_into_ap,
-        },
-        hint_processor_definition::HintReference,
-    },
-    serde::deserialize_program::ApTracking,
-    types::exec_scope::ExecutionScopes,
-    vm::{errors::hint_errors::HintError, vm_core::VirtualMachine},
+use cairo_vm::Felt252;
+use cairo_vm::hint_processor::builtin_hint_processor::hint_utils::{
+    get_integer_from_var_name, get_ptr_from_var_name, insert_value_into_ap,
 };
+use cairo_vm::hint_processor::hint_processor_definition::HintReference;
+use cairo_vm::serde::deserialize_program::ApTracking;
+use cairo_vm::types::exec_scope::ExecutionScopes;
+use cairo_vm::vm::errors::hint_errors::HintError;
+use cairo_vm::vm::vm_core::VirtualMachine;
 use num_traits::ToPrimitive;
 
 use super::types::PedersenMerkleInput;
@@ -66,9 +63,7 @@ pub fn pedersen_merkle_verify_auth_path_len(
 ) -> Result<(), HintError> {
     let auth_path: &Vec<Felt252> = exec_scopes.get_ref(AUTH_PATH)?;
     if !auth_path.is_empty() {
-        return Err(HintError::CustomHint(
-            "Got too many values in auth_path.".into(),
-        ));
+        return Err(HintError::CustomHint("Got too many values in auth_path.".into()));
     }
     Ok(())
 }
@@ -123,13 +118,14 @@ pub fn pedersen_merkle_update(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_utils::fill_ids_data_for_test;
-    use crate::{PROGRAM_INPUT, ProgramInput};
     use cairo_vm::types::relocatable::{MaybeRelocatable, Relocatable};
     use cairo_vm::vm::vm_core::VirtualMachine;
     use num_bigint::BigUint;
     use rstest::{fixture, rstest};
+
+    use super::*;
+    use crate::test_utils::fill_ids_data_for_test;
+    use crate::{PROGRAM_INPUT, ProgramInput};
 
     /// Provides a sample PedersenMerkleInput in JSON format for testing.
     #[fixture]
@@ -162,10 +158,7 @@ mod tests {
     fn test_pedersen_merkle_load_input(pedersen_merkle_input: String) {
         let mut vm = VirtualMachine::new(false, false);
         let mut exec_scopes = ExecutionScopes::new();
-        exec_scopes.insert_value(
-            PROGRAM_INPUT,
-            ProgramInput::Json(pedersen_merkle_input.clone()),
-        );
+        exec_scopes.insert_value(PROGRAM_INPUT, ProgramInput::Json(pedersen_merkle_input.clone()));
         let ids_data = fill_ids_data_for_test(&["output"]);
         let ap_tracking = ApTracking::new();
 
@@ -197,11 +190,8 @@ mod tests {
 
         // Assert that auth_path is correctly set in exec_scopes
         let auth_path: &Vec<Felt252> = exec_scopes.get_ref(AUTH_PATH).unwrap();
-        let expected_reversed_path: Vec<Felt252> = expected_pedersen_merkle_input
-            .path
-            .into_iter()
-            .rev()
-            .collect();
+        let expected_reversed_path: Vec<Felt252> =
+            expected_pedersen_merkle_input.path.into_iter().rev().collect();
         assert_eq!(auth_path, &expected_reversed_path);
     }
 
@@ -269,10 +259,7 @@ mod tests {
         vm.set_ap(1);
         vm.load_data(
             Relocatable::from((1, 0)),
-            &[
-                MaybeRelocatable::from((1, 0)),
-                MaybeRelocatable::from((1, 2)),
-            ],
+            &[MaybeRelocatable::from((1, 0)), MaybeRelocatable::from((1, 2))],
         )
         .expect("Failed to load initial data");
 
@@ -310,35 +297,22 @@ mod tests {
         // prev_node_hash and new_node_hash are pointers to arrays of size 2 (x, y)
         vm.load_data(
             Relocatable::from((1, 0)),
-            &[
-                MaybeRelocatable::from((2, 0)),
-                MaybeRelocatable::from((2, 2)),
-            ],
+            &[MaybeRelocatable::from((2, 0)), MaybeRelocatable::from((2, 2))],
         )
         .expect("Failed to load initial data into VM memory.");
 
         // First call with is_left_sibling = true (update x)
-        pedersen_merkle_update(
-            &mut vm,
-            &mut exec_scopes,
-            &ids_data,
-            &ap_tracking,
-            is_left_sibling,
-        )
-        .expect("Hint execution failed unexpectedly");
+        pedersen_merkle_update(&mut vm, &mut exec_scopes, &ids_data, &ap_tracking, is_left_sibling)
+            .expect("Hint execution failed unexpectedly");
 
         // Assert that the sibling was chosen correctly
         let hash_offset = if is_left_sibling { 1 } else { 0 };
         assert_eq!(
-            vm.get_integer(Relocatable::from((2, hash_offset)))
-                .unwrap()
-                .as_ref(),
+            vm.get_integer(Relocatable::from((2, hash_offset))).unwrap().as_ref(),
             &Felt252::from(222u64)
         );
         assert_eq!(
-            vm.get_integer(Relocatable::from((2, 2 + hash_offset)))
-                .unwrap()
-                .as_ref(),
+            vm.get_integer(Relocatable::from((2, 2 + hash_offset))).unwrap().as_ref(),
             &Felt252::from(222u64)
         );
     }

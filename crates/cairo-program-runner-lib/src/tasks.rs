@@ -1,10 +1,7 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use cairo_lang_executable::executable::EntryPointKind;
-use cairo_lang_executable::executable::Executable;
+use cairo_lang_executable::executable::{EntryPointKind, Executable};
 use cairo_lang_execute_utils::{program_and_hints_from_executable, user_args_from_flags};
 use cairo_vm::types::errors::program_errors::ProgramError;
 use cairo_vm::types::program::Program;
@@ -12,7 +9,8 @@ use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use num_bigint::BigInt;
 use serde_json::Value;
 
-use crate::{Cairo0Executable, Task, types::Cairo1Executable};
+use crate::types::Cairo1Executable;
+use crate::{Cairo0Executable, Task};
 
 #[derive(thiserror::Error, Debug)]
 pub enum BootloaderTaskError {
@@ -41,10 +39,7 @@ pub fn create_cairo0_program_task(
 ) -> Result<Task, BootloaderTaskError> {
     let program =
         Program::from_file(program_path, Some("main")).map_err(BootloaderTaskError::Program)?;
-    Ok(Task::Cairo0Program(Cairo0Executable {
-        program,
-        program_input,
-    }))
+    Ok(Task::Cairo0Program(Cairo0Executable { program, program_input }))
 }
 
 /// Creates a `TaskSpec` for a Cairo PIE task by reading it from a zip file.
@@ -91,9 +86,5 @@ pub fn create_cairo1_program_task(
         .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse executable: {e:?}")))?;
     let user_args = user_args_from_flags(user_args_file.as_ref(), &user_args_list)
         .map_err(|e| BootloaderTaskError::Cairo1(format!("Failed to parse user args: {e:?}")))?;
-    Ok(Task::Cairo1Program(Cairo1Executable {
-        program,
-        user_args,
-        string_to_hint,
-    }))
+    Ok(Task::Cairo1Program(Cairo1Executable { program, user_args, string_to_hint }))
 }

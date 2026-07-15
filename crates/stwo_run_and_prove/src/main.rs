@@ -1,8 +1,9 @@
+use std::path::PathBuf;
+use std::process::ExitCode;
+
 use cairo_air::utils::ProofFormat;
 use cairo_program_runner_lib::utils::get_program_input_from_path;
 use clap::Parser;
-use std::path::PathBuf;
-use std::process::ExitCode;
 use stwo_cairo_utils::binary_utils::run_binary;
 use stwo_run_and_prove::{
     ProveConfig, RunConfig, StwoProverEntryPoint, StwoRunAndProveError, stwo_run_and_prove,
@@ -15,20 +16,14 @@ use tracing::{Level, span};
 struct Args {
     #[clap(long = "program", help = "Absolute path to the compiled program.")]
     program: PathBuf,
-    #[clap(
-        long = "program_input",
-        help = "Absolute path to the program input file."
-    )]
+    #[clap(long = "program_input", help = "Absolute path to the program input file.")]
     program_input: Option<PathBuf>,
     #[clap(
         long = "prover_params_json",
         help = "Absolute path to the JSON file containing the prover parameters."
     )]
     prover_params_json: Option<PathBuf>,
-    #[clap(
-        long = "proof_path",
-        help = "Absolute path where the generated proof will be saved."
-    )]
+    #[clap(long = "proof_path", help = "Absolute path where the generated proof will be saved.")]
     proof_path: PathBuf,
     #[clap(long, value_enum, default_value_t = ProofFormat::CairoSerde, help = "Json or cairo-serde.")]
     proof_format: ProofFormat,
@@ -41,7 +36,8 @@ struct Args {
     program_output: Option<PathBuf>,
     #[clap(
         long = "save_debug_data",
-        help = "Should save the ProverInput to a file in `debug_data_dir` for both success and failure."
+        help = "Should save the ProverInput to a file in `debug_data_dir` for both success and \
+                failure."
     )]
     save_debug_data: bool,
     #[clap(

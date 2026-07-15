@@ -21,12 +21,12 @@ pub const DUMP_PRIVACY_SIMPLE_BOOTLOADER_OUTPUT_PREIMAGE: &str =
 pub const BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT: &str =
     "BOOTLOADER_READ_UNPACKER_BOOTLOADER_INPUT";
 
-pub const BOOTLOADER_RESTORE_BOOTLOADER_OUTPUT: &str =
-    "# Restore the bootloader's output builtin state.
+pub const BOOTLOADER_RESTORE_BOOTLOADER_OUTPUT: &str = "# Restore the bootloader's output builtin \
+                                                        state.
 output_builtin.set_state(output_builtin_state)";
 
-pub const BOOTLOADER_LOAD_BOOTLOADER_CONFIG: &str =
-    "from starkware.cairo.bootloaders.bootloader.objects import BootloaderConfig
+pub const BOOTLOADER_LOAD_BOOTLOADER_CONFIG: &str = "from starkware.cairo.bootloaders.bootloader.\
+                                                     objects import BootloaderConfig
 
 bootloader_config: BootloaderConfig = bootloader_input.bootloader_config
 
@@ -40,16 +40,16 @@ ids.bootloader_config = segments.gen_arg(
     ],
 )";
 
-pub const BOOTLOADER_ENTER_PACKED_OUTPUT_SCOPE: &str =
-    "from starkware.cairo.bootloaders.bootloader.objects import PackedOutput
+pub const BOOTLOADER_ENTER_PACKED_OUTPUT_SCOPE: &str = "from starkware.cairo.bootloaders.\
+                                                        bootloader.objects import PackedOutput
 
 task_id = len(packed_outputs) - ids.n_subtasks
 packed_output: PackedOutput = packed_outputs[task_id]
 
 vm_enter_scope(new_scope_locals=dict(packed_output=packed_output))";
 
-pub const BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS: &str =
-    "from starkware.cairo.bootloaders.bootloader.objects import (
+pub const BOOTLOADER_IMPORT_PACKED_OUTPUT_SCHEMAS: &str = "from starkware.cairo.bootloaders.\
+                                                           bootloader.objects import (
     CompositePackedOutput,
     PlainPackedOutput,
 )";
@@ -100,8 +100,8 @@ if bootloader_input.fact_topologies_path is not None:
         fact_topologies=plain_fact_topologies,
     )";
 
-pub const BOOTLOADER_SIMPLE_BOOTLOADER_COMPUTE_FACT_TOPOLOGIES: &str =
-    "# Dump fact topologies to a json file.
+pub const BOOTLOADER_SIMPLE_BOOTLOADER_COMPUTE_FACT_TOPOLOGIES: &str = "# Dump fact topologies to \
+                                                                        a json file.
 from starkware.cairo.bootloaders.simple_bootloader.utils import (
     configure_fact_topologies,
     write_to_fact_topologies_file,
@@ -123,8 +123,8 @@ if simple_bootloader_input.fact_topologies_path is not None:
         fact_topologies=fact_topologies,
     )";
 
-pub const BOOTLOADER_GUESS_PRE_IMAGE_OF_SUBTASKS_OUTPUT_HASH: &str =
-    "data = packed_output.elements_for_hash()
+pub const BOOTLOADER_GUESS_PRE_IMAGE_OF_SUBTASKS_OUTPUT_HASH: &str = "data = packed_output.\
+                                                                      elements_for_hash()
 ids.nested_subtasks_output_len = len(data)
 ids.nested_subtasks_output = segments.gen_arg(data)";
 
@@ -159,8 +159,8 @@ assert memory[ids.output_ptr + 1] == compute_program_hash_chain(task.get_program
 pub const EXECUTE_TASK_ASSERT_PROGRAM_ADDRESS: &str = "# Sanity check.
 assert ids.program_address == program_address";
 
-pub const EXECUTE_TASK_CALL_TASK: &str =
-    "from starkware.cairo.bootloaders.simple_bootloader.objects import (
+pub const EXECUTE_TASK_CALL_TASK: &str = "from starkware.cairo.bootloaders.simple_bootloader.\
+                                          objects import (
     CairoPieTask,
     RunProgramTask,
     Task,
@@ -234,8 +234,8 @@ ids.select_builtin = int(
 if ids.select_builtin:
   n_selected_builtins = n_selected_builtins - 1";
 
-pub const VERIFIER_LOAD_AND_PARSE_PROOF: &str =
-    "from starkware.cairo.stark_verifier.air.parser import parse_proof
+pub const VERIFIER_LOAD_AND_PARSE_PROOF: &str = "from starkware.cairo.stark_verifier.air.parser \
+                                                 import parse_proof
 ids.proof = segments.gen_arg(parse_proof(
     identifiers=ids._context.identifiers,
     proof_json=program_input[\"proof\"]))";
@@ -247,8 +247,8 @@ pub const VERIFIER_DIVIDE_QUERIES_IND_BY_COSET_SIZE_TO_FP_OFFSET: &str =
 
 pub const AGGREGATOR_PROGRAM_HASH_FUNCTION_TO_AP: &str =
     "memory[ap] = to_felt_or_relocatable(aggregator_program_hash_function)";
-pub const APPLICATIVE_LOAD_INPUTS: &str =
-    "from starkware.cairo.bootloaders.applicative_bootloader.objects import (
+pub const APPLICATIVE_LOAD_INPUTS: &str = "from starkware.cairo.bootloaders.\
+                                           applicative_bootloader.objects import (
     ApplicativeBootloaderInput,
 )
 from starkware.cairo.bootloaders.simple_bootloader.objects import SimpleBootloaderInput
@@ -271,8 +271,8 @@ simple_bootloader_input = SimpleBootloaderInput(
 applicative_output_builtin_state = output_builtin.get_state()
 output_builtin.new_state(base=ids.aggregator_output_ptr)";
 
-pub const APPLICATIVE_SET_UP_UNPACKER_INPUTS: &str =
-    "from starkware.cairo.bootloaders.bootloader.objects import BootloaderInput
+pub const APPLICATIVE_SET_UP_UNPACKER_INPUTS: &str = "from starkware.cairo.bootloaders.bootloader.\
+                                                      objects import BootloaderInput
 
 # Save the aggregator's fact_topologies before running the bootloader.
 aggregator_fact_topologies = fact_topologies
@@ -365,8 +365,8 @@ pub const MOCK_CAIRO_VERIFIER_GET_N_STEPS: &str = "n_steps = program_input[\"n_s
 
 pub const MOCK_CAIRO_VERIFIER_N_STEPS_TO_AP: &str = "memory[ap] = to_felt_or_relocatable(n_steps)";
 
-pub const SIMPLE_BOOTLOADER_SIMULATE_EC_OP: &str =
-    "from starkware.cairo.lang.builtins.ec.ec_op_builtin_runner import (
+pub const SIMPLE_BOOTLOADER_SIMULATE_EC_OP: &str = "from starkware.cairo.lang.builtins.ec.\
+                                                    ec_op_builtin_runner import (
     ec_op_auto_deduction_rule_wrapper,
 )
 ids.new_ec_op_ptr = segments.add()
@@ -382,8 +382,8 @@ for i in range(ids.M_MAX_BITS):
 
 pub const SIMULATE_EC_OP_ASSERT_FALSE: &str = "assert False, \"ec_op failed.\"";
 
-pub const SIMPLE_BOOTLOADER_SIMULATE_KECCAK: &str =
-    "from starkware.cairo.common.keccak_utils.keccak_utils import keccak_func
+pub const SIMPLE_BOOTLOADER_SIMULATE_KECCAK: &str = "from starkware.cairo.common.keccak_utils.\
+                                                     keccak_utils import keccak_func
 from starkware.cairo.lang.builtins.keccak.keccak_builtin_runner import (
     keccak_auto_deduction_rule_wrapper,
 )
@@ -426,8 +426,8 @@ pub const SIMULATE_KECCAK_CALC_HIGH18_LOW18: &str =
 pub const SIMULATE_KECCAK_CALC_HIGH21_LOW21: &str =
     "ids.high21, ids.low21 = divmod(memory[ids.felt_array + 21], 256 ** 7)";
 
-pub const SIMPLE_BOOTLOADER_SIMULATE_ECDSA: &str =
-    "from starkware.cairo.lang.builtins.signature.signature_builtin_runner import (
+pub const SIMPLE_BOOTLOADER_SIMULATE_ECDSA: &str = "from starkware.cairo.lang.builtins.signature.\
+                                                    signature_builtin_runner import (
     signature_rule_wrapper,
 )
 from starkware.cairo.lang.vm.cairo_runner import verify_ecdsa_sig
@@ -444,8 +444,8 @@ vm_add_validation_rule(
 pub const SIMULATE_ECDSA_GET_R_AND_S: &str =
     "(ids.r, ids.s) = vm_ecdsa_additional_data[ids.start.address_]";
 
-pub const SIMULATE_ECDSA_COMPUTE_W_WR_WZ: &str =
-    "# ids.StarkCurve.ORDER is parsed as a negative number.
+pub const SIMULATE_ECDSA_COMPUTE_W_WR_WZ: &str = "# ids.StarkCurve.ORDER is parsed as a negative \
+                                                  number.
 order = ids.StarkCurve.ORDER + PRIME
 ids.w = pow(ids.signature_s, -1, order)
 ids.wz = ids.w*ids.message % order
@@ -458,18 +458,18 @@ memory[ids.res_96_felts+2] = (num>>(2*96)) % (2**96)";
 
 pub const CONCAT_AGGREGATOR_PARSE_TASKS_OUTPUTS: &str = "CONCAT_AGGREGATOR_PARSE_TASKS_OUTPUTS";
 
-pub const CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITH_SIZE: &str =
-    "task_index = len(tasks_outputs) - ids.n_tasks
+pub const CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITH_SIZE: &str = "task_index = len(tasks_outputs) - \
+                                                               ids.n_tasks
 segments.load_data(ptr=ids.output_ptr, data=tasks_outputs[task_index])
 ids.output_size = len(tasks_outputs[task_index]) + 1";
 
-pub const CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITHOUT_SIZE: &str =
-    "task_index = len(tasks_outputs) - ids.n_tasks
+pub const CONCAT_AGGREGATOR_GET_TASK_OUTPUT_WITHOUT_SIZE: &str = "task_index = len(tasks_outputs) \
+                                                                  - ids.n_tasks
 segments.load_data(ptr=ids.output_ptr, data=tasks_outputs[task_index])
 ids.output_size = len(tasks_outputs[task_index])";
 
-pub const CONCAT_AGGREGATOR_SET_PAGES_AND_FACT_TOPOLOGY: &str =
-    "from starkware.python.math_utils import div_ceil
+pub const CONCAT_AGGREGATOR_SET_PAGES_AND_FACT_TOPOLOGY: &str = "from starkware.python.math_utils \
+                                                                 import div_ceil
 
 output_length = ids.output_ptr - ids.output_start
 page_size = 10
@@ -500,13 +500,13 @@ else:
 pub const BUILTIN_USAGE_SET_MAX_SIZE_PAGES_AND_FACT_TOPOLOGY: &str =
     "BUILTIN_USAGE_SET_MAX_SIZE_PAGES_AND_FACT_TOPOLOGY";
 
-pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT_FINALIZE: &str =
-    "# Add a segment to test pie relocation in the bootloader.
+pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT_FINALIZE: &str = "# Add a segment to test pie \
+                                                            relocation in the bootloader.
 ids.other_segment = segments.add()
 segments.finalize(ids.other_segment.segment_index, size=1)";
 
-pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT: &str =
-    "# Add a segment to test pie relocation in the bootloader.
+pub const BUILTIN_USAGE_ADD_OTHER_SEGMENT: &str = "# Add a segment to test pie relocation in the \
+                                                   bootloader.
 ids.other_segment = segments.add()";
 
 pub const BUILTIN_USAGE_ADD_SIGNATURE: &str = "ecdsa_builtin.add_signature(ids.ecdsa_ptr, (
@@ -515,8 +515,8 @@ pub const BUILTIN_USAGE_ADD_SIGNATURE: &str = "ecdsa_builtin.add_signature(ids.e
 
 pub const BUILTIN_USAGE_5_TO_AP: &str = "memory[ap] = 5";
 
-pub const BUILTIN_USAGE_SET_PAGES_AND_FACT_TOPOLOGY: &str =
-    "from starkware.crypto.signature.signature import pedersen_hash
+pub const BUILTIN_USAGE_SET_PAGES_AND_FACT_TOPOLOGY: &str = "from starkware.crypto.signature.\
+                                                             signature import pedersen_hash
 assert memory[ids.output_ptr] == pedersen_hash(123, 456)
 
 # Place the output in 3 pages.
@@ -526,8 +526,8 @@ output_builtin.add_page(page_id=2, page_start=ids.output_ptr + 3, page_size=2)
 # CMake target cairo_run_venv.
 output_builtin.add_attribute('gps_fact_topology', [3, 2, 0, 1, 0, 2])";
 
-pub const FLEXIBLE_BUILTIN_USAGE_FROM_INPUT: &str =
-    "ids.n_output = program_input.get(\"n_output\", 0)
+pub const FLEXIBLE_BUILTIN_USAGE_FROM_INPUT: &str = "ids.n_output = \
+                                                     program_input.get(\"n_output\", 0)
 ids.n_pedersen = program_input.get(\"n_pedersen\", 0)
 ids.n_range_check = program_input.get(\"n_range_check\", 0)
 ids.n_ecdsa = program_input.get(\"n_ecdsa\", 0)
@@ -557,8 +557,8 @@ ids.output.node_index = program_input['node_index']
 
 auth_path = [int(x, 16) for x in program_input['path']][::-1]";
 
-pub const PEDERSEN_MERKLE_VERIFY_AUTH_PATH_LEN: &str =
-    "# Check that auth_path had the right number of elements.
+pub const PEDERSEN_MERKLE_VERIFY_AUTH_PATH_LEN: &str = "# Check that auth_path had the right \
+                                                        number of elements.
 assert len(auth_path) == 0, 'Got too many values in auth_path.'";
 
 pub const PEDERSEN_MERKLE_IDX_PARITY_TO_AP: &str = "memory[ap] = ids.index % 2";
