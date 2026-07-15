@@ -559,6 +559,49 @@ pub struct MockCircuitVerifierInput {
     pub output_values: Vec<u32>,
 }
 
+/// The recursive tree prover's nested packed-output tree, one node per hash layer (mirrors
+/// `PackedNode` in the prover's `stwo_run_and_prove_recursive_tree` crate; externally tagged, as
+/// serde derives for both):
+///   Composite { output_values: O }                 // circuit output; folds stack above leaves
+///     -> BootloaderOutput { program_output: H1 }   // the leaf bootloader's hashed output
+///          -> Plain { output_preimage }            // the raw [program hash, task output...]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub enum PackedNode {
+    Plain {
+        /// The leaf's hashed-output preimage, each felt a decimal string.
+        output_preimage: Vec<String>,
+    },
+    BootloaderOutput {
+        /// The leaf bootloader's hashed output (a Uint256 low/high pair of decimal felts).
+        program_output: Vec<String>,
+        subtask: Box<PackedNode>,
+    },
+    Composite {
+        /// The node's circuit output values, each a `[low16, high16, 0, 0]` QM31 limb quadruple.
+        output_values: Vec<[u32; 4]>,
+        /// The preprocessed root of this node's proof (eight little-endian u32 words) — the root
+        /// the unpacker uses in this node's fold contribution, after checking it is supported.
+        preprocessed_root: Vec<u32>,
+        subtasks: Vec<PackedNode>,
+    },
+}
+
+/// Input of the circuit-unpacking applicative bootloader (see
+/// `starkware/cairo/bootloaders/circuit_applicative_bootloader/objects.py`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct CircuitApplicativeBootloaderInput {
+    pub aggregator_task: TaskSpec,
+    pub verifier_task: TaskSpec,
+    /// The recursive tree prover's packed-output tree (its `root_packed.json` content).
+    pub packed_output: PackedNode,
+    /// Supported preprocessed roots (eight little-endian u32 words each) — the unpacking's trust
+    /// anchors. Role-agnostic: each packed node carries its own root, which must appear in this
+    /// list.
+    pub supported_preprocessed_roots: Vec<Vec<u32>>,
+    #[serde(default)]
+    pub fact_topologies_path: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FlexibleBuiltinUsageInput {
     #[serde(default)]

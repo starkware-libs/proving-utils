@@ -47,7 +47,14 @@ use super::builtin_usage_hints::{
     builtin_usage_5_to_ap, builtin_usage_add_other_segment, builtin_usage_add_signature,
     builtin_usage_set_pages_and_fact_topology, flexible_builtin_usage_from_input,
 };
-use super::circuit_applicative_bootloader_hints::load_mock_circuit_verifier_input;
+use super::circuit_applicative_bootloader_hints::{
+    circuit_applicative_setup_unpack, circuit_applicative_setup_verifier_run,
+    circuit_applicative_write_fact_topology, circuit_unpack_enter_subtask_0,
+    circuit_unpack_enter_subtask_1, circuit_unpack_exit_scope, circuit_unpack_set_is_leaf,
+    circuit_unpack_set_leaf_data, circuit_unpack_set_root_index,
+    circuit_unpack_split_to_9bit_limbs, load_circuit_applicative_bootloader_input,
+    load_mock_circuit_verifier_input,
+};
 use super::concat_aggregator_hints::{
     concat_aggregator_get_handle_task_output, concat_aggregator_parse_task,
 };
@@ -222,6 +229,33 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             }
             APPLICATIVE_FINALIZE_FACT_TOPOLOGIES_AND_PAGES => {
                 finalize_fact_topologies_and_pages(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            LOAD_CIRCUIT_APPLICATIVE_BOOTLOADER_INPUT => {
+                load_circuit_applicative_bootloader_input(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CIRCUIT_APPLICATIVE_SETUP_VERIFIER_RUN => {
+                circuit_applicative_setup_verifier_run(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CIRCUIT_APPLICATIVE_SETUP_UNPACK => {
+                circuit_applicative_setup_unpack(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CIRCUIT_APPLICATIVE_WRITE_FACT_TOPOLOGY => {
+                circuit_applicative_write_fact_topology(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CIRCUIT_UNPACK_SET_IS_LEAF => {
+                circuit_unpack_set_is_leaf(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CIRCUIT_UNPACK_SET_ROOT_INDEX => {
+                circuit_unpack_set_root_index(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CIRCUIT_UNPACK_ENTER_SUBTASK_0 => circuit_unpack_enter_subtask_0(exec_scopes),
+            CIRCUIT_UNPACK_ENTER_SUBTASK_1 => circuit_unpack_enter_subtask_1(exec_scopes),
+            CIRCUIT_UNPACK_EXIT_SCOPE => circuit_unpack_exit_scope(exec_scopes),
+            CIRCUIT_UNPACK_SET_LEAF_DATA => {
+                circuit_unpack_set_leaf_data(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            CIRCUIT_UNPACK_SPLIT_TO_9BIT_LIMBS => {
+                circuit_unpack_split_to_9bit_limbs(vm, ids_data, ap_tracking)
             }
             MOCK_CIRCUIT_VERIFIER_LOAD_INPUT => {
                 load_mock_circuit_verifier_input(vm, exec_scopes, ids_data, ap_tracking)
