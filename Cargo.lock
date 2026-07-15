@@ -4827,6 +4827,7 @@ name = "stwo-run-and-prove-recursive-tree"
 version = "1.2.2"
 dependencies = [
  "blake2",
+ "cairo-air 1.2.2 (git+https://github.com/starkware-libs/stwo-cairo?rev=ffd4a4e)",
  "circuit-cairo-serialize",
  "circuit-cairo-verifier 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=ee9b130)",
  "circuit-common 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=ee9b130)",
@@ -4837,11 +4838,14 @@ dependencies = [
  "circuits 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=ee9b130)",
  "circuits-stark-verifier 0.1.0 (git+https://github.com/starkware-libs/stwo-circuits?rev=ee9b130)",
  "clap",
+ "indexmap 2.14.0",
  "leaf-proof-format",
+ "leaf-prover",
  "serde",
  "serde_json",
  "sonic-rs",
  "stwo",
+ "stwo-cairo-common 1.2.2 (git+https://github.com/starkware-libs/stwo-cairo?rev=ffd4a4e)",
  "stwo-cairo-utils",
  "tempfile",
  "thiserror 1.0.69",
