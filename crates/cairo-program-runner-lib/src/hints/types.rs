@@ -559,6 +559,44 @@ pub struct MockCircuitVerifierInput {
     pub output_values: Vec<u32>,
 }
 
+/// The recursive tree prover's nested packed-output tree, one `Composite` per verifier node
+/// (mirrors `PackedNode` in the prover's `stwo_run_and_prove_recursive_tree` crate; externally
+/// tagged, as serde derives for both):
+///   Composite { preprocessed_root, subtasks }   // a fold over two children, or the leaf circuit
+///     -> Plain { output_preimage }              // the raw [program hash, task output...]
+///
+/// The tree carries only data that cannot be recomputed — the unpacker rederives every digest
+/// (the leaf's hashed output and each fold's circuit output) bottom-up from the preimages.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub enum PackedNode {
+    Plain {
+        /// The leaf's hashed-output preimage, each felt a decimal string.
+        output_preimage: Vec<String>,
+    },
+    Composite {
+        /// The preprocessed root of this node's proof (eight little-endian u32 words) — the root
+        /// the unpacker uses in this node's fold contribution, after checking it is supported.
+        preprocessed_root: Vec<u32>,
+        subtasks: Vec<PackedNode>,
+    },
+}
+
+/// Input of the circuit-unpacking applicative bootloader (see
+/// `starkware/cairo/bootloaders/circuit_applicative_bootloader/objects.py`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct CircuitApplicativeBootloaderInput {
+    pub aggregator_task: TaskSpec,
+    pub verifier_task: TaskSpec,
+    /// The recursive tree prover's packed-output tree (its `root_packed.json` content).
+    pub packed_output: PackedNode,
+    /// Supported preprocessed roots (eight little-endian u32 words each) — the unpacking's trust
+    /// anchors. Role-agnostic: each packed node carries its own root, which must appear in this
+    /// list.
+    pub supported_preprocessed_roots: Vec<Vec<u32>>,
+    #[serde(default)]
+    pub fact_topologies_path: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FlexibleBuiltinUsageInput {
     #[serde(default)]
