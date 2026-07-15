@@ -3542,6 +3542,7 @@ dependencies = [
  "circuit-verifier",
  "circuits",
  "circuits-stark-verifier",
+ "libc",
  "num-traits",
  "rayon",
  "stwo 2.2.0 (git+https://github.com/starkware-libs/stwo?rev=5ea05973)",
