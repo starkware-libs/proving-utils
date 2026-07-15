@@ -59,7 +59,10 @@ impl LayerEntry {
             proof_bytes: leaf.proof.proof.clone(),
             preprocessed_root: leaf.proof.preprocessed_root(),
             output_values: leaf.output_values()?,
-            packed_output: PackedNode::leaf(leaf.output_preimage.clone()),
+            packed_output: PackedNode::leaf(
+                digest_bytes_to_words(&leaf.proof.circuit_preprocessed_root),
+                leaf.output_preimage.clone(),
+            ),
         })
     }
 
@@ -106,7 +109,7 @@ pub fn reduce_pair(
         "multiverifier circuit rejected its inputs at layer {layer_idx} pair {pair_idx}"
     );
 
-    let (proof_bytes, preprocessed_root, output_values) = if is_root {
+    let (proof_bytes, extracted) = if is_root {
         // The Cairo verifier does not carry `min_lifting_log_size` on the wire and mixes 0 into
         // its channel, so the root proof must be created with 0 (`CairoSerialize for PcsConfig`
         // asserts it).
@@ -121,7 +124,7 @@ pub fn reduce_pair(
             root_pcs_config,
         )
         .map_err(|e| RecursiveTreeError::Proving(format!("{e:?}")))?;
-        let (preprocessed_root, output_values) = extract_root_and_outputs(&circuit_proof)?;
+        let extracted = extract_root_and_outputs(&circuit_proof)?;
 
         // Serialize for the Cairo circuit verifier: only the proof goes on the wire; the
         // verifier-config constants are baked into the Cairo binary.
@@ -135,7 +138,7 @@ pub fn reduce_pair(
         let felts = prepare_circuit_proof_for_cairo_verifier(circuit_proof, &component_log_sizes);
         let proof_hex: Vec<String> = felts.iter().map(|felt| format!("0x{felt:x}")).collect();
         let proof_bytes = serde_json::to_vec_pretty(&proof_hex)?;
-        (proof_bytes, preprocessed_root, output_values)
+        (proof_bytes, extracted)
     } else {
         let circuit_proof = prove_circuit_assignment(
             context.values(),
@@ -144,20 +147,32 @@ pub fn reduce_pair(
             canonical.shared_config.pcs_config,
         )
         .map_err(|e| RecursiveTreeError::Proving(format!("{e:?}")))?;
-        let (preprocessed_root, output_values) = extract_root_and_outputs(&circuit_proof)?;
+        let extracted = extract_root_and_outputs(&circuit_proof)?;
 
         let (proof, _public_data) = prepare_circuit_proof_for_circuit_verifier(circuit_proof);
         let mut proof_bytes = Vec::new();
         proof.serialize(&mut proof_bytes);
-        (proof_bytes, preprocessed_root, output_values)
+        (proof_bytes, extracted)
     };
 
     Ok(LayerEntry {
         proof_bytes,
-        preprocessed_root,
-        output_values,
-        packed_output: PackedNode::internal(left.packed_output, right.packed_output),
+        preprocessed_root: extracted.preprocessed_root,
+        output_values: extracted.output_values,
+        packed_output: PackedNode::internal(
+            extracted.root_words,
+            left.packed_output,
+            right.packed_output,
+        ),
     })
+}
+
+/// The parent-entry data extracted from a freshly proven circuit proof: its preprocessed root (as
+/// the circuits' `HashValue` and as raw little-endian u32 words) and its circuit output values.
+struct ExtractedProofData {
+    preprocessed_root: HashValue<QM31>,
+    root_words: [u32; N_RESERVED],
+    output_values: [u32; N_RESERVED],
 }
 
 /// Extracts the parent entry's preprocessed root and output values from a freshly proven circuit
@@ -165,8 +180,9 @@ pub fn reduce_pair(
 /// words.
 fn extract_root_and_outputs<H: MerkleHasherLifted<Hash = Blake2sHash>>(
     circuit_proof: &CircuitProof<H>,
-) -> Result<(HashValue<QM31>, [u32; N_RESERVED]), RecursiveTreeError> {
+) -> Result<ExtractedProofData, RecursiveTreeError> {
     let root_hash = circuit_proof.stark_proof.proof.commitments[PREPROCESSED_TRACE_IDX];
+    let root_words = digest_bytes_to_words(&root_hash.0);
     let preprocessed_root: HashValue<QM31> = root_hash.into();
     let outputs: Vec<u32> = circuit_proof
         .claim
@@ -181,7 +197,17 @@ fn extract_root_and_outputs<H: MerkleHasherLifted<Hash = Blake2sHash>>(
                 expected: N_RESERVED,
                 got: v.len(),
             })?;
-    Ok((preprocessed_root, output_values))
+    Ok(ExtractedProofData {
+        preprocessed_root,
+        root_words,
+        output_values,
+    })
+}
+
+/// Reads a 32-byte digest as eight little-endian u32 words — the wire encoding of a preprocessed
+/// root everywhere outside the circuits (matching `HashValue`'s `From<Blake2sHash>`).
+pub fn digest_bytes_to_words(bytes: &[u8; 32]) -> [u32; N_RESERVED] {
+    std::array::from_fn(|i| u32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap()))
 }
 
 /// Nested packed-output tree:
@@ -198,21 +224,32 @@ pub enum PackedNode {
     /// (each felt a decimal string; see `LeafInput::output_preimage`).
     Plain { output_preimage: Vec<String> },
     /// A verifier node — a fold over two children, or the leaf circuit over its single `Plain`
-    /// child.
-    Composite { subtasks: Vec<PackedNode> },
+    /// child. Carries the preprocessed root of this node's proof (eight little-endian u32 words) —
+    /// the root the unpacker must use in this node's fold contribution; it looks the value up in
+    /// its supported-roots trust list.
+    Composite {
+        preprocessed_root: [u32; N_RESERVED],
+        subtasks: Vec<PackedNode>,
+    },
 }
 
 impl PackedNode {
     /// A leaf entry: the leaf circuit node over the `Plain` preimage reveal.
-    pub fn leaf(output_preimage: Vec<String>) -> Self {
+    pub fn leaf(preprocessed_root: [u32; N_RESERVED], output_preimage: Vec<String>) -> Self {
         PackedNode::Composite {
+            preprocessed_root,
             subtasks: vec![PackedNode::Plain { output_preimage }],
         }
     }
 
     /// An internal fold node over its two children.
-    pub fn internal(left: PackedNode, right: PackedNode) -> Self {
+    pub fn internal(
+        preprocessed_root: [u32; N_RESERVED],
+        left: PackedNode,
+        right: PackedNode,
+    ) -> Self {
         PackedNode::Composite {
+            preprocessed_root,
             subtasks: vec![left, right],
         }
     }

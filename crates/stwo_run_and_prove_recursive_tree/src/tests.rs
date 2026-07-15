@@ -100,18 +100,23 @@ fn test_leaf_output_values_rejects_invalid_felt() {
 #[test]
 fn test_packed_node_serializes_leaf_and_internal() {
     // A leaf: a `Composite` (the leaf circuit) over `Plain` (the raw preimage reveal).
-    let leaf_a = PackedNode::leaf(vec!["1".to_string(), "2".to_string()]);
-    // Serializes as `{"Composite": { subtasks: [{"Plain": { output_preimage }}] }}`.
+    let leaf_a = PackedNode::leaf(
+        std::array::from_fn(|i| i as u32 + 30),
+        vec!["1".to_string(), "2".to_string()],
+    );
+    // Serializes as `{"Composite": { preprocessed_root, subtasks: [{"Plain": {
+    // output_preimage }}] }}`.
     let leaf_json: serde_json::Value =
         serde_json::from_str(&serde_json::to_string(&leaf_a).unwrap()).unwrap();
+    assert_eq!(leaf_json["Composite"]["preprocessed_root"][0], 30);
     assert_eq!(
         leaf_json["Composite"]["subtasks"][0]["Plain"]["output_preimage"][0],
         "1"
     );
 
     // Internal: a `Composite` over two child subtasks.
-    let leaf_b = PackedNode::leaf(vec![]);
-    let internal = PackedNode::internal(leaf_a, leaf_b);
+    let leaf_b = PackedNode::leaf(std::array::from_fn(|i| i as u32 + 40), vec![]);
+    let internal = PackedNode::internal(std::array::from_fn(|i| i as u32 + 50), leaf_a, leaf_b);
 
     // Round-trips exactly (the recursive-tree reads back its own `root_packed.json`).
     let back: PackedNode =
@@ -259,7 +264,7 @@ mod e2e {
         ExpectedNode {
             output_words: leaf.output_values().unwrap(),
             preprocessed_root: leaf_root_words(leaf),
-            packed: PackedNode::leaf(leaf.output_preimage.clone()),
+            packed: PackedNode::leaf(leaf_root_words(leaf), leaf.output_preimage.clone()),
         }
     }
 
@@ -280,7 +285,7 @@ mod e2e {
         ExpectedNode {
             output_words,
             preprocessed_root: multiverifier_root,
-            packed: PackedNode::internal(left.packed, right.packed),
+            packed: PackedNode::internal(multiverifier_root, left.packed, right.packed),
         }
     }
 
