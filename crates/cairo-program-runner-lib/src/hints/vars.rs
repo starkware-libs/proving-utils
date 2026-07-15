@@ -33,6 +33,7 @@ pub const FACT_TOPOLOGIES: &str = "fact_topologies";
 
 /// Aggregator fact topologies for an applicative bootloader run.
 pub const AGGREGATOR_FACT_TOPOLOGIES: &str = "aggregator_fact_topologies";
+pub const AGGREGATOR_PROGRAM_HASH_FUNCTION: &str = "aggregator_program_hash_function";
 
 /// Simple bootloader tasks.
 pub const TASKS: &str = "tasks";
