@@ -47,6 +47,7 @@ use super::builtin_usage_hints::{
     builtin_usage_5_to_ap, builtin_usage_add_other_segment, builtin_usage_add_signature,
     builtin_usage_set_pages_and_fact_topology, flexible_builtin_usage_from_input,
 };
+use super::circuit_applicative_bootloader_hints::load_mock_circuit_verifier_input;
 use super::concat_aggregator_hints::{
     concat_aggregator_get_handle_task_output, concat_aggregator_parse_task,
 };
@@ -221,6 +222,9 @@ impl HintProcessorLogic for MinimalBootloaderHintProcessor {
             }
             APPLICATIVE_FINALIZE_FACT_TOPOLOGIES_AND_PAGES => {
                 finalize_fact_topologies_and_pages(vm, exec_scopes, ids_data, ap_tracking)
+            }
+            MOCK_CIRCUIT_VERIFIER_LOAD_INPUT => {
+                load_mock_circuit_verifier_input(vm, exec_scopes, ids_data, ap_tracking)
             }
             SIMPLE_BOOTLOADER_SIMULATE_EC_OP => {
                 simple_bootloader_simulate_ec_op(vm, ids_data, ap_tracking)
