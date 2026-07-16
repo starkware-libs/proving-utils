@@ -1454,6 +1454,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit-cairo-serialize"
+version = "0.1.0"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=8b63880#8b6388022d34401d4923f4647b15e4ff6a7ea901"
+dependencies = [
+ "cairo-air",
+ "circuit-verifier",
+ "starknet-ff",
+ "stwo",
+ "stwo-cairo-serialize",
+]
+
+[[package]]
 name = "circuit-cairo-verifier"
 version = "0.1.0"
 source = "git+https://github.com/starkware-libs/stwo-circuits?rev=8b63880#8b6388022d34401d4923f4647b15e4ff6a7ea901"
@@ -1483,6 +1495,20 @@ dependencies = [
  "rand_chacha 0.3.1",
  "stwo",
  "stwo-cairo-common",
+ "stwo-constraint-framework",
+]
+
+[[package]]
+name = "circuit-multiverifier"
+version = "0.1.0"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=8b63880#8b6388022d34401d4923f4647b15e4ff6a7ea901"
+dependencies = [
+ "circuit-common",
+ "circuit-verifier",
+ "circuits",
+ "circuits-stark-verifier",
+ "itertools 0.12.1",
+ "stwo",
  "stwo-constraint-framework",
 ]
 
@@ -4548,22 +4574,29 @@ dependencies = [
 name = "stwo-run-and-prove-recursive-tree"
 version = "1.2.2"
 dependencies = [
- "anyhow",
- "cairo-air",
- "cairo-program-runner-lib",
- "cairo-vm",
+ "blake2",
+ "circuit-cairo-serialize",
+ "circuit-cairo-verifier",
+ "circuit-common",
+ "circuit-multiverifier",
+ "circuit-prover",
+ "circuit-serialize",
+ "circuit-verifier",
+ "circuits",
+ "circuits-stark-verifier",
  "clap",
- "ctor",
- "rstest 0.21.0",
+ "leaf-proof-format",
  "serde",
  "serde_json",
  "sonic-rs",
- "stwo-cairo-adapter",
+ "starknet-types-core",
+ "stwo",
+ "stwo-cairo-common",
  "stwo-cairo-utils",
- "stwo-run-and-prove-common",
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

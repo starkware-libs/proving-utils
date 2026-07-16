@@ -73,11 +73,19 @@ stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev 
 
 # stwo circuits
 # Pinned to match the stwo-cairo rev above.
+circuit-cairo-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
 circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
 circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
 circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
 circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
 circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "8b63880" }
+
+# stwo (used directly by the recursive-tree circuit folding; rev must match what the stwo-circuits
+# rev above depends on — see Cargo.lock).
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "960b2529", default-features = false, features = ["parallel", "prover"] }
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
