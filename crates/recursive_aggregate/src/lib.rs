@@ -4,10 +4,10 @@
 //! above them into a single root proof by repeatedly proving a `FOLD_ARITY`-to-1
 //! [`build_multiverifier_circuit`] node on groups of `k` children. Each node verifies its `k` child
 //! proofs and emits a Blake hash binding `[ppRoot_i, outs_i for i in 0..k]` (children left-to-right)
-//! as its own `N_RESERVED` (eight) output digest words; that hash is what the parent node (and, at
-//! the top, the [`circuit_unpacker`](https://docs.rs/circuit-unpacker)) consumes. As of stwo #1425
-//! the preprocessed root is the full eight-word Blake2s digest (`HashValue`), not the old reduced
-//! two-QM31 form, and the node preimage is hashed with `blake2s_u32s`.
+//! as its own `N_RESERVED` output digest words (`N_RESERVED == BLAKE2S_DIGEST_N_WORDS == 8`, the full
+//! Blake2s digest); that hash is what the parent node (and, at the top, the
+//! [`circuit_unpacker`](https://docs.rs/circuit-unpacker)) consumes. The preprocessed root is the full
+//! eight-word Blake2s digest (`HashValue`), and the node preimage is hashed with `blake2s_u32s`.
 //!
 //! Arity is the named constant [`FOLD_ARITY`]. Every full-`k` node is exactly-`k` (full-`k` nodes at
 //! a level share one precompute / `preprocessed_root`); SHORT nodes (the level-0 leaf-remainder
@@ -62,8 +62,8 @@ use std::sync::Arc;
 /// in-circuit node hash ([`build_multiverifier_circuit`]) stay byte-identical. Re-sweep the arity
 /// (e.g. `4` vs `8`) by changing only this constant; nothing else hard-codes the child count.
 ///
-/// A level's `len() % FOLD_ARITY` (< k) remainder is carried up unchanged (mirroring the old
-/// carry-one), so nodes are always exactly `k` children — never variable-child.
+/// A level's `len() % FOLD_ARITY` (< k) remainder is carried up unchanged, so nodes are always
+/// exactly `k` children — never variable-child.
 pub const FOLD_ARITY: usize = 8;
 
 /// Default recursion (node-node / root) FRI blowup factor. Feeds the ~96-bit-secure `(pow_bits,
@@ -501,7 +501,7 @@ impl PoolSet {
 /// `FOLD_ARITY`-to-1 multiverifier nodes.
 ///
 /// The bottom of the tree (the R1 leaf-verifying layer) is already done before this is called, so this
-/// is JUST the classic group+carry node-node fold over height-1 nodes (the produced R2 nodes are
+/// is JUST the group+carry node-node fold over height-1 nodes (the produced R2 nodes are
 /// height ≥ 2). Any `M >= 1` nodes:
 ///   - `M == 1`: the lone node IS the root (no further fold).
 ///   - `M >= 2`: group the leading full-`k` runs into exactly-`k` node-verifying (R2) nodes and carry
@@ -585,7 +585,7 @@ pub fn recursive_aggregate_prove(
 /// The arity of the ROOT node of the fold tree over `m` base-nodes — a deterministic function of the
 /// public base-node count `M` (SOUNDNESS: the root shape is public, never prover-chosen).
 ///
-/// The classic group+carry loop folds the `M` base-NODES (levels with `> k` entries carry the `< k`
+/// The group+carry loop folds the `M` base-NODES (levels with `> k` entries carry the `< k`
 /// remainder and emit `len / k` exactly-`k` node-nodes; the first level to reach `2..=k` folds whole
 /// into the root). Returns that terminal size (`∈ 2..=k`). For `m == 1` there is no fold (returns
 /// `1`, the lone base-node is the root).
@@ -1599,7 +1599,7 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
         level0
     };
 
-    // --- LEVELS ≥ 1: SHARED classic group+carry over NODES only (identical to prove_root_verification_leaves). ---
+    // --- LEVELS ≥ 1: SHARED group+carry over NODES only (identical to prove_root_verification_leaves). ---
     while level.len() > 1 {
         if level.len() <= k {
             let root = fold_group(&mut context, &level);
@@ -1751,8 +1751,8 @@ pub fn prove_root_verification_leaves(
         zk_blind,
     );
     // Correctness tripwire (QM31 prove pass only — the shared builder skips it because it also runs
-    // witness-free for the `NoValue` recompute). Validating the final padded context subsumes the
-    // pre-blind + post-blind checks the builder used to run inline.
+    // witness-free for the `NoValue` recompute). Validating the final padded context covers the
+    // pre-blind and post-blind checks.
     context.validate_circuit();
 
     let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
@@ -2123,7 +2123,7 @@ mod topology_tests {
     }
 
     /// The shape `recursive_aggregate_prove`'s node-node fold builds over `m` base-nodes, computed over
-    /// indices — the classic `k`-ary group+carry over the base-nodes (leading full-`k` runs into
+    /// indices — the `k`-ary group+carry over the base-nodes (leading full-`k` runs into
     /// nodes, `< k` remainder carried up, a `2..=k` level folded whole into the root). The single
     /// source of truth the topology must match. `m == 1` ⇒ the lone base-node is the root.
     fn sequential_shape(m: usize) -> Shape {
@@ -2344,7 +2344,7 @@ mod topology_tests {
     /// A symbolic two-tier tree shape over standalone leaves: `Leaf(i)` = leaf i, `R1(children)` =
     /// a level-0 leaf-verifying node over its leaves, `R2(children)` = a node-node fold over R1/R2
     /// nodes. Index-aware, so it captures the byte-identity-relevant child ordering at every node.
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     enum LeafShape {
         Leaf(usize),
         R1(Vec<LeafShape>),
@@ -2377,7 +2377,7 @@ mod topology_tests {
             .collect();
         assert_eq!(next_leaf, n);
         let m = r1_nodes.len();
-        // Tier ≥ 1: the classic group+carry over the m R1 nodes (same loop as `sequential_shape`),
+        // Tier ≥ 1: the group+carry over the m R1 nodes (same loop as `sequential_shape`),
         // but the height-1 inputs are the R1 nodes themselves. m == 1 ⇒ that R1 node IS the root.
         if m == 1 {
             return r1_nodes.into_iter().next().unwrap();
@@ -2426,7 +2426,7 @@ mod topology_tests {
         // Resolve a tier-≥1 child: `Child::Leaf(g)` is R1 node g; `Child::Node(j)` is fold task j.
         fn resolve(c: Child, tasks: &[super::FoldTask], r1: &[LeafShape]) -> LeafShape {
             match c {
-                Child::Leaf(g) => clone_shape(&r1[g]),
+                Child::Leaf(g) => r1[g].clone(),
                 Child::Node(j) => LeafShape::R2(
                     tasks[j]
                         .children
@@ -2434,13 +2434,6 @@ mod topology_tests {
                         .map(|&ch| resolve(ch, tasks, r1))
                         .collect(),
                 ),
-            }
-        }
-        fn clone_shape(s: &LeafShape) -> LeafShape {
-            match s {
-                LeafShape::Leaf(i) => LeafShape::Leaf(*i),
-                LeafShape::R1(c) => LeafShape::R1(c.iter().map(clone_shape).collect()),
-                LeafShape::R2(c) => LeafShape::R2(c.iter().map(clone_shape).collect()),
             }
         }
         resolve(root, &tasks, &r1_shapes)
@@ -2480,12 +2473,9 @@ mod topology_tests {
         // n = k+1 = 9 (r==1): level0_group_sizes → [k-1, 2] = [7, 2]. So R1(0) = leaves 0..7,
         // R1(1) = leaves 7..9.
         use LeafShape::{Leaf, R1};
-        let n9 = R1(vec![
-            R1((0..7).map(Leaf).collect()),
-            R1((7..9).map(Leaf).collect()),
-        ]);
         // n=9 ⇒ m=2 R1 nodes, m <= k ⇒ the R2 root folds them; but the SHAPE at tier 0 is these two
-        // R1 nodes. Reconstruct the tier-0 layer directly and compare.
+        // R1 nodes: R1(0) = leaves 0..7, R1(1) = leaves 7..9. Reconstruct the tier-0 layer directly
+        // and compare.
         assert_eq!(
             streaming_leaf_shape(9),
             LeafShape::R2(vec![
@@ -2494,7 +2484,6 @@ mod topology_tests {
             ]),
             "n=9 (r==1) tier-0 grouping wrong"
         );
-        let _ = n9; // documents the R1-node shapes the R2 root wraps
 
         // General: every leaf index 0..n appears exactly once, contiguous per group, per
         // level0_group_sizes, across all required + a dense sweep.
