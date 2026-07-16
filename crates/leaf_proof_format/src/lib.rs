@@ -4,7 +4,7 @@ use serde_with::serde_as;
 
 /// Describes the structure of the output JSON file of the leaf prover.
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SerializedLeafProof {
     /// The preprocessed root of the proof of the verifier circuit.
     pub circuit_preprocessed_root: [u8; 32],

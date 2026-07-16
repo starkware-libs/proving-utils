@@ -27,7 +27,7 @@ use crate::RecursiveTreeError;
 /// specifically a bootloader run), so it cannot live on [`SerializedLeafProof`] itself. The
 /// backend injects the extra fields next to the proof's own; `#[serde(flatten)]` keeps the file a
 /// single flat JSON object.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LeafInput {
     /// The `leaf_prover` output file's contents, verbatim.
     #[serde(flatten)]
