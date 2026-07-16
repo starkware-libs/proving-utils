@@ -186,16 +186,12 @@ fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
     // nodes and to verify the root in the unpacker.
     let leaf_preprocessed_root = HashValue::from(PRIVACY_CAIRO_VERIFIER_PREPROCESSED_ROOT);
     let config = AggregateConfig {
-        // Shared / R2 (base-fanning) fields — real values, used by the shared up-tree fold.
+        // Shared / R2 fields — real values, used by the shared up-tree fold.
         node_shared_config: shared_config,
         node_preprocessed_root: node_preprocessed_root.clone(),
         node_target_padding_sizes: target_padding_sizes(),
         node_pcs_config: pcs_config,
         fold_arity: FOLD_ARITY,
-        // Base-fanning-only fields — UNUSED under FoldMode::LeafR1R2 (this smoke test's mode). Set to
-        // the leaf root so the struct is well-formed; the leaf unpacker never reads them.
-        base_node_preprocessed_root: leaf_preprocessed_root.clone(),
-        base_preprocessed_root: leaf_preprocessed_root.clone(),
         // LeafR1R2 extras — the tier these cairo-leaf smoke tests exercise. Cairo stand-in: leaves
         // share the node's shape (single-target regime), so R1 == R2 and the leaf/node PCS coincide.
         leaf_shared_config: Some(make_shared()),

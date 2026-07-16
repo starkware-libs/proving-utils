@@ -195,18 +195,13 @@ fn build_decoupled_config() -> AggregateConfig {
     let node_preprocessed_root = preprocessed_root(&node_pp, LOG_BLOWUP_FACTOR);
 
     AggregateConfig {
-        // Shared / R2 (base-fanning) fields — real values (this is a genuinely decoupled R1 != R2
+        // Shared / R2 fields — real values (this is a genuinely decoupled R1 != R2
         // config; the R2 tier is real, so the R2 half of the consistency check is exercised too).
         node_shared_config,
         node_preprocessed_root,
         node_target_padding_sizes: node_target,
         node_pcs_config: node_pcs,
         fold_arity: FOLD_ARITY,
-        // Base-fanning-only fields — UNUSED by this test (it never touches a base/base-node). Set to
-        // the leaf root so the struct is well-formed; `assert_full_arity_roots_consistent` only reads
-        // R1/R2, never these.
-        base_node_preprocessed_root: leaf_preprocessed_root.clone(),
-        base_preprocessed_root: leaf_preprocessed_root.clone(),
         // LeafR1R2 extras — the tier under test.
         leaf_shared_config: Some(leaf_shared_config),
         level1_preprocessed_root: Some(level1_preprocessed_root),

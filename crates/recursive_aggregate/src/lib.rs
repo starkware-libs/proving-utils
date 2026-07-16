@@ -20,7 +20,7 @@
 //! the same fixed `preprocessed_root` ([`AggregateConfig::node_preprocessed_root`]).
 //!
 //! This crate folds the multiverifier tree, then proves the **root verification**
-//! ([`prove_root_verification`]) — the only published, and only zk-blinded, proof. Every
+//! ([`prove_root_verification_leaves`]) — the only published, and only zk-blinded, proof. Every
 //! multiverifier proof, the root included, is internal: consumed (guessed into the witness) by the
 //! next circuit up, never published; no multiverifier node is ever blinded.
 //!
@@ -58,38 +58,13 @@ use std::sync::Arc;
 ///
 /// This is the single source of truth for the arity across the whole recursion pipeline — the
 /// tree/streaming fold, the topology, `prove_node`, and (critically) the unpacker's per-node hash
-/// preimage in [`prove_root_verification`] all read it, so the out-of-circuit unpacker and the
+/// preimage in [`prove_root_verification_leaves`] all read it, so the out-of-circuit unpacker and the
 /// in-circuit node hash ([`build_multiverifier_circuit`]) stay byte-identical. Re-sweep the arity
 /// (e.g. `4` vs `8`) by changing only this constant; nothing else hard-codes the child count.
 ///
 /// A level's `len() % FOLD_ARITY` (< k) remainder is carried up unchanged (mirroring the old
 /// carry-one), so nodes are always exactly `k` children — never variable-child.
 pub const FOLD_ARITY: usize = 8;
-
-/// Base-fanning arity `b`: how many gate_air BASE proofs one base-fanning node ("base-node") verifies
-/// and folds. INDEPENDENT of [`FOLD_ARITY`] (the up-tree node-node fold arity): a base-node does the
-/// work of `b` old leaves + one old R1 leaf-verifying node in a single circuit, and its own output
-/// proof is folded up the tree with [`FOLD_ARITY`] like any other node.
-///
-/// It is the single source of truth for the level-0 (bottom) arity — the base-node topology
-/// ([`base_fan_group_sizes`]) and the unpacker's bottom `fold_group` in [`prove_root_verification`]
-/// both read it via [`base_fan_arity`], so the base-nodes proved upstream (in gate-air-leaf) and the
-/// unpacker's reconstruction stay byte-identical.
-///
-/// Default `4`. Bounded by the 2^26 base-shard ceiling (roughly `b <= 32`) and O(shots/shard); the
-/// optimal `b` is a later box-tuning question, not fixed here.
-pub const BASE_FAN_ARITY: usize = 4;
-
-/// The base-fanning arity `b` in effect, reading the `BASE_FAN_ARITY` env override (else the
-/// [`BASE_FAN_ARITY`] const). Read at the consistent call sites (topology + unpacker) so the fold and
-/// the reconstruction agree; a value `< 1` is clamped to 1 (`b == 1` = no fanning, one base per
-/// base-node — the degenerate old-leaf behaviour).
-///
-/// Thin shim over [`TopologyConfig::from_env`]`().base_fan_arity` — kept so any residual call site (and
-/// the `BASE_FAN_ARITY` env sweep) still resolves to the same value the config would carry.
-pub fn base_fan_arity() -> usize {
-    TopologyConfig::from_env().base_fan_arity
-}
 
 /// Default recursion (node-node / root) FRI blowup factor. Feeds the ~96-bit-secure `(pow_bits,
 /// n_queries)` table via `get_pcs_config`; the value that makes production node/root proofs.
@@ -103,40 +78,19 @@ pub const BASE_LOG_BLOWUP: u32 = 1;
 /// ceil(samples / shots_per_shard)`.
 pub const SHOTS_PER_SHARD: usize = 2;
 
-/// Which bottom-layer recursion topology the pipeline uses. The up-tree node-node (R2) fold above the
-/// bottom layer is SHARED and identical in both modes — only the bottom layer (and the config /
-/// unpacker reconstruction that binds it) differs.
-///
-/// - [`FoldMode::BaseFanning`]: base-nodes upstream (one circuit verifies `b` gate_air bases and folds
-///   them), and `recursive_aggregate` folds those height-1 base-nodes up the tree with `FOLD_ARITY`. See
-///   [`recursive_aggregate_prove`] / [`prove_root_verification`] (`BaseFanBottom`).
-/// - [`FoldMode::LeafR1R2`] (DEFAULT, 2026-07-10): the production topology. gate-air-leaf proves one
-///   standalone **leaf** per shard; `recursive_aggregate` consumes ALL leaves at level 0 into height-1
-///   **leaf-verifying (R1)** nodes ([`recursive_aggregate_prove_leaves`]) and then folds those up with
-///   the SAME shared R2 fold. The unpacker reconstructs from the raw leaves
-///   ([`prove_root_verification_leaves`], `LeafBottom`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum FoldMode {
-    /// Base-fanning bottom (base-nodes proved upstream). The default.
-    #[default]
-    BaseFanning,
-    /// Standalone-leaf bottom with a level-0 leaf-verifying (R1) layer.
-    LeafR1R2,
-}
-
 /// All FREE topology parameters, in one place, threaded through the recursion + base-proof pipeline.
 ///
 /// Every field is a *free knob*; everything else (the `(pow_bits, n_queries)` at 96-bit, the trusted
 /// roots, the PCS/padding targets, `n_shards`, the base-shard trace log) is DERIVED from these (see
-/// `leaf::derive_base_fanning_config_ex`, `leaf_pcs_config`, `get_pcs_config`). Security params
+/// `leaf::derive_aggregate_config`, `leaf_pcs_config`, `get_pcs_config`). Security params
 /// (`fold_step`, `log_last_layer`, the 96-bit floor, `INTERACTION_POW_BITS`) are pinned, NOT exposed
 /// here — they must never be swept below the security floor.
 ///
 /// Construct once (via [`TopologyConfig::from_env`] on the production path, or a literal in a test)
 /// and thread it: `fold_arity` rides on the [`AggregateConfig`] (so every config-carrying fold fn
-/// reads `config.fold_arity`), while the blowups / `base_fan_arity` / `shots_per_shard` are read at
-/// the construction / derivation sites. The [`Default`] impl and [`TopologyConfig::from_env`] both
-/// reproduce the current production values, so introducing the struct is a byte-identical no-op.
+/// reads `config.fold_arity`), while the blowups / `shots_per_shard` are read at the construction /
+/// derivation sites. The [`Default`] impl and [`TopologyConfig::from_env`] both reproduce the current
+/// production values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TopologyConfig {
     /// Base (shard) gate_air proof FRI blowup factor. Default [`BASE_LOG_BLOWUP`] (env `BASE_BLOWUP`).
@@ -151,38 +105,29 @@ pub struct TopologyConfig {
     /// Node-node fold arity `k` (each internal R2 node verifies exactly `k` children). Default
     /// [`FOLD_ARITY`].
     pub fold_arity: usize,
-    /// Base-fanning arity `b` (bases per base-node). Default [`BASE_FAN_ARITY`] (env `BASE_FAN_ARITY`);
-    /// clamped to `>= 1`.
-    pub base_fan_arity: usize,
     /// Shots per base shard (partition knob). Default [`SHOTS_PER_SHARD`] (env `GATE_AIR_SHARD_SHOTS`).
     pub shots_per_shard: usize,
-    /// Bottom-layer topology (default [`FoldMode::BaseFanning`], env `GATE_AIR_FOLD_MODE` =
-    /// `base_fanning` | `leaf_r1r2`). Selects the parallel bottom-layer path; the shared up-tree R2
-    /// fold is identical in both.
-    pub fold_mode: FoldMode,
 }
 
 impl Default for TopologyConfig {
-    /// Production values. Default topology = LeafR1R2 (set 2026-07-10; was BaseFanning).
+    /// Production values. Bottom-layer topology is the standalone-leaf → level-0 leaf-verifying (R1)
+    /// → shared R2 up-tree fold.
     fn default() -> Self {
         TopologyConfig {
             base_log_blowup: BASE_LOG_BLOWUP,
             recursion_log_blowup: RECURSION_LOG_BLOWUP,
             leaf_log_blowup: RECURSION_LOG_BLOWUP,
             fold_arity: FOLD_ARITY,
-            base_fan_arity: BASE_FAN_ARITY,
             shots_per_shard: SHOTS_PER_SHARD,
-            fold_mode: FoldMode::LeafR1R2,
         }
     }
 }
 
 impl TopologyConfig {
     /// The topology config in effect, applying the env overrides existing sweep scripts rely on:
-    /// `BASE_BLOWUP` → `base_log_blowup`, `BASE_FAN_ARITY` → `base_fan_arity` (clamped `>= 1`),
-    /// `GATE_AIR_SHARD_SHOTS` → `shots_per_shard` (`> 0`), `GATE_AIR_FOLD_ARITY` → `fold_arity`
-    /// (clamped `>= 2`), `LEAF_BLOWUP` → `leaf_log_blowup`. `recursion_log_blowup` keeps its [`Default`]
-    /// value (no env knob today). Unset /
+    /// `BASE_BLOWUP` → `base_log_blowup`, `GATE_AIR_SHARD_SHOTS` → `shots_per_shard` (`> 0`),
+    /// `GATE_AIR_FOLD_ARITY` → `fold_arity` (clamped `>= 2`), `LEAF_BLOWUP` → `leaf_log_blowup`.
+    /// `recursion_log_blowup` keeps its [`Default`] value (no env knob today). Unset /
     /// unparseable env vars fall back to the default, so with a clean environment this equals
     /// [`TopologyConfig::default`] exactly (in particular `fold_arity` stays 8 — a byte-identical no-op
     /// unless `GATE_AIR_FOLD_ARITY` is explicitly set, e.g. `=4` for the a2 sweep).
@@ -198,18 +143,9 @@ impl TopologyConfig {
             fold_arity: parse_env::<usize>("GATE_AIR_FOLD_ARITY")
                 .unwrap_or(d.fold_arity)
                 .max(2),
-            base_fan_arity: parse_env::<usize>("BASE_FAN_ARITY")
-                .unwrap_or(d.base_fan_arity)
-                .max(1),
             shots_per_shard: parse_env::<usize>("GATE_AIR_SHARD_SHOTS")
                 .filter(|&n| n > 0)
                 .unwrap_or(d.shots_per_shard),
-            fold_mode: match std::env::var("GATE_AIR_FOLD_MODE").ok().as_deref() {
-                Some("leaf_r1r2") => FoldMode::LeafR1R2,
-                Some("base_fanning") => FoldMode::BaseFanning,
-                // Unset / unparseable falls back to the default (now LeafR1R2, set 2026-07-10).
-                _ => d.fold_mode,
-            },
         }
     }
 }
@@ -258,41 +194,6 @@ pub struct TreeProof {
     pub output_values: [QM31; N_RESERVED],
 }
 
-/// One gate_air BASE's contribution to the unpacker's base-node reconstruction: the base's own
-/// preprocessed root and its output digest `H_i`. These are the two pieces a base-node's fold-hash
-/// binds per child (`[preprocessed_root words, H_i words]`), so the unpacker reconstructs each
-/// base-node's hash from `b` of these — byte-identical to `build_gate_air_base_node_circuit`.
-///
-/// A base has no circuit `proof` field here: the unpacker never re-verifies a base (the upstream
-/// base-node already did, in-circuit); it only rehashes each base's public `(preprocessed_root, H_i)`.
-#[derive(Clone)]
-pub struct BaseOutput {
-    /// The base's preprocessed (tree0) root — shard-invariant, equal to `AggregateConfig`'s
-    /// `base_preprocessed_root` for every honest base; guessed per base in the reconstruction.
-    pub preprocessed_root: HashValue<QM31>,
-    /// The base's output digest `H_i = blake2s(H_P ‖ x_i ‖ y_i)` (eight QM31 words).
-    pub output_values: [QM31; N_RESERVED],
-}
-
-/// The bottom-level input to the unpacker under base-fanning: the ordered bases plus the public data
-/// needed to reconstruct their base-nodes.
-///
-/// The base-nodes were proved UPSTREAM (in gate-air-leaf); recursive_aggregate cannot rebuild the
-/// gate_air base-node circuit, so gate-air-leaf supplies the trusted (public, arity-derived) root
-/// each base-node reported. `base_node_roots[g]` is the reported preprocessed root of the `g`-th
-/// base-node, whose children are the bases at group `g` of `base_fan_group_sizes(bases.len(), b)`.
-pub struct BaseFanBottom {
-    /// The gate_air bases in canonical order (base `i` is shard `i`).
-    pub bases: Vec<BaseOutput>,
-    /// The base-fanning arity `b` used to group bases into base-nodes (from [`base_fan_arity`]).
-    pub b: usize,
-    /// Per base-node group (in `base_fan_group_sizes` order), the trusted preprocessed root the
-    /// corresponding base-node reported (full-`b` groups all share `R_base`; a short trailing group
-    /// reports its own `R_base'(m)`). Public + arity-derived, computed by gate-air-leaf's
-    /// `derive_base_fanning_config`; the unpacker binds them.
-    pub base_node_roots: Vec<HashValue<QM31>>,
-}
-
 /// zk-blinding parameters for the root verification (the only blinded proof).
 #[derive(Clone, Copy)]
 pub struct ZkBlind {
@@ -304,25 +205,16 @@ pub struct ZkBlind {
 
 /// Static configuration shared by every node in the tree.
 ///
-/// BASE-FANNING. The bottom of the tree is a **base-node** (`R_base`): a single circuit that verifies
-/// `b` = [`base_fan_arity`] gate_air BASE proofs directly and folds them (built + proved UPSTREAM in
-/// gate-air-leaf's `build_gate_air_base_node_circuit` — `recursive_aggregate` is leaf-type-agnostic
-/// and never builds it). It replaces the old standalone leaf layer AND the old R1 leaf-verifying
-/// node in one proof. `recursive_aggregate` therefore only folds the base-nodes up the tree with
-/// `FOLD_ARITY`, and only needs two trusted bottom roots + the R2 machinery:
-///   - **R_base** ([`base_node_preprocessed_root`]) — the base-node circuit's own preprocessed root.
-///     A height-1 base-node reports it to its R2 parent, and the unpacker binds it when it
-///     reconstructs a base-node from `b` bases.
-///   - **base tree0** ([`base_preprocessed_root`]) — the shard-invariant preprocessed root of the
-///     gate_air BASE proofs. The unpacker uses this single constant for *every* base, which both
-///     reconstructs the base-node hashes and forces every base to share this AIR.
+/// LEAF/R1/R2. The bottom of the tree is a standalone **leaf** (one gate_air base proof verified in
+/// its own circuit). `recursive_aggregate` consumes ALL leaves at level 0 into height-1 **leaf-
+/// verifying (R1)** nodes ([`recursive_aggregate_prove_leaves`]) and then folds those up the tree with
+/// `FOLD_ARITY` via the shared **R2** node-node fold. The R2 machinery is:
 ///   - **R2** ([`node_preprocessed_root`]) — height-≥2 full-`k` nodes, which verify `FOLD_ARITY`
 ///     NODES (child config [`node_shared_config`], the multiverifier's own shape — the
-///     self-verifying fixed point). A base-node's OWN proof is a circuit-prover proof of the common
-///     node shape, so R2 verifies base-nodes exactly as it verified R1 nodes; UNCHANGED from the
-///     pre-base-fanning topology.
+///     self-verifying fixed point).
+/// The leaf/R1 tier's trusted roots + configs live in the LeafR1R2 fields below.
 ///
-/// SHORT nodes (arity `2..=k-1`: the level-0 base-node-remainder groups and the short root) have a
+/// SHORT nodes (arity `2..=k-1`: the level-0 leaf-node-remainder groups and the short root) have a
 /// structurally different circuit ⇒ a DISTINCT preprocessed root per (level, arity). These are not
 /// stored here; they are recomputed on the fly (`prove_short_node` when proving, and
 /// `short_node_preprocessed_root` in the unpacker) from the public (level, arity) — never
@@ -337,20 +229,11 @@ pub struct AggregateConfig {
     /// **R2** — the preprocessed root of a level-≥2 (node-verifying) multiverifier node. Reported by
     /// every internal node of height ≥ 2 to its parent.
     pub node_preprocessed_root: HashValue<QM31>,
-    /// **R_base** — the preprocessed root of the base-fanning node circuit (verifies `b` bases). A
-    /// height-1 base-node reports it to its R2 parent; the unpacker binds it for the reconstructed
-    /// base-node. Analogous to the old R1 (level-1 leaf-verifying node) root.
-    pub base_node_preprocessed_root: HashValue<QM31>,
-    /// The trusted (shard-invariant) preprocessed root of the gate_air BASE proofs. The root
-    /// verification's unpacker uses this single constant for *all* bases, which both reconstructs the
-    /// base-node hashes and forces every base to share this AIR (a base with a different `pp_root`
-    /// makes the reconstruction miss the verified root). Analogous to the old `leaf_preprocessed_root`.
-    pub base_preprocessed_root: HashValue<QM31>,
-    /// Padding targets applied to every node's trace, so all node *proofs* (R2 nodes AND the
-    /// upstream-built base-nodes) share one circuit shape (hence one `node_shared_config`).
+    /// Padding targets applied to every node's trace, so all node *proofs* share one circuit shape
+    /// (hence one `node_shared_config`).
     pub node_target_padding_sizes: ComponentSizes,
     /// PCS config used to prove each NODE and to VERIFY the root (a node proof) in
-    /// [`prove_root_verification`]. A node proof's Merkle auth-path height is
+    /// [`prove_root_verification_leaves`]. A node proof's Merkle auth-path height is
     /// `node_log_size + log_blowup`; this field carries the node-sized lifting.
     pub node_pcs_config: PcsConfig,
     /// Node-node fold arity `k` in effect (from [`TopologyConfig::fold_arity`]). Carried on the config
@@ -359,32 +242,27 @@ pub struct AggregateConfig {
     /// out-of-circuit unpacker and the in-circuit node hash both depend on for byte-identity.
     pub fold_arity: usize,
 
-    // ---- LEAF/R1/R2 topology extras ([`FoldMode::LeafR1R2`] only) --------------------------------
-    // These reintroduce the PRE-BASE-FANNING three-tier bottom layer (standalone leaf → level-0
-    // leaf-verifying R1 node → shared R2 up-tree fold) as a PARALLEL path. They are `None` under
-    // [`FoldMode::BaseFanning`] (the base-fanning fields above carry that mode's bottom layer) and
-    // `Some` under [`FoldMode::LeafR1R2`], populated by gate-air-leaf's `derive_aggregate_config`.
-    // The shared height-≥2 R2 fold above the bottom layer uses ONLY the base-fanning fields above
-    // (`node_shared_config`, `node_preprocessed_root`), so it is untouched.
-    /// Verifier/prover config for a level-1 node whose CHILDREN are LEAVES ([`FoldMode::LeafR1R2`]).
-    /// Built from the leaf circuit's preprocessed shape (`shared_config_for_leaf`); also deserializes
-    /// the leaf proofs a level-1 (R1) node verifies. `None` under base-fanning.
+    // ---- LEAF/R1 bottom-layer tier -----------------------------------------------------------------
+    // The three-tier bottom layer (standalone leaf → level-0 leaf-verifying R1 node → shared R2 up-tree
+    // fold), populated by gate-air-leaf's `derive_aggregate_config`. `Option` for historical reasons
+    // (they were `None` for an alternate bottom layer that no longer exists); always `Some` today. The
+    // shared height-≥2 R2 fold above the bottom layer uses ONLY `node_shared_config` /
+    // `node_preprocessed_root`, so it is untouched.
+    /// Verifier/prover config for a level-1 node whose CHILDREN are LEAVES. Built from the leaf
+    /// circuit's preprocessed shape (`shared_config_for_leaf`); also deserializes the leaf proofs a
+    /// level-1 (R1) node verifies.
     pub leaf_shared_config: Option<SharedConfig>,
-    /// **R1** — the preprocessed root of a level-1 (leaf-verifying) multiverifier node
-    /// ([`FoldMode::LeafR1R2`]). Reported by every height-1 leaf-node to its R2 parent. `None` under
-    /// base-fanning.
+    /// **R1** — the preprocessed root of a level-1 (leaf-verifying) multiverifier node. Reported by
+    /// every height-1 leaf-node to its R2 parent.
     pub level1_preprocessed_root: Option<HashValue<QM31>>,
-    /// The trusted preprocessed root of the leaf circuit (same AIR for every leaf,
-    /// [`FoldMode::LeafR1R2`]). The unpacker uses this single constant for *all* leaves. `None` under
-    /// base-fanning (base-fanning uses `base_preprocessed_root` for its bases instead).
+    /// The trusted preprocessed root of the leaf circuit (same AIR for every leaf). The unpacker uses
+    /// this single constant for *all* leaves.
     pub leaf_preprocessed_root: Option<HashValue<QM31>>,
     /// Padding targets applied to every LEAF's trace — the leaf's OWN target (~2^20), decoupled from
-    /// the node size so `t_leaf` is pinned independent of `FOLD_ARITY` ([`FoldMode::LeafR1R2`]).
-    /// `None` under base-fanning.
+    /// the node size so `t_leaf` is pinned independent of `FOLD_ARITY`.
     pub leaf_target_padding_sizes: Option<ComponentSizes>,
     /// PCS config used to prove each LEAF (and to describe the leaf proof shape a level-1 node
-    /// verifies) ([`FoldMode::LeafR1R2`]). Leaf lifting ~24 (below the node's ~25). `None` under
-    /// base-fanning.
+    /// verifies). Leaf lifting ~24 (below the node's ~25).
     pub leaf_pcs_config: Option<PcsConfig>,
 }
 
@@ -398,10 +276,9 @@ pub struct RecursionPrecompute {
     /// [`prove_node`] call at height ≥ 2.
     pub node_precompute: Option<Arc<CircuitPrecompute>>,
     /// Precompute for the level-1 (leaf-verifying, R1) multiverifier node circuit, reused for every
-    /// [`prove_leaf_or_short`] full-`k` call ([`FoldMode::LeafR1R2`]).
+    /// [`prove_leaf_or_short`] full-`k` call.
     pub level1_precompute: Option<Arc<CircuitPrecompute>>,
-    /// Precompute for the leaf circuit, reused for every `prove_gate_air_leaf` call
-    /// ([`FoldMode::LeafR1R2`]).
+    /// Precompute for the leaf circuit, reused for every `prove_gate_air_leaf` call.
     pub leaf_precompute: Option<Arc<CircuitPrecompute>>,
 }
 
@@ -619,49 +496,14 @@ impl PoolSet {
     }
 }
 
-/// The arities of the base-fanning nodes over `n_bases` bases, left-to-right — a deterministic
-/// function of the public base count `N` and the base-fanning arity `b` (SOUNDNESS: the topology is
-/// public, never prover-chosen).
+/// The SHARED up-tree R2 fold: folds `nodes` (each a height-1 node proof — the level-0 leaf-verifying
+/// R1 nodes from [`recursive_aggregate_prove_leaves`]) into a single root proof by repeatedly proving
+/// `FOLD_ARITY`-to-1 multiverifier nodes.
 ///
-/// Each group of `b` (plus a short trailing group of the `n_bases % b` remainder, if any) becomes one
-/// base-node (proved upstream in gate-air-leaf; reconstructed in the unpacker). Contiguous groups,
-/// left-to-right, each an arity in `1..=b`:
-///   - `n_bases <= b`: one group of arity `n_bases`.
-///   - `n_bases > b`: `n_bases / b` groups of arity `b`, then (if `r = n_bases % b > 0`) one short
-///     group of arity `r`.
-///
-/// A short (or even lone, `r == 1`) trailing group is fine: a base-node wrapping `m < b` bases is
-/// just a smaller base-node of a distinct (public, arity-derived) shape `R_base'(m)`; unlike the old
-/// leaf/R1 decoupling there is no lone-child hazard (every base-node's OWN proof pads to the common
-/// node shape, so R2 verifies them all identically). The single source of truth for how bases bundle
-/// into base-nodes: gate-air-leaf proves base-nodes with exactly these groups, and the unpacker
-/// reconstructs them with exactly these groups.
-///
-/// # Panics
-/// If `n_bases == 0` or `b < 1`.
-pub fn base_fan_group_sizes(n_bases: usize, b: usize) -> Vec<usize> {
-    assert!(n_bases >= 1, "base_fan_group_sizes needs n_bases >= 1");
-    assert!(b >= 1, "base_fan_arity b must be >= 1");
-    if n_bases <= b {
-        return vec![n_bases];
-    }
-    let full = n_bases / b;
-    let r = n_bases % b;
-    let mut v = vec![b; full];
-    if r > 0 {
-        v.push(r);
-    }
-    v
-}
-
-/// Folds `base_nodes` (each a height-1 base-fanning-node proof, reported root `R_base`, proved
-/// UPSTREAM in gate-air-leaf) into a single root proof by repeatedly proving `FOLD_ARITY`-to-1
-/// multiverifier nodes.
-///
-/// Under base-fanning the bottom of the tree — verifying `b` bases per base-node — is already done
-/// before this is called, so this is JUST the classic group+carry node-node fold over the base-nodes
-/// (every base-node is height 1; the produced R2 nodes are height ≥ 2). Any `M >= 1` base-nodes:
-///   - `M == 1`: the lone base-node IS the root (no further fold).
+/// The bottom of the tree (the R1 leaf-verifying layer) is already done before this is called, so this
+/// is JUST the classic group+carry node-node fold over height-1 nodes (the produced R2 nodes are
+/// height ≥ 2). Any `M >= 1` nodes:
+///   - `M == 1`: the lone node IS the root (no further fold).
 ///   - `M >= 2`: group the leading full-`k` runs into exactly-`k` node-verifying (R2) nodes and carry
 ///     the `< k` remainder up unchanged; the first level to reach `2..=k` entries folds whole into
 ///     the (possibly short) root. Every internal node-node is exactly-`k` (shares `node_precompute` /
@@ -870,7 +712,7 @@ fn run_fold_task(
 /// on completion order; every [`FoldTask`] sees the same ordered children the sequential fold gives
 /// its matching `prove_node`/`prove_short_node`. Because those are pure functions of their ordered
 /// children, identical topology + identical per-node inputs ⇒ identical root proof and
-/// `recursion_fingerprint`, which the [`prove_root_verification`] unpacker still binds.
+/// `recursion_fingerprint`, which the [`prove_root_verification_leaves`] unpacker still binds.
 ///
 /// Streaming schedule: one coordinator owns the dataflow state; `pools.n_pools()` workers (one per
 /// pool) pull ready folds and run the fold via [`ThreadPool::install`]. As base-nodes arrive on `rx`,
@@ -984,7 +826,7 @@ pub fn recursive_aggregate_prove_streaming(
                     // delivered to its parent the children have no remaining references and are freed
                     // (dropped when `children` leaves scope). Nothing retains proved node proofs:
                     // peak host memory therefore holds only the N leaves (owned by the caller for
-                    // `prove_root_verification`) + the O(log_k N) in-flight fold path, never all the
+                    // `prove_root_verification_leaves`) + the O(log_k N) in-flight fold path, never all the
                     // node proofs.
                     let children: Vec<TreeProof> = {
                         let mut st = state.lock().unwrap();
@@ -1043,18 +885,15 @@ pub fn recursive_aggregate_prove_streaming(
 }
 
 // =================================================================================================
-// LEAF/R1/R2 bottom layer ([`FoldMode::LeafR1R2`], PARALLEL to base-fanning) — restored from the
-// pre-base-fanning topology (proving-utils 79eaa0b). Confined to the BOTTOM layer + config +
-// unpacker; the shared height-≥2 R2 up-tree fold (`recursive_aggregate_prove`, `prove_node`,
-// `prove_short_node`, `build_node_context`, `build_fold_topology`) is UNCHANGED and reused by both
-// modes. Under this mode the caller proves standalone leaves upstream; the level-0 layer below
-// consumes ALL leaves into height-1 leaf-verifying (R1) nodes, then delegates the up-tree fold to the
-// shared base-fanning path (a height-1 leaf-node's OWN proof has the same shape as a base-node's, so
-// R2 verifies them identically).
+// LEAF/R1/R2 bottom layer. Confined to the BOTTOM layer + config + unpacker; the shared height-≥2 R2
+// up-tree fold (`recursive_aggregate_prove`, `prove_node`, `prove_short_node`, `build_node_context`,
+// `build_fold_topology`) is reused. The caller proves standalone leaves upstream; the level-0 layer
+// below consumes ALL leaves into height-1 leaf-verifying (R1) nodes, then delegates the up-tree fold
+// to the shared path.
 // =================================================================================================
 
-/// A node's tree level, which selects its shape under leaf↔node padding decoupling
-/// ([`FoldMode::LeafR1R2`]). A **level-1** node verifies `FOLD_ARITY` LEAVES (child config
+/// A node's tree level, which selects its shape under leaf↔node padding decoupling.
+/// A **level-1** node verifies `FOLD_ARITY` LEAVES (child config
 /// `leaf_shared_config`) and reports **R1** (`level1_preprocessed_root`); a **level-≥2** node verifies
 /// NODES (child config `node_shared_config`) and reports **R2** (`node_preprocessed_root`). The level
 /// is fixed by the public topology (`FoldTask::height`), never prover-chosen. Only the leaf-node
@@ -1110,7 +949,7 @@ impl NodeLevel {
 }
 
 /// The arities of the LEVEL-0 (leaf-verifying) nodes for `n_leaves`, left-to-right — a deterministic
-/// function of the public `N` and fold arity `k` ([`FoldMode::LeafR1R2`]; SOUNDNESS: public topology,
+/// function of the public `N` and fold arity `k` (SOUNDNESS: public topology,
 /// never prover-chosen).
 ///
 /// LEAF↔NODE DECOUPLING FIX: leaves (lift24) and nodes (lift25) have different proof shapes, so a
@@ -1148,7 +987,7 @@ fn level0_group_sizes(n_leaves: usize, k: usize) -> Vec<usize> {
 }
 
 /// Builds and pads (to the common `node_target_padding_sizes`) the multiverifier circuit that verifies
-/// `children`, using the child-verifier config for the node's `level` ([`FoldMode::LeafR1R2`]).
+/// `children`, using the child-verifier config for the node's `level`.
 /// Distinct from the shared `build_node_context` (always R2) — this selects the child config by level.
 fn build_leaf_node_context(
     children: &[TreeProof],
@@ -1162,7 +1001,7 @@ fn build_leaf_node_context(
     context
 }
 
-/// Proves one LEVEL-0 (height-1, leaf-verifying) node over `children` leaves ([`FoldMode::LeafR1R2`]):
+/// Proves one LEVEL-0 (height-1, leaf-verifying) node over `children` leaves:
 /// full-`k` groups go through the R1 precompute/`prove_circuit_assignment` path (reporting R1); short
 /// groups (`2..=k-1`) recompute their real root R1'(m). `height` is always 1.
 fn prove_leaf_or_short(
@@ -1225,7 +1064,7 @@ fn prove_leaf_or_short(
     }
 }
 
-/// Folds standalone `leaves` into a single root proof ([`FoldMode::LeafR1R2`]). LEVEL 0 consumes ALL
+/// Folds standalone `leaves` into a single root proof. LEVEL 0 consumes ALL
 /// leaves into height-1 leaf-verifying (R1) nodes via [`level0_group_sizes`] + [`prove_leaf_or_short`]
 /// (so no leaf survives above height 1), then the SHARED [`recursive_aggregate_prove`] folds those
 /// height-1 leaf-nodes up the tree with the identical R2 group+carry.
@@ -1270,8 +1109,8 @@ pub fn recursive_aggregate_prove_leaves(
         .collect();
     let leaf_nodes: Vec<TreeProof> = pools.map(jobs);
 
-    // --- Levels ≥ 1: SHARED up-tree R2 fold over the height-1 leaf-nodes (byte-identical to the
-    //     base-fanning fold over base-nodes; a lone leaf-node is returned as the root at n_levels 1). ---
+    // --- Levels ≥ 1: SHARED up-tree R2 fold over the height-1 leaf-nodes (a lone leaf-node is
+    //     returned as the root at n_levels 1). ---
     recursive_aggregate_prove(leaf_nodes, config, pre, pools)
 }
 
@@ -1582,7 +1421,7 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
 
 /// The preprocessed root a SHORT leaf-verifying (R1) node of the given `arity` (`2..=k-1`) reports —
 /// recomputed witness-independently over `leaf_shared_config`, byte-identical to what
-/// [`prove_leaf_or_short`] recomputes for the same shape ([`FoldMode::LeafR1R2`]). Pure function of
+/// [`prove_leaf_or_short`] recomputes for the same shape. Pure function of
 /// the public `arity`.
 fn short_leaf_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> HashValue<QM31> {
     let shared = NodeLevel::VerifiesLeaves.shared_config(config);
@@ -1594,7 +1433,7 @@ fn short_leaf_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> 
     preprocessed_root(&pp, config.node_pcs_config.fri_config.log_blowup_factor)
 }
 
-/// The bottom-level input to the unpacker under [`FoldMode::LeafR1R2`]: the ordered standalone leaves
+/// The bottom-level input to the unpacker: the ordered standalone leaves
 /// (each a proved height-0 leaf `TreeProof` reporting `leaf_preprocessed_root`).
 pub struct LeafBottom {
     /// The standalone leaves in canonical order (leaf `i` is shard `i`).
@@ -1611,25 +1450,6 @@ pub struct RootVerificationOutput {
     pub trace_log_size: u32,
 }
 
-/// Builds and proves the **root verification** — the only published, only zk-blinded proof.
-///
-/// In-circuit it (1) reconstructs the root multiverifier statement and runs the STARK verifier on
-/// the root proof, then (2) **unpacks**: it guesses each base's `(preprocessed_root, H_i)`,
-/// reconstructs the tree's root hash via the same per-node `blake([ppR_i, outs_i] for the children)`
-/// binding the nodes used — the BOTTOM level groups `b` bases into base-node hashes (binding the
-/// trusted `R_base` roots `bottom.base_node_roots` and one trusted `base_preprocessed_root` for every
-/// base), then LEVELS ≥ 1 fold the base-nodes with `node_preprocessed_root` (R2) — `eq`-binds the
-/// reconstructed root to the verified root output, and (3) emits the per-base `H_i` as public
-/// outputs. The unpack is **O(N)** — it touches every base — and using one `base_preprocessed_root`
-/// for all bases forces them to share the base AIR.
-///
-/// `bottom.bases` must be the same ordered bases the upstream base-nodes were proved over, and `root`
-/// the root [`recursive_aggregate_prove`] returned over those base-nodes; the unpacker reconstructs
-/// the same shape the fold built. The circuit's own prove config is derived from its actual trace
-/// size.
-///
-/// If `zk_blind` is `Some`, the circuit is zk-blinded before proving — this is where hiding lives,
-/// since this is the only published proof and its trace transitively encodes the whole tree.
 /// Bakes a canonical preprocessed root (eight `(lo, hi, 0, 0)`-packed u32 words) into the circuit as
 /// eight `context.constant` wires, yielding a [`HashValue<Var>`] usable exactly where a *guessed*
 /// root was. SOUNDNESS: a constant is part of the circuit's FIXED data (constants are hashed into the
@@ -1649,376 +1469,14 @@ fn constant_pp<Value: IValue>(
     }))
 }
 
-/// Builds the base-fanning root-verification unpacker circuit, generic over `Value`, through
-/// finalize + (optional) zk-blinding + power-of-two padding — the SINGLE code path shared by the
-/// QM31 prove ([`prove_root_verification`]) and the NoValue canonical-root recompute
-/// ([`base_fan_unpacker_preprocessed_root`], used by the trusted final verifier). Sharing one builder
-/// is what guarantees the recomputed canonical preprocessed root is byte-identical to the published
-/// proof's: identical gate structure, identical baked constants, identical blinding/padding.
-///
-/// `root_proof` / `base_output_values` carry the witness (real for QM31, `empty_proof` + `NoValue`
-/// for the recompute); `root_output_values` and every preprocessed root are QM31 constants that do
-/// NOT depend on `Value` (so the shape is value-independent). The child preprocessed roots
-/// (`base_preprocessed_root`, `base_node_roots`, and the fold `node_preprocessed_root` /
-/// `short_node_preprocessed_root`) are BAKED as constants ([`constant_pp`]) so the canonical-root
-/// check pins the whole reconstructed fold to canonical.
-#[allow(clippy::too_many_arguments)]
-fn build_base_fan_root_verification_context<Value: IValue>(
-    root_proof: Proof<Value>,
-    root_output_values: &[QM31],
-    root_preprocessed_root: &HashValue<QM31>,
-    base_output_values: &[[Value; N_RESERVED]],
-    base_node_roots: &[HashValue<QM31>],
-    n: usize,
-    b: usize,
-    config: &AggregateConfig,
-    zk_blind: Option<ZkBlind>,
-) -> FinalizedContext<Value> {
-    assert!(n >= 1, "need at least one base");
-    assert_eq!(base_output_values.len(), n, "base_output_values count must equal n");
-    // Fold arity `k` (from the config) — must match the fold that built `root` + the unpacker's own
-    // group+carry so the reconstructed root hash equals the verified one.
-    let k = config.fold_arity;
-
-    // Exposes every base's N_RESERVED outputs (its H_i).
-    let mut context = Context::<Value>::new(n * N_RESERVED);
-
-    // (1) Verify the root multiverifier proof in-circuit. The root is a NODE proof, so it is
-    //     verified with `node_shared_config` (the node's own shape). All node variants pad to the
-    //     common `node_target_padding_sizes`, so a node proof's shape
-    //     (preprocessed_column_log_sizes, n_columns, PCS) is level-independent; only the root's
-    //     `preprocessed_root` (R_base for a lone-base-node root, R2 above) differs, and that is
-    //     guessed inside `CircuitStatement::new` (a witness, verified by the in-circuit STARK verify
-    //     against `root_proof`), not part of the topology.
-    let circuit_config = CircuitConfig {
-        // The root is a NODE proof, so it is described/verified with the node-sized PCS (node
-        // lifting ~25), not the leaf PCS (~24). Using the leaf PCS here mis-sizes the Merkle
-        // lifting and panics the R2 root fold.
-        config: config.node_pcs_config,
-        n_outputs: N_RESERVED,
-        preprocessed_column_log_sizes: config
-            .node_shared_config
-            .preprocessed_column_log_sizes
-            .clone(),
-        preprocessed_root: root_preprocessed_root.clone(),
-    };
-    let statement = CircuitStatement::new(&mut context, &circuit_config, root_output_values);
-    let proof_vars = root_proof.guess(&mut context);
-    verify(
-        &mut context,
-        &proof_vars,
-        &config.node_shared_config.proof_config,
-        &statement,
-    );
-    let root_out_vars: Vec<Var> = statement.get_output_values().to_vec();
-
-    // (2) Unpack: reconstruct the tree root from the guessed per-base outputs and bind it to the
-    //     verified root.
-    //
-    // Each level entry is `(height, pp_root: HashValue<Var>, outs: Vec<Var>)`, where `pp_root` is the
-    // eight digest words of the child's preprocessed root (BAKED as constants — see `constant_pp`)
-    // and `outs` is the child's `N_RESERVED` output values (for a base: its guessed H_i; for a
-    // produced node: the eight words of its Blake digest, each a QM31 `(lo, hi, 0, 0)`).
-    // One trusted base tree0 root for EVERY base (forces a shared base AIR): baking the canonical
-    // value as a constant pins it (a forged base root can no longer be guessed to match).
-    let base_pp = constant_pp(&mut context, &config.base_preprocessed_root);
-    // Per-base entries (height 0), each carrying `base_pp` and its guessed H_i.
-    let mut base_output_vars: Vec<Vec<Var>> = Vec::with_capacity(n);
-    let mut base_entries: Vec<(usize, HashValue<Var>, Vec<Var>)> = base_output_values
-        .iter()
-        .map(|outs| {
-            let outs: Vec<Var> = outs.iter().map(|v| v.guess(&mut context)).collect();
-            base_output_vars.push(outs.clone());
-            (0usize, base_pp.clone(), outs)
-        })
-        .collect();
-
-    // The shared child-preimage hash for one ordered group of children, byte-identical to the
-    // in-circuit node hash in `build_multiverifier_circuit` / `build_gate_air_base_node_circuit`:
-    // per child `chain!(preprocessed_root.into_iter() [8 words], unpack_qm31s_to_u32_words(outputs))`,
-    // children left-to-right, hashed with `blake2s_u32s` over `4 * n_words` bytes. THE ONE ORDERING
-    // SPEC shared with the node circuits.
-    let fold_hash = |context: &mut Context<Value>,
-                     group: &[(usize, HashValue<Var>, Vec<Var>)]|
-     -> Vec<Var> {
-        let mut preimage: Vec<U32Wrapper<Var>> = Vec::new();
-        for (_, pp, outs) in group {
-            let output_words = unpack_qm31s_to_u32_words(context, outs.iter().copied());
-            preimage.extend(pp.iter().copied().chain(output_words));
-        }
-        let n_bytes = 4 * preimage.len();
-        let h = blake2s_u32s(context, preimage, n_bytes);
-        h.iter().map(|w| *w.get()).collect()
-    };
-
-    // `fold_group` folds one ordered group of NODES (height ≥ 1) into an R2 node (height ≥ 2), BAKING
-    // the SAME reported preprocessed root the prover reported for that node as a constant, selected by
-    // public (height, arity): arity == k -> the fixed R2 (`node_preprocessed_root`); arity < k (short
-    // root) -> the recomputed short-root real root via `short_node_preprocessed_root` (matches
-    // `prove_short_node` byte-for-byte). The value is pinned (constant), so a wrong reconstructed
-    // root can only miss the verified root ⇒ the proof is REJECTED, never accepted-invalid.
-    let fold_group = |context: &mut Context<Value>,
-                      group: &[(usize, HashValue<Var>, Vec<Var>)]|
-     -> (usize, HashValue<Var>, Vec<Var>) {
-        let outs = fold_hash(context, group);
-        let height = group.iter().map(|(h, _, _)| *h).max().unwrap() + 1;
-        let reported_root = if group.len() == k {
-            config.node_preprocessed_root.clone()
-        } else {
-            short_node_preprocessed_root(config, group.len())
-        };
-        let node_pp = constant_pp(context, &reported_root);
-        (height, node_pp, outs)
-    };
-
-    // --- BOTTOM LEVEL: group `b` bases into height-1 base-nodes, per `base_fan_group_sizes`. Each
-    //     base-node's hash is the shared fold-hash over its `b` bases; its reported root is the
-    //     trusted `base_node_roots[g]` (public, arity-derived, supplied by gate-air-leaf — the
-    //     unpacker cannot rebuild the gate_air base-node circuit), BAKED as a constant. This replaces
-    //     the old level-0 leaf-consumption; above it the fold is identical (group+carry over nodes). ---
-    // n == 1: a single base cannot form a base-node — the base-node was proved over >= 2 bases
-    // upstream. n bases -> base_fan_group_sizes.len() base-nodes.
-    let mut level: Vec<(usize, HashValue<Var>, Vec<Var>)> = {
-        let sizes = base_fan_group_sizes(n, b);
-        assert_eq!(
-            sizes.len(),
-            base_node_roots.len(),
-            "base_node_roots count must equal the number of base-node groups"
-        );
-        let mut bases_iter = base_entries.drain(..);
-        let bottom_level: Vec<(usize, HashValue<Var>, Vec<Var>)> = sizes
-            .iter()
-            .zip(base_node_roots.iter())
-            .map(|(&m, reported_root)| {
-                let group: Vec<(usize, HashValue<Var>, Vec<Var>)> =
-                    (0..m).map(|_| bases_iter.next().unwrap()).collect();
-                let outs = fold_hash(&mut context, &group);
-                let node_pp = constant_pp(&mut context, reported_root);
-                (1usize, node_pp, outs)
-            })
-            .collect();
-        drop(bases_iter);
-        bottom_level
-    };
-
-    // --- LEVELS ≥ 1: classic group+carry over NODES only (base-nodes and R2 nodes). ---
-    while level.len() > 1 {
-        if level.len() <= k {
-            // Terminal step: fold the whole (2..=k) level into the single (possibly short) root.
-            let root = fold_group(&mut context, &level);
-            level = vec![root];
-            break;
-        }
-        let remainder = level.len() % k;
-        let carry: Vec<(usize, HashValue<Var>, Vec<Var>)> =
-            level.split_off(level.len() - remainder);
-        let mut next = Vec::with_capacity(level.len() / k + remainder);
-        for group in level.chunks(k) {
-            next.push(fold_group(&mut context, group));
-        }
-        next.extend(carry);
-        level = next;
-    }
-    // Bind the reconstructed root's eight digest words to the verified root's eight output words.
-    // The verified root's `output_values` are the eight QM31 digest words; `root_out_vars` holds
-    // them directly (same encoding as `computed_root`), so the eight `eq`s are word-for-word.
-    let computed_root = &level[0].2;
-    for i in 0..N_RESERVED {
-        eq(&mut context, computed_root[i], root_out_vars[i]);
-    }
-
-    // (3) Emit the unpacked per-base outputs (each base's H_i) as public outputs.
-    let flat_outputs: Vec<Var> = base_output_vars.iter().flatten().copied().collect();
-    context.set_outputs(&flat_outputs);
-
-    // (4) Finalize, (optionally) blind, pad to power-of-two sizes.
-    //     Blinding runs before padding so the extra rows are absorbed into the padding.
-    //     NOTE: no `validate_circuit` here — this builder is generic over `Value` and runs on both
-    //     the `QM31` prove pass and the witness-free `NoValue` recompute pass, but
-    //     `FinalizedContext::validate_circuit` exists only for `QM31` (it checks concrete witness
-    //     values). Validation is a pure witness check that does NOT mutate the circuit, so the `QM31`
-    //     prove path validates the returned padded context itself (see `prove_root_verification`);
-    //     the `NoValue` recompute needs no witness check. The produced circuit / preprocessed root is
-    //     byte-identical either way.
-    let mut context = context.finalize(false);
-    if let Some(zk) = zk_blind {
-        add_zk_blinding(&mut context, zk.seed, zk.n_padding);
-    }
-    pad_context(&mut context);
-    context
-}
-
-/// Recomputes the CANONICAL base-fanning unpacker preprocessed root for the trusted public
-/// `(n, b, config, base_node_roots)`, witness-independently — the value the trusted final verifier
-/// (gate-air-leaf's `verify_gate_air_root`) checks the published `rv.proof` against. Rebuilds the
-/// SAME unpacker circuit the prover built (via the shared
-/// [`build_base_fan_root_verification_context`], but with a `NoValue` witness: `empty_proof` + zero
-/// base outputs), then preprocesses and roots it. Because the two passes share one builder and the
-/// same baked constants + blinding `n_padding`, this equals the published proof's preprocessed root
-/// by construction (the byte-identity obligation).
-///
-/// `base_node_roots` are the canonical (public, arity-derived) gate_air base-node roots for the
-/// `base_fan_group_sizes(n, b)` groups — recomputed by the trusted verifier from trusted `(n, b)`
-/// (gate-air-leaf's `base_node_root_for_arity`), NEVER taken from the prover; `recursive_aggregate`
-/// is leaf-agnostic and cannot rebuild the gate_air base-node circuit itself. `config`'s
-/// `base_preprocessed_root` / `node_preprocessed_root` must likewise be the canonical (trusted)
-/// values. `zk_n_padding` must be the same value the prover used (the root PCS `n_queries`) so the
-/// blinding rows — which change component sizes before padding — match; `None` means no blinding.
-pub fn base_fan_unpacker_preprocessed_root(
-    n: usize,
-    b: usize,
-    config: &AggregateConfig,
-    base_node_roots: &[HashValue<QM31>],
-    log_blowup_factor: u32,
-    zk_n_padding: Option<usize>,
-) -> HashValue<QM31> {
-    // The ROOT node's own preprocessed root is guessed inside `CircuitStatement::new` (a witness), so
-    // its concrete value does NOT affect the preprocessed trace shape; a placeholder is sufficient.
-    let root_pp = HashValue::from([0u32; N_RESERVED]);
-    let zk_blind = zk_n_padding.map(|n_padding| ZkBlind { seed: [0u8; 32], n_padding });
-    let root_output_values = [QM31::zero(); N_RESERVED];
-    let base_output_values = vec![[NoValue; N_RESERVED]; n];
-    let mut context = build_base_fan_root_verification_context::<NoValue>(
-        empty_proof(&config.node_shared_config.proof_config),
-        &root_output_values,
-        &root_pp,
-        &base_output_values,
-        base_node_roots,
-        n,
-        b,
-        config,
-        zk_blind,
-    );
-    let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
-    preprocessed_root(&preprocessed, log_blowup_factor)
-}
-
-/// Recomputes the full [`CircuitConfig`] the TRUSTED FINAL VERIFIER uses to `verify_circuit` the
-/// published base-fanning root-verification proof, from the trusted public `(n, b, config,
-/// base_node_roots)` — witness-independently, via the SAME shared builder
-/// ([`build_base_fan_root_verification_context`]) the prover used. Every field is derived from the
-/// canonical `NoValue` recompute (identical preprocessed trace shape to the `QM31` prove pass, by the
-/// byte-identity obligation), so it is byte-identical to the config `prove_root_verification`'s own
-/// final-proof sanity check builds — but here it is built WITHOUT any prover-supplied value:
-///   - `preprocessed_root` = the canonical unpacker root (the pin: a forged reconstruction that bakes
-///     a non-canonical child root produces a different preprocessed root ⇒ this config rejects it),
-///   - `preprocessed_column_log_sizes` / `config` (PCS) = the recomputed trace's own shape,
-///   - `n_outputs` = `n * N_RESERVED` (one `H_i` per base).
-///
-/// The caller (`verify_gate_air_root`) passes `rv.proof` + the CALLER-COMMITTED `rv.leaf_outputs` as
-/// `CircuitPublicData`. See [`base_fan_unpacker_preprocessed_root`] for the `(n, b, base_node_roots,
-/// zk_n_padding)` trust contract (all recomputed from trusted public params, never from the prover).
-pub fn base_fan_unpacker_verify_config(
-    n: usize,
-    b: usize,
-    config: &AggregateConfig,
-    base_node_roots: &[HashValue<QM31>],
-    log_blowup_factor: u32,
-    zk_n_padding: Option<usize>,
-) -> CircuitConfig {
-    let root_pp = HashValue::from([0u32; N_RESERVED]);
-    let zk_blind = zk_n_padding.map(|n_padding| ZkBlind { seed: [0u8; 32], n_padding });
-    let root_output_values = [QM31::zero(); N_RESERVED];
-    let base_output_values = vec![[NoValue; N_RESERVED]; n];
-    let mut context = build_base_fan_root_verification_context::<NoValue>(
-        empty_proof(&config.node_shared_config.proof_config),
-        &root_output_values,
-        &root_pp,
-        &base_output_values,
-        base_node_roots,
-        n,
-        b,
-        config,
-        zk_blind,
-    );
-    let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
-    let trace_log_size = preprocessed.trace_log_size;
-    CircuitConfig {
-        config: get_pcs_config(trace_log_size, log_blowup_factor),
-        n_outputs: n * N_RESERVED,
-        preprocessed_column_log_sizes: preprocessed.preprocessed_trace.log_sizes(),
-        preprocessed_root: preprocessed_root(&preprocessed, log_blowup_factor),
-    }
-}
-
-pub fn prove_root_verification(
-    root: &TreeProof,
-    bottom: &BaseFanBottom,
-    config: &AggregateConfig,
-    log_blowup_factor: u32,
-    zk_blind: Option<ZkBlind>,
-) -> RootVerificationOutput {
-    let n = bottom.bases.len();
-    assert!(!bottom.bases.is_empty(), "need at least one base");
-    let b = bottom.b;
-
-    let base_output_values: Vec<[QM31; N_RESERVED]> =
-        bottom.bases.iter().map(|base| base.output_values).collect();
-    let mut context = build_base_fan_root_verification_context::<QM31>(
-        root.proof.clone(),
-        &root.output_values,
-        &root.preprocessed_root,
-        &base_output_values,
-        &bottom.base_node_roots,
-        n,
-        b,
-        config,
-        zk_blind,
-    );
-    // Correctness tripwire (QM31 prove pass only — the shared builder skips it because it also runs
-    // witness-free for the `NoValue` recompute). Validating the final padded context subsumes the
-    // pre-blind + post-blind checks the builder used to run inline.
-    context.validate_circuit();
-
-    // (4b) Derive prove config from the actual trace size, prove.
-    let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
-    let trace_log_size = preprocessed.trace_log_size;
-    let pcs_config = get_pcs_config(trace_log_size, log_blowup_factor);
-    let circuit_proof = prove_circuit_assignment(
-        context.values(),
-        &preprocessed,
-        &BaseColumnPool::<SimdBackend>::new(),
-        pcs_config,
-    )
-    .expect("root-verification prove failed");
-    let (proof, public_data) = prepare_circuit_proof_for_circuit_verifier(circuit_proof);
-
-    // SANITY CHECK: verify the final published proof natively before returning it. Mirrors
-    // `privacy_circuit_verify::verify_recursive_circuit` — the root-verification proof is a
-    // `prepare_circuit_proof_for_circuit_verifier` (circuit_verifier-family) proof, so it is checked
-    // with `verify_circuit(CircuitConfig, proof, CircuitPublicData)`. Every input is derived from the
-    // circuit that produced this proof: the same `pcs_config`, its real output count (`n *
-    // N_RESERVED` flat leaf-output wires), the just-built preprocessed trace's column log sizes, and
-    // its real preprocessed root. `CircuitPublicData` is the `public_data` returned alongside the
-    // proof (the flat leaf outputs). Asserts the produced proof actually verifies.
-    let verify_config = CircuitConfig {
-        config: pcs_config,
-        n_outputs: n * N_RESERVED,
-        preprocessed_column_log_sizes: preprocessed.preprocessed_trace.log_sizes(),
-        preprocessed_root: preprocessed_root(&preprocessed, log_blowup_factor),
-    };
-    verify_circuit(
-        verify_config,
-        proof.clone(),
-        CircuitPublicData { output_values: public_data.output_values },
-    )
-    .expect("root-verification proof failed to verify (final-proof sanity check)");
-
-    RootVerificationOutput {
-        proof,
-        leaf_outputs: bottom.bases.iter().map(|base| base.output_values).collect(),
-        trace_log_size,
-    }
-}
-
 /// Builds the LEAF/R1/R2 root-verification unpacker circuit, generic over `Value`, through finalize +
 /// (optional) zk-blinding + power-of-two padding — the SINGLE code path shared by the QM31 prove
 /// ([`prove_root_verification_leaves`]) and the NoValue canonical-root recompute
 /// ([`leaf_r1r2_unpacker_preprocessed_root`] / [`leaf_r1r2_unpacker_verify_config`], used by the
 /// trusted final verifier). Sharing one builder is what guarantees the recomputed canonical
 /// preprocessed root is byte-identical to the published proof's: identical gate structure, identical
-/// baked constants, identical blinding/padding. Mirrors [`build_base_fan_root_verification_context`]
-/// but for the standalone-leaf bottom (level-0 leaf-verifying R1 layer via [`level0_group_sizes`]).
+/// baked constants, identical blinding/padding. The standalone-leaf bottom is the level-0
+/// leaf-verifying R1 layer (via [`level0_group_sizes`]).
 ///
 /// `root_proof` / `leaf_output_values` carry the witness (real for QM31, `empty_proof` + `NoValue`
 /// for the recompute); `root_output_values` and every preprocessed root are QM31 constants that do
@@ -2070,9 +1528,9 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
     // (2) Unpack: reconstruct the tree root from the guessed per-leaf outputs and bind it.
     // Every child preprocessed root (the leaf tree0 root + each fold-node's reported root) is a
     // CANONICAL config-derived value, so it is BAKED as a `constant_pp` (a constant is part of the
-    // circuit's fixed data, pinned by a trusted canonical-unpacker-root check), NOT guessed — mirrors
-    // the base-fanning unpacker (`build_base_fan_root_verification_context`). A guessed root would be
-    // an unpinned witness a malicious prover could set to a forged value; a baked constant cannot.
+    // circuit's fixed data, pinned by a trusted canonical-unpacker-root check), NOT guessed. A guessed
+    // root would be an unpinned witness a malicious prover could set to a forged value; a baked
+    // constant cannot.
     // One trusted leaf tree0 root for EVERY leaf (forces a shared leaf AIR).
     let leaf_pp = constant_pp(&mut context, &leaf_preprocessed_root);
     let mut leaf_output_vars: Vec<Vec<Var>> = Vec::with_capacity(n);
@@ -2141,7 +1599,7 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
         level0
     };
 
-    // --- LEVELS ≥ 1: SHARED classic group+carry over NODES only (identical to prove_root_verification). ---
+    // --- LEVELS ≥ 1: SHARED classic group+carry over NODES only (identical to prove_root_verification_leaves). ---
     while level.len() > 1 {
         if level.len() <= k {
             let root = fold_group(&mut context, &level);
@@ -2168,9 +1626,8 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
     let flat_outputs: Vec<Var> = leaf_output_vars.iter().flatten().copied().collect();
     context.set_outputs(&flat_outputs);
 
-    // (4) Finalize, (optionally) blind, pad to power-of-two sizes. See the note in
-    //     `build_base_fan_root_verification_context`: no `validate_circuit` here (generic over `Value`;
-    //     the QM31 prove path validates the returned padded context itself).
+    // (4) Finalize, (optionally) blind, pad to power-of-two sizes. No `validate_circuit` here (generic
+    //     over `Value`; the QM31 prove path validates the returned padded context itself).
     let mut context = context.finalize(false);
     if let Some(zk) = zk_blind {
         add_zk_blinding(&mut context, zk.seed, zk.n_padding);
@@ -2221,7 +1678,7 @@ pub fn leaf_r1r2_unpacker_preprocessed_root(
 /// Recomputes the full [`CircuitConfig`] the TRUSTED FINAL VERIFIER uses to `verify_circuit` the
 /// published LeafR1R2 root-verification proof, from the trusted public `(n, config)` —
 /// witness-independently, via the SAME shared builder ([`build_leaf_r1r2_root_verification_context`])
-/// the prover used. Mirror of [`base_fan_unpacker_verify_config`] for the standalone-leaf bottom:
+/// the prover used, for the standalone-leaf bottom:
 ///   - `preprocessed_root` = the canonical unpacker root (the pin: a forged reconstruction that bakes
 ///     a non-canonical child root produces a different preprocessed root ⇒ this config rejects it),
 ///   - `preprocessed_column_log_sizes` / `config` (PCS) = the recomputed trace's own shape,
@@ -2259,16 +1716,15 @@ pub fn leaf_r1r2_unpacker_verify_config(
     }
 }
 
-/// Builds and proves the **root verification** for [`FoldMode::LeafR1R2`] — the parallel unpacker for
-/// the standalone-leaf topology. Same two phases as [`prove_root_verification`] (verify the root
-/// multiverifier proof in-circuit, then reconstruct + bind the tree root and emit the leaf outputs),
-/// but the BOTTOM reconstruction differs: it guesses each LEAF's `(leaf_preprocessed_root,
-/// output_values)`, groups the leaves into height-1 leaf-nodes via [`level0_group_sizes`] (each
-/// reporting R1 for a full-`k` group, else the recomputed short R1'(m)), then folds those up with the
-/// SHARED level-≥1 R2 group+carry (byte-identical to `prove_root_verification`). Reconstructs the same
-/// shape [`recursive_aggregate_prove_leaves`] folds. The circuit-BUILD is factored into the shared
-/// generic [`build_leaf_r1r2_root_verification_context`] so the NoValue canonical-root recompute the
-/// trusted verifier runs is byte-identical.
+/// Builds and proves the **root verification** — the only published, only zk-blinded proof — for the
+/// standalone-leaf topology. Two phases: verify the root multiverifier proof in-circuit, then
+/// reconstruct + bind the tree root and emit the leaf outputs. The BOTTOM reconstruction guesses each
+/// LEAF's `(leaf_preprocessed_root, output_values)`, groups the leaves into height-1 leaf-nodes via
+/// [`level0_group_sizes`] (each reporting R1 for a full-`k` group, else the recomputed short R1'(m)),
+/// then folds those up with the SHARED level-≥1 R2 group+carry. Reconstructs the same shape
+/// [`recursive_aggregate_prove_leaves`] folds. The circuit-BUILD is factored into the shared generic
+/// [`build_leaf_r1r2_root_verification_context`] so the NoValue canonical-root recompute the trusted
+/// verifier runs is byte-identical.
 ///
 /// `bottom.leaves` must be the same ordered leaves fed to [`recursive_aggregate_prove_leaves`], and
 /// `root` the returned root. Requires a `LeafR1R2` config.
@@ -2356,17 +1812,16 @@ fn child_input(c: &TreeProof) -> MultiverifierInput<QM31> {
     }
 }
 
-// Under base-fanning every node `recursive_aggregate` builds verifies NODE children (base-nodes at
-// height 1, or R2 nodes at height ≥ 2) — the old leaf-verifying (R1) level is gone (base-nodes are
-// proved upstream). So there is a single node kind: `node_shared_config` (child config, the
-// self-verifying fixed point), reporting R2 (`node_preprocessed_root`) at full arity, and a
-// recomputed short-root real root at a short arity (the short ROOT only). `NodeLevel` (which used to
-// select R1 vs R2) is therefore removed; the unpacker still selects the trusted reported root by
-// public (height, arity) — R2 for full-`k`, `short_node_preprocessed_root` for the short root, and
-// `bottom.base_node_roots` for the base-node bottom level.
+// Every node the SHARED up-tree fold (`recursive_aggregate_prove`) builds verifies NODE children
+// (height-1 R1 leaf-nodes, or R2 nodes at height ≥ 2) with a single node kind: `node_shared_config`
+// (child config, the self-verifying fixed point), reporting R2 (`node_preprocessed_root`) at full
+// arity, and a recomputed short-root real root at a short arity (the short ROOT only). The unpacker
+// selects the trusted reported root by public (height, arity) — R2 for full-`k` and
+// `short_node_preprocessed_root` for the short root. (The level-0 R1 leaf-verifying layer is built by
+// `recursive_aggregate_prove_leaves` before the shared fold runs.)
 
 /// Builds and pads (to the common `node_target_padding_sizes`) the multiverifier circuit that
-/// verifies `children` (base-nodes / R2 nodes) with `node_shared_config`.
+/// verifies `children` (R1/R2 nodes) with `node_shared_config`.
 fn build_node_context(children: &[TreeProof], config: &AggregateConfig) -> FinalizedContext<QM31> {
     let inputs: Vec<MultiverifierInput<QM31>> = children.iter().map(child_input).collect();
     let mut context = build_multiverifier_circuit::<QM31>(inputs, &config.node_shared_config);
@@ -2593,9 +2048,9 @@ impl AggregateConfig {
             self.node_preprocessed_root,
             "full-{k} node-node preprocessed root recompute != trusted R2",
         );
-        // LeafR1R2 mode: also check the R1 (leaf-verifying) full-`k` root against its recompute. The
+        // Also check the R1 (leaf-verifying) full-`k` root against its recompute. The
         // `decoupled_roots_consistent` regression test exercises this branch in the genuinely
-        // decoupled R1 != R2 regime. Skipped under base-fanning (no leaf tier).
+        // decoupled R1 != R2 regime.
         if let Some(level1_root) = &self.level1_preprocessed_root {
             assert_eq!(
                 short_leaf_node_preprocessed_root(self, k),
@@ -2648,7 +2103,7 @@ pub fn multiverifier_node_preprocessed(
 #[cfg(test)]
 mod topology_tests {
     use super::{
-        Child, FOLD_ARITY, base_fan_group_sizes, build_fold_topology, level0_group_sizes,
+        Child, FOLD_ARITY, build_fold_topology, level0_group_sizes,
         root_arity,
     };
 
@@ -2875,26 +2330,6 @@ mod topology_tests {
                 sequential_node_count(m),
                 "m={m}: node count mismatch"
             );
-        }
-    }
-
-    /// Base-node grouping (`base_fan_group_sizes`) invariants over `n` bases: every group arity is in
-    /// `1..=b`, the groups partition all `n` bases in order, all but the last are full-`b`, and the
-    /// count matches `ceil(n/b)`. Swept for a few `b` (independent of FOLD_ARITY).
-    #[test]
-    fn base_fan_groups_valid() {
-        for b in 1..=8usize {
-            for n in 1..=260usize {
-                let sizes = base_fan_group_sizes(n, b);
-                assert_eq!(sizes.iter().sum::<usize>(), n, "b={b} n={n}: groups must cover all bases");
-                assert_eq!(sizes.len(), n.div_ceil(b), "b={b} n={n}: group count != ceil(n/b)");
-                for (gi, &m) in sizes.iter().enumerate() {
-                    assert!((1..=b).contains(&m), "b={b} n={n}: group {gi} arity {m} out of 1..=b");
-                    if gi + 1 < sizes.len() {
-                        assert_eq!(m, b, "b={b} n={n}: non-last group {gi} must be full-b");
-                    }
-                }
-            }
         }
     }
 
