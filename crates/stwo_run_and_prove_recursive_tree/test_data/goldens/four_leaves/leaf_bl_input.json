@@ -1,0 +1,19 @@
+{
+  "fact_topologies_path": null,
+  "output_preimage_dump_path": "/home/yairv/workspace/vm-cairo-rust/3_bootloader-hints/crates/stwo_run_and_prove_recursive_tree/test_data/goldens/four_leaves/leaf_preimage.json",
+  "single_page": true,
+  "tasks": [
+    {
+      "path": "/home/yairv/workspace/vm-cairo-rust/3_bootloader-hints/crates/stwo_run_and_prove_recursive_tree/test_data/simple_output_compiled.json",
+      "program_hash_function": "blake",
+      "program_input": {
+        "output": [
+          11,
+          13,
+          17
+        ]
+      },
+      "type": "RunProgramTask"
+    }
+  ]
+}

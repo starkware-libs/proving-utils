@@ -62,3 +62,5 @@ stwo.workspace = true
 tracing-subscriber.workspace = true
 # Tests stage leaf-proof fixtures and collect outputs under a throwaway directory.
 tempfile.workspace = true
+# Decode the leaf bootloader's hex-felt preimage dump in the true-e2e golden test.
+num-bigint.workspace = true
