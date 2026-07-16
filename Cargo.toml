@@ -90,6 +90,7 @@ stwo = { git = "https://github.com/starkware-libs/stwo", rev = "960b2529", defau
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
 leaf-proof-format = { path = "crates/leaf_proof_format" }
+leaf-prover = { path = "crates/leaf_prover" }
 privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
 stwo-run-and-prove-common = { path = "crates/stwo_run_and_prove_common", version = "1.2.2" }
 

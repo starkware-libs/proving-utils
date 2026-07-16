@@ -4575,6 +4575,7 @@ name = "stwo-run-and-prove-recursive-tree"
 version = "1.2.2"
 dependencies = [
  "blake2",
+ "cairo-air",
  "circuit-cairo-serialize",
  "circuit-cairo-verifier",
  "circuit-common",
@@ -4585,7 +4586,9 @@ dependencies = [
  "circuits",
  "circuits-stark-verifier",
  "clap",
+ "indexmap 2.14.0",
  "leaf-proof-format",
+ "leaf-prover",
  "serde",
  "serde_json",
  "sonic-rs",
