@@ -21,6 +21,7 @@ use circuit_serialize::deserialize::deserialize_proof_with_config;
 use circuit_verifier::components::prelude::PreProcessedColumnId;
 use circuit_verifier::statement::{
     INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
+    circuit_component_log_sizes,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
 use circuits::context::FinalizedContext;
@@ -211,8 +212,16 @@ pub fn get_recursive_circuit_config() -> CircuitConfig {
 
 pub fn get_proof_config() -> ProofConfig {
     let components = all_circuit_components::<QM31>();
+    // Sort the circuit components by log size, matching the prover order.
+    let preprocessed_column_log_sizes =
+        get_recursive_circuit_config().preprocessed_column_log_sizes;
+    let log_sizes = circuit_component_log_sizes(&components, &preprocessed_column_log_sizes);
+    let sorted_components = itertools::zip_eq(components, log_sizes)
+        .sorted_by_key(|(_, (_, log_size))| *log_size)
+        .map(|((name, component), _)| (name, component))
+        .collect();
     ProofConfig::new(
-        &components,
+        &sorted_components,
         PRIVACY_CIRCUIT_PREPROCESSED_IDS.len(),
         &CIRCUIT_PCS_CONFIG,
         CIRCUIT_INTERACTION_POW_BITS,
