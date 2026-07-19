@@ -600,12 +600,14 @@ pub fn root_arity(m_base_nodes: usize, k: usize) -> usize {
     len
 }
 
-/// A reference to one input of a streaming fold node: either a base-node proof (by base-node index,
-/// the canonical arrival order) or the output of an earlier fold node (by node index).
+/// A reference to one input of a streaming fold node: either a fold INPUT supplied from below (by
+/// input index, in canonical arrival order — a base-node in the base-node streamer, an R1 node in the
+/// leaves streamer) or the output of an earlier fold node (by fold-task index). Input-neutral names:
+/// the concrete kind of an `Input` depends on which streaming path builds the topology.
 #[derive(Clone, Copy)]
 enum Child {
-    Leaf(usize),
-    Node(usize),
+    Input(usize),
+    Fold(usize),
 }
 
 /// One fold in the fixed tree: prove an R2 node over `children` base-nodes/nodes, children
@@ -626,17 +628,17 @@ struct FoldTask {
 /// level has `> k` entries it groups the leading full-`k` runs left-to-right into `prove_node(group)`
 /// and carries the trailing `< k` remainder up unchanged; a level of `2..=k` entries is folded whole
 /// into the root. The returned `Vec<FoldTask>` is in the same order the level loop would prove them;
-/// the returned [`Child`] is the root (a `Node` for `m > 1`, else `Leaf(0)` = the lone base-node).
-/// `Child::Leaf(i)` denotes base-node `i`. Each task's `children` order matches `prove_node`'s
+/// the returned [`Child`] is the root (a `Fold` for `m > 1`, else `Input(0)` = the lone base-node).
+/// `Child::Input(i)` denotes base-node `i`. Each task's `children` order matches `prove_node`'s
 /// exactly, so each node sees the same inputs as the sequential fold ⇒ same proof bytes.
 fn build_fold_topology(m_base_nodes: usize, k: usize) -> (Vec<FoldTask>, Child) {
     if m_base_nodes == 1 {
-        return (Vec::new(), Child::Leaf(0));
+        return (Vec::new(), Child::Input(0));
     }
     let mut tasks: Vec<FoldTask> = Vec::new();
 
-    // Seed the level with the `m` base-nodes at height 1 (each a `Child::Leaf(i)` = base-node i).
-    let mut level: Vec<(usize, Child)> = (0..m_base_nodes).map(|i| (1, Child::Leaf(i))).collect();
+    // Seed the level with the `m` base-nodes at height 1 (each a `Child::Input(i)` = base-node i).
+    let mut level: Vec<(usize, Child)> = (0..m_base_nodes).map(|i| (1, Child::Input(i))).collect();
 
     // --- group+carry over NODES only (base-nodes and R2 nodes share the node proof shape). ---
     while level.len() > 1 {
@@ -646,7 +648,7 @@ fn build_fold_topology(m_base_nodes: usize, k: usize) -> (Vec<FoldTask>, Child) 
             let children = level.iter().map(|(_, c)| *c).collect();
             let idx = tasks.len();
             tasks.push(FoldTask { children, height });
-            return (tasks, Child::Node(idx));
+            return (tasks, Child::Fold(idx));
         }
         let remainder = level.len() % k;
         let carry: Vec<(usize, Child)> = level.split_off(level.len() - remainder);
@@ -656,7 +658,7 @@ fn build_fold_topology(m_base_nodes: usize, k: usize) -> (Vec<FoldTask>, Child) 
             let children = group.iter().map(|(_, c)| *c).collect();
             let idx = tasks.len();
             tasks.push(FoldTask { children, height });
-            next.push((height, Child::Node(idx)));
+            next.push((height, Child::Fold(idx)));
         }
         // Carry the `< k` remainder up unchanged (all NODES now — safe under decoupling).
         next.extend(carry);
@@ -746,9 +748,9 @@ pub fn recursive_aggregate_prove_streaming(
 
     // For each task, count its not-yet-available children and record which task consumes each
     // produced value, so completing a fold (or receiving a leaf) can decrement the right parent.
-    //   parent_of[Leaf i] / parent_of_node[Node j] = Some((task_idx, slot)), slot = child position
+    //   parent_of[Input i] / parent_of_fold[Fold j] = Some((task_idx, slot)), slot = child position
     //   in the task's `children` (left-to-right), so inputs reassemble in the fold's exact order.
-    let mut leaf_parent: Vec<Option<(usize, usize)>> = vec![None; m_base_nodes];
+    let mut input_parent: Vec<Option<(usize, usize)>> = vec![None; m_base_nodes];
     let mut node_parent: Vec<Option<(usize, usize)>> = vec![None; tasks.len()];
     let mut pending: Vec<usize> = vec![0; tasks.len()];
     let arity: Vec<usize> = tasks.iter().map(|t| t.children.len()).collect();
@@ -756,8 +758,8 @@ pub fn recursive_aggregate_prove_streaming(
         for (slot, ch) in t.children.iter().enumerate() {
             pending[ti] += 1;
             match ch {
-                Child::Leaf(i) => leaf_parent[*i] = Some((ti, slot)),
-                Child::Node(j) => node_parent[*j] = Some((ti, slot)),
+                Child::Input(i) => input_parent[*i] = Some((ti, slot)),
+                Child::Fold(j) => node_parent[*j] = Some((ti, slot)),
             }
         }
     }
@@ -794,7 +796,7 @@ pub fn recursive_aggregate_prove_streaming(
                 st.ready.push_back(ti);
             }
         }
-        // No parent ⇒ this is the root value; the root is always a Node here (n_leaves > 1).
+        // No parent ⇒ this is the root value; the root is always a Fold here (n_leaves > 1).
     };
 
     let n_workers = pools.n_pools().max(1);
@@ -858,7 +860,7 @@ pub fn recursive_aggregate_prove_streaming(
         // Coordinator: drain base-nodes in canonical order, delivering each to its consumer. A
         // base-node that completes a fold's inputs enqueues it; workers pick it up immediately, so
         // folds overlap with the still-arriving later base-nodes.
-        for &parent in &leaf_parent {
+        for &parent in &input_parent {
             let base_node = rx
                 .recv()
                 .expect("streaming fold: fewer base-nodes than m_base_nodes");
@@ -870,8 +872,8 @@ pub fn recursive_aggregate_prove_streaming(
 
     // All folds complete; pull the root the root fold captured.
     let root_idx = match root_ref {
-        Child::Node(j) => j,
-        Child::Leaf(_) => unreachable!("m_base_nodes > 1 ⇒ root is a fold node"),
+        Child::Fold(j) => j,
+        Child::Input(_) => unreachable!("m_base_nodes > 1 ⇒ root is a fold node"),
     };
     let root = state
         .into_inner()
@@ -1214,7 +1216,10 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
     debug_assert_eq!(leaf_group.len(), n_leaves);
 
     // --- Tier ≥ 1 (R2 up-tree) topology over the m R1 nodes: reuse the SAME fixed DAG the sequential
-    //     fold realizes. Here `Child::Leaf(g)` denotes R1 node g's output. ---
+    //     fold realizes. `build_fold_topology`'s inputs are its height-1 base-nodes, which in THIS
+    //     path are the R1 nodes — so here a `Child::Input(g)` denotes R1 node g's output (and a
+    //     `Child::Fold(j)` an earlier tier-≥1 fold task), unlike the base-node streamer where an
+    //     `Input(i)` is a base-node. ---
     let (tasks, root_ref) = build_fold_topology(m, k);
 
     // Per-task readiness (mirrors `recursive_aggregate_prove_streaming`): which task+slot consumes
@@ -1227,8 +1232,8 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
         for (slot, ch) in t.children.iter().enumerate() {
             fold_pending[ti] += 1;
             match ch {
-                Child::Leaf(g) => r1_parent[*g] = Some((ti, slot)),
-                Child::Node(j) => node_parent[*j] = Some((ti, slot)),
+                Child::Input(g) => r1_parent[*g] = Some((ti, slot)),
+                Child::Fold(j) => node_parent[*j] = Some((ti, slot)),
             }
         }
     }
@@ -1413,10 +1418,32 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
     // n_levels mirrors `recursive_aggregate_prove_leaves` -> `recursive_aggregate_prove`: m == 1 ⇒
     // the lone R1 node is the root at height 1; else the root fold task's height.
     let n_levels = match root_ref {
-        Child::Leaf(_) => 1, // m == 1: the single level-0 R1 node is the root
-        Child::Node(j) => tasks[j].height,
+        Child::Input(_) => 1, // m == 1: the single level-0 R1 node is the root
+        Child::Fold(j) => tasks[j].height,
     };
     (leaves, AggregateOutput { root, n_levels })
+}
+
+/// The preprocessed root a SHORT node of the given `level` and `arity` (`2..=k-1`) reports —
+/// recomputed witness-independently over that level's child config (`leaf_shared_config` for an R1
+/// leaf-node, `node_shared_config` for an R2 node), byte-identical to what [`prove_leaf_or_short`] /
+/// [`prove_short_node`] recompute for the same shape. Pure function of the public `(level, arity)`.
+///
+/// The two level-specialised recomputes ([`short_leaf_node_preprocessed_root`] /
+/// [`short_node_preprocessed_root`]) differ ONLY in which child config `level.shared_config` selects;
+/// this is their shared body, so the recompute lives in one place.
+fn short_node_preprocessed_root_at_level(
+    config: &AggregateConfig,
+    level: NodeLevel,
+    arity: usize,
+) -> HashValue<QM31> {
+    let shared = level.shared_config(config);
+    let pp = node_preprocessed_from_shared(
+        shared,
+        config.node_target_padding_sizes.clone(),
+        arity,
+    );
+    preprocessed_root(&pp, config.node_pcs_config.fri_config.log_blowup_factor)
 }
 
 /// The preprocessed root a SHORT leaf-verifying (R1) node of the given `arity` (`2..=k-1`) reports —
@@ -1424,13 +1451,27 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
 /// [`prove_leaf_or_short`] recomputes for the same shape. Pure function of
 /// the public `arity`.
 fn short_leaf_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> HashValue<QM31> {
-    let shared = NodeLevel::VerifiesLeaves.shared_config(config);
-    let pp = node_preprocessed_from_shared(
-        shared,
-        config.node_target_padding_sizes.clone(),
-        arity,
-    );
-    preprocessed_root(&pp, config.node_pcs_config.fri_config.log_blowup_factor)
+    short_node_preprocessed_root_at_level(config, NodeLevel::VerifiesLeaves, arity)
+}
+
+/// The single reported-root selector: the trusted preprocessed root a fold node of the given public
+/// `(height, arity)` reports to its parent — byte-identical to what the PROVER reports for that node
+/// and what the unpacker BAKES for it. The level is [`NodeLevel::from_height`] (`height == 1` ⇒ R1
+/// leaf-verifying, else R2 node-verifying); the arity selects full-`k` vs short:
+///   - full-`k` (`arity == config.fold_arity`) ⇒ the trusted fixed root ([`NodeLevel::preprocessed_root`]):
+///     R1 (`level1_preprocessed_root`) or R2 (`node_preprocessed_root`);
+///   - short (`2..=k-1`) ⇒ the recomputed real root for that shape
+///     ([`short_node_preprocessed_root_at_level`]): short R1'(m) or short-root.
+///
+/// This is the ONE place the R1/R2/short 3-way choice lives, so the prover's per-node report and the
+/// unpacker's baked constant are structurally the same value, not hand-matched copies.
+fn reported_root(config: &AggregateConfig, height: usize, arity: usize) -> HashValue<QM31> {
+    let level = NodeLevel::from_height(height);
+    if arity == config.fold_arity {
+        level.preprocessed_root(config)
+    } else {
+        short_node_preprocessed_root_at_level(config, level, arity)
+    }
 }
 
 /// The bottom-level input to the unpacker: the ordered standalone leaves
@@ -1568,15 +1609,8 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
      -> (usize, HashValue<Var>, Vec<Var>) {
         let outs = fold_hash(context, group);
         let height = group.iter().map(|(h, _, _)| *h).max().unwrap() + 1;
-        let level = NodeLevel::from_height(height);
-        let reported_root = if group.len() == k {
-            level.preprocessed_root(config)
-        } else if matches!(level, NodeLevel::VerifiesLeaves) {
-            short_leaf_node_preprocessed_root(config, group.len())
-        } else {
-            short_node_preprocessed_root(config, group.len())
-        };
-        let node_pp = constant_pp(context, &reported_root);
+        // ONE reported-root selector (R1/R2/short by public (height, arity)) shared with the prover.
+        let node_pp = constant_pp(context, &reported_root(config, height, group.len()));
         (height, node_pp, outs)
     };
 
@@ -1981,6 +2015,30 @@ pub fn shared_config_for_leaf(
     }
 }
 
+/// The `NoValue` node `ProofConfig` a multiverifier NODE circuit is built/proved with, sized over
+/// `all_circuit_components::<NoValue>()` + `INTERACTION_POW_BITS` for `n_preprocessed_columns`
+/// preprocessed columns and `pcs_config`. Shared by [`node_preprocessed_from_shared`] and
+/// [`multiverifier_node_preprocessed`] so the two NoValue node builders derive the config the same way
+/// (they only differ in where `n_preprocessed_columns` / the log sizes come from).
+fn noval_node_proof_config(n_preprocessed_columns: usize, pcs_config: &PcsConfig) -> ProofConfig {
+    ProofConfig::new(
+        &all_circuit_components::<NoValue>(),
+        n_preprocessed_columns,
+        pcs_config,
+        INTERACTION_POW_BITS,
+    )
+}
+
+/// A placeholder `NoValue` multiverifier child input (empty proof + zeroed root/outputs) for building
+/// the witness-independent node shape — the preprocessed trace does not depend on child values.
+fn empty_node_input(proof_config: &ProofConfig) -> MultiverifierInput<NoValue> {
+    MultiverifierInput {
+        proof: empty_proof(proof_config),
+        preprocessed_root: HashValue::from([0u32; N_RESERVED]),
+        output_values: [QM31::zero(); N_RESERVED],
+    }
+}
+
 /// Builds + preprocesses the NoValue multiverifier node circuit of `arity` children for a given
 /// `shared` config (the one a node is proved with) padded to `target_padding`. For `arity ==
 /// FOLD_ARITY` this is the fixed shape every internal node proves (the one to cache in a node
@@ -1999,23 +2057,15 @@ pub fn node_preprocessed_from_shared(
     // preprocessed trace is witness-independent). The verification topology is sized from a NoValue
     // `proof_config` over the shared `n_preprocessed_columns`, mirroring stwo-circuits' node-shape
     // construction.
-    let proof_config = ProofConfig::new(
-        &all_circuit_components::<NoValue>(),
-        shared.proof_config.n_preprocessed_columns,
-        &shared.pcs_config,
-        INTERACTION_POW_BITS,
-    );
+    let proof_config =
+        noval_node_proof_config(shared.proof_config.n_preprocessed_columns, &shared.pcs_config);
     let node_shared = SharedConfig {
         pcs_config: shared.pcs_config,
         proof_config: proof_config.clone(),
         preprocessed_column_log_sizes: shared.preprocessed_column_log_sizes.clone(),
     };
-    let empty = || MultiverifierInput {
-        proof: empty_proof(&proof_config),
-        preprocessed_root: HashValue::from([0u32; N_RESERVED]),
-        output_values: [QM31::zero(); N_RESERVED],
-    };
-    let inputs: Vec<MultiverifierInput<NoValue>> = (0..arity).map(|_| empty()).collect();
+    let inputs: Vec<MultiverifierInput<NoValue>> =
+        (0..arity).map(|_| empty_node_input(&proof_config)).collect();
     let mut ctx = build_multiverifier_circuit::<NoValue>(inputs, &node_shared);
     pad_to_targets(&mut ctx, target_padding);
     PreprocessedCircuit::preprocess_circuit(&mut ctx)
@@ -2026,12 +2076,7 @@ pub fn node_preprocessed_from_shared(
 /// [`prove_short_node`] recomputes for the same shape. Pure function of the public `arity`, so the
 /// unpacker binds the same value the prover reported.
 fn short_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> HashValue<QM31> {
-    let pp = node_preprocessed_from_shared(
-        &config.node_shared_config,
-        config.node_target_padding_sizes.clone(),
-        arity,
-    );
-    preprocessed_root(&pp, config.node_pcs_config.fri_config.log_blowup_factor)
+    short_node_preprocessed_root_at_level(config, NodeLevel::VerifiesNodes, arity)
 }
 
 impl AggregateConfig {
@@ -2071,24 +2116,16 @@ pub fn multiverifier_node_preprocessed(
     target_padding: Option<ComponentSizes>,
     fold_arity: usize,
 ) -> (PreprocessedCircuit, ComponentSizes) {
-    let proof_config = ProofConfig::new(
-        &all_circuit_components::<NoValue>(),
-        leaf_preprocessed.preprocessed_trace.n_columns(),
-        &pcs_config,
-        INTERACTION_POW_BITS,
-    );
+    let proof_config =
+        noval_node_proof_config(leaf_preprocessed.preprocessed_trace.n_columns(), &pcs_config);
     let shared = SharedConfig {
         pcs_config,
         proof_config: proof_config.clone(),
         preprocessed_column_log_sizes: leaf_preprocessed.preprocessed_trace.log_sizes(),
     };
-    let empty = || MultiverifierInput {
-        proof: empty_proof(&proof_config),
-        preprocessed_root: HashValue::from([0u32; N_RESERVED]),
-        output_values: [QM31::zero(); N_RESERVED],
-    };
     // The internal node shape is exactly-`fold_arity` children (matches `prove_node`).
-    let inputs: Vec<MultiverifierInput<NoValue>> = (0..fold_arity).map(|_| empty()).collect();
+    let inputs: Vec<MultiverifierInput<NoValue>> =
+        (0..fold_arity).map(|_| empty_node_input(&proof_config)).collect();
     let mut ctx = build_multiverifier_circuit::<NoValue>(inputs, &shared);
     let unpadded_sizes = compute_padded_sizes(&ctx);
     if let Some(t) = target_padding {
@@ -2193,8 +2230,8 @@ mod topology_tests {
         let (tasks, root) = build_fold_topology(m, K);
         fn resolve(c: Child, tasks: &[super::FoldTask]) -> Shape {
             match c {
-                Child::Leaf(i) => Shape::Leaf(i),
-                Child::Node(j) => Shape::Node(
+                Child::Input(i) => Shape::Leaf(i),
+                Child::Fold(j) => Shape::Node(
                     tasks[j].children.iter().map(|&ch| resolve(ch, tasks)).collect(),
                 ),
             }
@@ -2253,8 +2290,8 @@ mod topology_tests {
                 "m={m}: node count diverges from the fold loop"
             );
             let h = match root {
-                Child::Node(j) => tasks[j].height,
-                Child::Leaf(_) => 1, // the lone base-node (m == 1) is height 1
+                Child::Fold(j) => tasks[j].height,
+                Child::Input(_) => 1, // the lone base-node (m == 1) is height 1
             };
             assert_eq!(
                 h,
@@ -2272,8 +2309,8 @@ mod topology_tests {
         for m in 2..=260usize {
             let (tasks, root) = build_fold_topology(m, K);
             let root_idx = match root {
-                Child::Node(j) => j,
-                Child::Leaf(_) => unreachable!("m>1 root is a fold node"),
+                Child::Fold(j) => j,
+                Child::Input(_) => unreachable!("m>1 root is a fold node"),
             };
             for (ti, t) in tasks.iter().enumerate() {
                 assert!(
@@ -2316,8 +2353,8 @@ mod topology_tests {
         for (m, want_root_arity) in cases {
             let (tasks, root) = build_fold_topology(m, K);
             let root_idx = match root {
-                Child::Node(j) => j,
-                Child::Leaf(_) => unreachable!(),
+                Child::Fold(j) => j,
+                Child::Input(_) => unreachable!(),
             };
             assert_eq!(
                 tasks[root_idx].children.len(),
@@ -2404,7 +2441,7 @@ mod topology_tests {
     /// The tree the STREAMING coordinator realizes over `n` leaves, reconstructed purely from the
     /// two fixed topology functions: tier 0 = `level0_group_sizes(n, k)` (contiguous leaf→R1
     /// grouping, leaf i at slot `i-offset` of its group), tier ≥ 1 = `build_fold_topology(m, k)`
-    /// where `Child::Leaf(g)` = R1 node g. Mirrors exactly how the coordinator slots inputs.
+    /// where `Child::Input(g)` = R1 node g. Mirrors exactly how the coordinator slots inputs.
     fn streaming_leaf_shape(n: usize) -> LeafShape {
         if n == 1 {
             return LeafShape::Leaf(0);
@@ -2423,11 +2460,11 @@ mod topology_tests {
         assert_eq!(off, n);
         let m = r1_shapes.len();
         let (tasks, root) = build_fold_topology(m, K);
-        // Resolve a tier-≥1 child: `Child::Leaf(g)` is R1 node g; `Child::Node(j)` is fold task j.
+        // Resolve a tier-≥1 child: `Child::Input(g)` is R1 node g; `Child::Fold(j)` is fold task j.
         fn resolve(c: Child, tasks: &[super::FoldTask], r1: &[LeafShape]) -> LeafShape {
             match c {
-                Child::Leaf(g) => r1[g].clone(),
-                Child::Node(j) => LeafShape::R2(
+                Child::Input(g) => r1[g].clone(),
+                Child::Fold(j) => LeafShape::R2(
                     tasks[j]
                         .children
                         .iter()
