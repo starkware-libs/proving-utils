@@ -1,23 +1,21 @@
 //! In-binary N-leaf `k`-to-1 multiverifier recursion tree.
 //!
-//! Given an ordered list of `N` leaf circuit proofs, this crate folds the entire recursion tree
-//! above them into a single root proof by repeatedly proving a `FOLD_ARITY`-to-1
-//! [`build_multiverifier_circuit`] node on groups of `k` children. Each node verifies its `k` child
-//! proofs and emits a Blake hash binding `[ppRoot_i, outs_i for i in 0..k]` (children left-to-right)
-//! as its own `N_RESERVED` output digest words (`N_RESERVED == BLAKE2S_DIGEST_N_WORDS == 8`, the full
-//! Blake2s digest); that hash is what the parent node (and, at the top, the
-//! [`circuit_unpacker`](https://docs.rs/circuit-unpacker)) consumes. The preprocessed root is the full
-//! eight-word Blake2s digest (`HashValue`), and the node preimage is hashed with `blake2s_u32s`.
+//! Given an ordered list of `N` leaf circuit proofs, this crate folds the recursion tree above them
+//! into a single root proof by repeatedly proving a `FOLD_ARITY`-to-1 [`build_multiverifier_circuit`]
+//! node on groups of `k` children. Each node verifies its `k` child proofs and emits a Blake hash
+//! binding `[ppRoot_i, outs_i for i in 0..k]` (children left-to-right) as its own `N_RESERVED` output
+//! digest words (the full eight-word Blake2s digest); that hash is what the parent node consumes. The
+//! node preimage is hashed with `blake2s_u32s`.
 //!
-//! Arity is the named constant [`FOLD_ARITY`]. Every full-`k` node is exactly-`k` (full-`k` nodes at
-//! a level share one precompute / `preprocessed_root`); SHORT nodes (the level-0 leaf-remainder
-//! groups and the ROOT) are `m`-child with `m ∈ 2..=k` — their arity, and hence circuit shape and
-//! `preprocessed_root`, is a deterministic function of the public `N` alone, never prover-chosen.
+//! Arity is the named constant [`FOLD_ARITY`]. Full-`k` nodes at a level share one precompute /
+//! `preprocessed_root`; SHORT nodes (the level-0 leaf-remainder groups and the ROOT) are `m`-child
+//! with `m ∈ 2..=k` — their arity, and hence circuit shape and `preprocessed_root`, is a
+//! deterministic function of the public `N` alone, never prover-chosen.
 //!
 //! Because the multiverifier *self-verifies* (a multiverifier proof has the same circuit shape as
-//! the proof it verifies), a single [`SharedConfig`] built from `all_circuit_components` works for
-//! every level — the leaf level and all internal levels alike — and every internal node reports
-//! the same fixed `preprocessed_root` ([`AggregateConfig::node_preprocessed_root`]).
+//! the proof it verifies), a single [`SharedConfig`] works for every internal level, and every
+//! internal node reports the same fixed `preprocessed_root`
+//! ([`AggregateConfig::node_preprocessed_root`]).
 //!
 //! This crate folds the multiverifier tree, then proves the **root verification**
 //! ([`prove_root_verification_leaves`]) — the only published, and only zk-blinded, proof. Every
@@ -28,25 +26,22 @@
 //! and (2) **unpacks** it: it reconstructs the tree's root hash in-circuit from prover-supplied
 //! per-leaf output hints — via the same per-node `blake2s_u32s([ppR_i words, outs_i words] for the
 //! k children)` binding the nodes used — binds the reconstructed root to the verified root output,
-//! and emits the leaf
-//! outputs. The unpack is inherently **O(N)** (it touches every leaf). Using one trusted
-//! `leaf_preprocessed_root` for all leaves also forces them to share an AIR.
+//! and emits the leaf outputs. The unpack is inherently **O(N)** (it touches every leaf). Using one
+//! trusted `leaf_preprocessed_root` for all leaves also forces them to share an AIR.
 //!
-//! Each leaf's output will be `H_i = blake(H_P ‖ x_i ‖ y_i)` (program commitment + input + output)
-//! once gate_air leaves exist; rehashing every leaf against one shared `H_P` during the unpack is
-//! what enforces same-program. With the current cairo stand-in leaves the output is just the leaf
-//! circuit's `output_values`, so the unpack exercises the plumbing but not that encoding yet.
+//! The leaf output is the leaf circuit's `output_values`; the unpack rehashes every leaf against the
+//! one shared leaf preprocessed root, which is what enforces same-program.
 //!
-//! Any `N >= 1` is supported via a two-phase deterministic fold (byte-identical in the sequential
-//! and streaming paths, and reconstructed identically by the unpacker):
+//! Any `N >= 1` is supported via a two-phase deterministic fold:
 //!   - **Level 0** consumes ALL `N` leaves into height-1 leaf-verifying nodes (arities from
-//!     `level0_group_sizes`, each `2..=k`, never a lone leaf). This is the LEAF↔NODE DECOUPLING FIX:
-//!     leaves (lift24) and nodes (lift25) differ in proof shape, so a carried-up leaf under a
-//!     height-≥2 (lift25) fold panics the in-circuit Merkle height check. Consuming every leaf at
-//!     level 0 guarantees no leaf ever survives above height 1.
+//!     `level0_group_sizes`, each `2..=k`, never a lone leaf). Leaves and nodes differ in proof shape
+//!     (leaf lifting is one below the node's), so a carried-up leaf under a height-≥2 fold would panic
+//!     the in-circuit Merkle height check. Consuming every leaf at level 0 guarantees no leaf ever
+//!     survives above height 1.
 //!   - **Levels ≥ 1** group the height-1 nodes left-to-right into exactly-`k` node-verifying nodes,
-//!     carry the `< k` remainder up unchanged (carrying a NODE is safe — all are lift25), and fold a
-//!     final `2..=k` level into the (possibly short) root. Every height-≥2 fold is homogeneous.
+//!     carry the `< k` remainder up unchanged (carrying a NODE is safe — all share the node shape),
+//!     and fold a final `2..=k` level into the (possibly short) root. Every height-≥2 fold is
+//!     homogeneous.
 //!
 //! One deterministic unbalanced `k`-ary tree of real proofs (no power-of-`k` padding, no dummies). A
 //! dynamic permutation-argument unpacker that handles an arbitrary tree shape unknown at
@@ -56,11 +51,10 @@ use std::sync::Arc;
 
 /// Fold arity `k`: each internal node verifies exactly this many children (`k`-to-1 fold).
 ///
-/// This is the single source of truth for the arity across the whole recursion pipeline — the
-/// tree/streaming fold, the topology, `prove_node`, and (critically) the unpacker's per-node hash
-/// preimage in [`prove_root_verification_leaves`] all read it, so the out-of-circuit unpacker and the
-/// in-circuit node hash ([`build_multiverifier_circuit`]) stay byte-identical. Re-sweep the arity
-/// (e.g. `4` vs `8`) by changing only this constant; nothing else hard-codes the child count.
+/// The single source of truth for the arity across the recursion pipeline — the tree/streaming fold,
+/// the topology, `prove_node`, and the unpacker's per-node hash preimage all read it, so the
+/// out-of-circuit unpacker and the in-circuit node hash agree. Re-sweep the arity by changing only
+/// this constant; nothing else hard-codes the child count.
 ///
 /// A level's `len() % FOLD_ARITY` (< k) remainder is carried up unchanged, so nodes are always
 /// exactly `k` children — never variable-child.
@@ -70,7 +64,7 @@ pub const FOLD_ARITY: usize = 8;
 /// n_queries)` table via `get_pcs_config`; the value that makes production node/root proofs.
 pub const RECURSION_LOG_BLOWUP: u32 = 3;
 
-/// Default base (shard / "leaf") gate_air proof FRI blowup factor. `(pow_bits, n_queries)` and lifting
+/// Default base (shard / "leaf") proof FRI blowup factor. `(pow_bits, n_queries)` and lifting
 /// are derived from it via `leaf_pcs_config` to a ~96-bit-secure config. Sweep knob: 1/2/3.
 pub const BASE_LOG_BLOWUP: u32 = 1;
 
@@ -81,19 +75,17 @@ pub const SHOTS_PER_SHARD: usize = 2;
 /// All FREE topology parameters, in one place, threaded through the recursion + base-proof pipeline.
 ///
 /// Every field is a *free knob*; everything else (the `(pow_bits, n_queries)` at 96-bit, the trusted
-/// roots, the PCS/padding targets, `n_shards`, the base-shard trace log) is DERIVED from these (see
-/// `leaf::derive_aggregate_config`, `leaf_pcs_config`, `get_pcs_config`). Security params
-/// (`fold_step`, `log_last_layer`, the 96-bit floor, `INTERACTION_POW_BITS`) are pinned, NOT exposed
-/// here — they must never be swept below the security floor.
+/// roots, the PCS/padding targets, `n_shards`, the base-shard trace log) is DERIVED from these.
+/// Security params (`fold_step`, `log_last_layer`, the 96-bit floor, `INTERACTION_POW_BITS`) are
+/// pinned, NOT exposed here — they must never be swept below the security floor.
 ///
 /// Construct once (via [`TopologyConfig::from_env`] on the production path, or a literal in a test)
 /// and thread it: `fold_arity` rides on the [`AggregateConfig`] (so every config-carrying fold fn
 /// reads `config.fold_arity`), while the blowups / `shots_per_shard` are read at the construction /
-/// derivation sites. The [`Default`] impl and [`TopologyConfig::from_env`] both reproduce the current
-/// production values.
+/// derivation sites.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TopologyConfig {
-    /// Base (shard) gate_air proof FRI blowup factor. Default [`BASE_LOG_BLOWUP`] (env `BASE_BLOWUP`).
+    /// Base (shard) proof FRI blowup factor. Default [`BASE_LOG_BLOWUP`] (env `BASE_BLOWUP`).
     pub base_log_blowup: u32,
     /// Recursion (node-node / root) FRI blowup factor. Default [`RECURSION_LOG_BLOWUP`].
     pub recursion_log_blowup: u32,
@@ -105,7 +97,7 @@ pub struct TopologyConfig {
     /// Node-node fold arity `k` (each internal R2 node verifies exactly `k` children). Default
     /// [`FOLD_ARITY`].
     pub fold_arity: usize,
-    /// Shots per base shard (partition knob). Default [`SHOTS_PER_SHARD`] (env `GATE_AIR_SHARD_SHOTS`).
+    /// Shots per base shard (partition knob). Default [`SHOTS_PER_SHARD`] (env `RECURSION_SHARD_SHOTS`).
     pub shots_per_shard: usize,
 }
 
@@ -125,12 +117,12 @@ impl Default for TopologyConfig {
 
 impl TopologyConfig {
     /// The topology config in effect, applying the env overrides existing sweep scripts rely on:
-    /// `BASE_BLOWUP` → `base_log_blowup`, `GATE_AIR_SHARD_SHOTS` → `shots_per_shard` (`> 0`),
-    /// `GATE_AIR_FOLD_ARITY` → `fold_arity` (clamped `>= 2`), `LEAF_BLOWUP` → `leaf_log_blowup`.
+    /// `BASE_BLOWUP` → `base_log_blowup`, `RECURSION_SHARD_SHOTS` → `shots_per_shard` (`> 0`),
+    /// `RECURSION_FOLD_ARITY` → `fold_arity` (clamped `>= 2`), `LEAF_BLOWUP` → `leaf_log_blowup`.
     /// `recursion_log_blowup` keeps its [`Default`] value (no env knob today). Unset /
     /// unparseable env vars fall back to the default, so with a clean environment this equals
-    /// [`TopologyConfig::default`] exactly (in particular `fold_arity` stays 8 — a byte-identical no-op
-    /// unless `GATE_AIR_FOLD_ARITY` is explicitly set, e.g. `=4` for the a2 sweep).
+    /// [`TopologyConfig::default`] exactly (in particular `fold_arity` stays 8 unless
+    /// `RECURSION_FOLD_ARITY` is explicitly set, e.g. `=4` for the a2 sweep).
     pub fn from_env() -> Self {
         fn parse_env<T: std::str::FromStr>(k: &str) -> Option<T> {
             std::env::var(k).ok().and_then(|s| s.parse().ok())
@@ -140,10 +132,10 @@ impl TopologyConfig {
             base_log_blowup: parse_env("BASE_BLOWUP").unwrap_or(d.base_log_blowup),
             recursion_log_blowup: d.recursion_log_blowup,
             leaf_log_blowup: parse_env("LEAF_BLOWUP").unwrap_or(d.leaf_log_blowup),
-            fold_arity: parse_env::<usize>("GATE_AIR_FOLD_ARITY")
+            fold_arity: parse_env::<usize>("RECURSION_FOLD_ARITY")
                 .unwrap_or(d.fold_arity)
                 .max(2),
-            shots_per_shard: parse_env::<usize>("GATE_AIR_SHARD_SHOTS")
+            shots_per_shard: parse_env::<usize>("RECURSION_SHARD_SHOTS")
                 .filter(|&n| n > 0)
                 .unwrap_or(d.shots_per_shard),
         }
@@ -205,7 +197,7 @@ pub struct ZkBlind {
 
 /// Static configuration shared by every node in the tree.
 ///
-/// LEAF/R1/R2. The bottom of the tree is a standalone **leaf** (one gate_air base proof verified in
+/// LEAF/R1/R2. The bottom of the tree is a standalone **leaf** (one base proof verified in
 /// its own circuit). `recursive_aggregate` consumes ALL leaves at level 0 into height-1 **leaf-
 /// verifying (R1)** nodes ([`recursive_aggregate_prove_leaves`]) and then folds those up the tree with
 /// `FOLD_ARITY` via the shared **R2** node-node fold. The R2 machinery is:
@@ -239,14 +231,14 @@ pub struct AggregateConfig {
     /// Node-node fold arity `k` in effect (from [`TopologyConfig::fold_arity`]). Carried on the config
     /// so every config-threaded fold fn (`recursive_aggregate_prove`, `prove_node`, `prove_short_node`,
     /// the unpacker, the root-consistency check) reads the SAME `k` — the single source of truth the
-    /// out-of-circuit unpacker and the in-circuit node hash both depend on for byte-identity.
+    /// out-of-circuit unpacker and the in-circuit node hash both depend on.
     pub fold_arity: usize,
 
     // ---- LEAF/R1 bottom-layer tier -----------------------------------------------------------------
     // The three-tier bottom layer (standalone leaf → level-0 leaf-verifying R1 node → shared R2 up-tree
-    // fold), populated by gate-air-leaf's `derive_aggregate_config`. `Option` for historical reasons
-    // (they were `None` for an alternate bottom layer that no longer exists); always `Some` today. The
-    // shared height-≥2 R2 fold above the bottom layer uses ONLY `node_shared_config` /
+    // fold), populated by the downstream leaf prover's config derivation. `Option` for historical
+    // reasons (they were `None` for an alternate bottom layer that no longer exists); always `Some`
+    // today. The shared height-≥2 R2 fold above the bottom layer uses ONLY `node_shared_config` /
     // `node_preprocessed_root`, so it is untouched.
     /// Verifier/prover config for a level-1 node whose CHILDREN are LEAVES. Built from the leaf
     /// circuit's preprocessed shape (`shared_config_for_leaf`); also deserializes the leaf proofs a
@@ -269,7 +261,7 @@ pub struct AggregateConfig {
 /// Witness-independent proving precompute for the whole recursion, built UP FRONT from public params
 /// (decoupled from [`AggregateConfig`] so the recursion config stays pure metadata and the heavy
 /// [`CircuitPrecompute`] builds happen off the critical path). Each field is `None` under
-/// `GATE_AIR_NO_PRECOMPUTE` (or when the corresponding tier is inactive), falling back to the
+/// `RECURSION_NO_PRECOMPUTE` (or when the corresponding tier is inactive), falling back to the
 /// self-contained [`prove_circuit_assignment`] path that rebuilds tree0 each call.
 pub struct RecursionPrecompute {
     /// Precompute for the level-≥2 (node-verifying, R2) multiverifier node circuit. Reused for every
@@ -278,7 +270,7 @@ pub struct RecursionPrecompute {
     /// Precompute for the level-1 (leaf-verifying, R1) multiverifier node circuit, reused for every
     /// [`prove_leaf_or_short`] full-`k` call.
     pub level1_precompute: Option<Arc<CircuitPrecompute>>,
-    /// Precompute for the leaf circuit, reused for every `prove_gate_air_leaf` call.
+    /// Precompute for the leaf circuit, reused for every leaf-prover call.
     pub leaf_precompute: Option<Arc<CircuitPrecompute>>,
 }
 
@@ -420,8 +412,8 @@ impl PoolSet {
     pub fn new(n_pools: usize, threads_per_pool: usize) -> Self {
         // Deprioritize wrap/fold pool workers so the GPU-producer / composition host-dispatch
         // threads win CPU during the bursty composition phase. Byte-neutral (scheduling only).
-        // OFF unless GATE_AIR_POOL_NICE is set: an integer nice delta (e.g. 12), or "idle" (SCHED_IDLE).
-        let sched = std::env::var("GATE_AIR_POOL_NICE").ok();
+        // OFF unless RECURSION_POOL_NICE is set: an integer nice delta (e.g. 12), or "idle" (SCHED_IDLE).
+        let sched = std::env::var("RECURSION_POOL_NICE").ok();
         let pools = (0..n_pools.max(1))
             .map(|_| {
                 let sched = sched.clone();
@@ -532,8 +524,8 @@ pub fn recursive_aggregate_prove(
         };
     }
 
-    // Seed the fold with the base-nodes at height 1. A node's height is `max(child heights) + 1` —
-    // byte-identical to `build_fold_topology`'s per-task `height`, which selects R2 (height ≥ 2,
+    // Seed the fold with the base-nodes at height 1. A node's height is `max(child heights) + 1`,
+    // matching `build_fold_topology`'s per-task `height`, which selects R2 (height ≥ 2,
     // verifies nodes). No R_base node is ever built here (base-nodes arrive already proved).
     let mut level: Vec<(usize, TreeProof)> =
         base_nodes.into_iter().map(|bn| (1usize, bn)).collect();
@@ -622,7 +614,8 @@ struct FoldTask {
 }
 
 /// Computes the FIXED node-node fold topology for `m_base_nodes` base-nodes, decided up front and
-/// independent of completion order, **byte-identical** to [`recursive_aggregate_prove`]'s level loop.
+/// independent of completion order, realizing the same tree as [`recursive_aggregate_prove`]'s level
+/// loop.
 ///
 /// The base-nodes are height 1 (proved upstream); this runs the group+carry loop over them: while a
 /// level has `> k` entries it groups the leading full-`k` runs left-to-right into `prove_node(group)`
@@ -630,7 +623,7 @@ struct FoldTask {
 /// into the root. The returned `Vec<FoldTask>` is in the same order the level loop would prove them;
 /// the returned [`Child`] is the root (a `Fold` for `m > 1`, else `Input(0)` = the lone base-node).
 /// `Child::Input(i)` denotes base-node `i`. Each task's `children` order matches `prove_node`'s
-/// exactly, so each node sees the same inputs as the sequential fold ⇒ same proof bytes.
+/// exactly, so each node sees the same inputs as the sequential fold.
 fn build_fold_topology(m_base_nodes: usize, k: usize) -> (Vec<FoldTask>, Child) {
     if m_base_nodes == 1 {
         return (Vec::new(), Child::Input(0));
@@ -668,9 +661,8 @@ fn build_fold_topology(m_base_nodes: usize, k: usize) -> (Vec<FoldTask>, Child) 
 }
 
 /// Proves ONE tier-≥1 fold task over its ordered `children`, dispatching EXACTLY as the sequential
-/// fold so every streaming path stays byte-identical to [`recursive_aggregate_prove`]. Every fold
-/// task is a node-node fold (height ≥ 2, verifies base-nodes/nodes ⇒ R2); its children arrive
-/// already proved:
+/// fold. Every fold task is a node-node fold (height ≥ 2, verifies base-nodes/nodes ⇒ R2); its
+/// children arrive already proved:
 ///   - the ROOT (`is_root`) ⇒ [`prove_short_node`] (the self-contained recompute path) even at
 ///     arity `FOLD_ARITY` — the sequential terminal step ALWAYS uses it, so the streaming root must
 ///     too;
@@ -678,7 +670,7 @@ fn build_fold_topology(m_base_nodes: usize, k: usize) -> (Vec<FoldTask>, Child) 
 ///     (impossible for a non-root here) ⇒ [`prove_short_node`].
 ///
 /// Pure function of `(children, is_root, height, config, pre)` — no channel / seed / scheduling
-/// state — so completion order cannot affect its bytes. Shared by BOTH streaming coordinators
+/// state — so completion order cannot affect its result. Shared by BOTH streaming coordinators
 /// ([`recursive_aggregate_prove_streaming`] and [`recursive_aggregate_prove_leaves_streaming`]) so
 /// the tier-≥1 dispatch logic cannot diverge between them.
 fn run_fold_task(
@@ -703,18 +695,18 @@ fn run_fold_task(
 /// the node-node fold runs concurrently with (and overlaps) the upstream base-node producer feeding
 /// `rx`.
 ///
-/// This exists so the GPU base-proving + base-node producer can overlap with the CPU fold consumer
-/// (see the `GATE_AIR_PIPELINE` path in gate-air-leaf). The producer is modelled as a stream of
-/// completed base-node proofs sent over `rx` in **canonical order** (base-node `i` is the `i`-th
-/// `recv()`), NOT as GPU calls — this crate stays leaf-type-agnostic.
+/// This exists so the GPU base-proving + base-node producer can overlap with the CPU fold consumer.
+/// The producer is modelled as a stream of completed base-node proofs sent over `rx` in **canonical
+/// order** (base-node `i` is the `i`-th `recv()`), NOT as GPU calls — this crate stays
+/// leaf-type-agnostic.
 ///
-/// BYTE-IDENTITY: the result is byte-identical to [`recursive_aggregate_prove`] for the same ordered
-/// base-nodes. The topology is FIXED up front by [`build_fold_topology`] (group+carry over the `m`
-/// base-nodes; e.g. at k=8 the m=9 root is `node([node([0..7]), node([7..9])])`) and does not depend
-/// on completion order; every [`FoldTask`] sees the same ordered children the sequential fold gives
-/// its matching `prove_node`/`prove_short_node`. Because those are pure functions of their ordered
-/// children, identical topology + identical per-node inputs ⇒ identical root proof and
-/// `recursion_fingerprint`, which the [`prove_root_verification_leaves`] unpacker still binds.
+/// DETERMINISM: the result does not depend on completion order — it matches
+/// [`recursive_aggregate_prove`] for the same ordered base-nodes. The topology is FIXED up front by
+/// [`build_fold_topology`] (group+carry over the `m` base-nodes; e.g. at k=8 the m=9 root is
+/// `node([node([0..7]), node([7..9])])`); every [`FoldTask`] sees the same ordered children the
+/// sequential fold gives its matching `prove_node`/`prove_short_node`. Because those are pure
+/// functions of their ordered children, identical topology + identical per-node inputs ⇒ the same
+/// root proof.
 ///
 /// Streaming schedule: one coordinator owns the dataflow state; `pools.n_pools()` workers (one per
 /// pool) pull ready folds and run the fold via [`ThreadPool::install`]. As base-nodes arrive on `rx`,
@@ -838,7 +830,7 @@ pub fn recursive_aggregate_prove_streaming(
                             .collect()
                     };
                     // Dispatch EXACTLY as the sequential fold (via the shared `run_fold_task`), so
-                    // the two paths stay byte-identical.
+                    // the two paths produce the same result.
                     let is_root = node_parent[ti].is_none();
                     let height = tasks[ti].height;
                     let result =
@@ -1119,8 +1111,8 @@ pub fn recursive_aggregate_prove_leaves(
 /// The three job kinds the unified streaming coordinator schedules onto its single worker pool
 /// ([`recursive_aggregate_prove_leaves_streaming`], "hide the fold behind base-proving"). One
 /// ready-queue holds all three; workers are symmetric pull-workers, so there is no per-kind thread
-/// (no oversubscription) and no ordering hazard — ordering does NOT affect proof bytes (see the
-/// byte-identity invariants on `recursive_aggregate_prove_leaves_streaming`).
+/// (no oversubscription) and no ordering hazard — ordering does NOT affect the result (see the
+/// determinism invariants on `recursive_aggregate_prove_leaves_streaming`).
 #[derive(Clone, Copy)]
 enum Job {
     /// Wrap the arrived producer input at leaf index `i` into leaf `i` (the injected AIR-specific
@@ -1142,21 +1134,21 @@ enum Job {
 /// after every leaf is collected.
 ///
 /// LEAF-AGNOSTIC: the AIR-specific leaf-wrap is INJECTED as `wrap: impl Fn(W) -> TreeProof` and the
-/// producer's per-leaf input `W` is generic, so this crate stays leaf-type-agnostic (gate-air-leaf
-/// passes its `make_base` + `prove_gate_air_leaf` as `wrap`, and streams `(leaf_idx, base)`). The
-/// heavy `wrap` runs INSIDE a pool worker (`pool.install`).
+/// producer's per-leaf input `W` is generic, so this crate stays leaf-type-agnostic (the downstream
+/// leaf prover passes its own base-maker + leaf-prover callback as `wrap`, and streams
+/// `(leaf_idx, base)`). The heavy `wrap` runs INSIDE a pool worker (`pool.install`).
 ///
 /// Streaming schedule (Model 1): one coordinator owns the dataflow state; `pools.n_pools()` SYMMETRIC
 /// pull-workers each pull one ready [`Job`] and run it on their pool's cores. The single ready-queue
 /// holds three job kinds — `Wrap` (producer-driven), `R1` (ready when its group's leaves are all
 /// wrapped), `Fold` (ready when its children are available). Fold-priority (`Fold` > `R1` > `Wrap`)
 /// drains sub-trees first to bound host RAM; because every prove is a pure function of its ordered
-/// inputs, this priority — and the resulting completion order — does NOT change any proof bytes.
+/// inputs, this priority — and the resulting completion order — does NOT change the result.
 ///
-/// BYTE-IDENTITY: the result is byte-identical to [`recursive_aggregate_prove_leaves`] for the same
-/// ordered leaves. Topology is FIXED up front by the SAME [`level0_group_sizes`] (tier 0) +
-/// [`build_fold_topology`] (tier ≥ 1) and does not depend on completion order; child ordering is by
-/// INDEX (leaf `i` → group `group_of(i)` at slot `i - offset`; tier-≥1 children in their fixed
+/// DETERMINISM: the result does not depend on completion order — it matches
+/// [`recursive_aggregate_prove_leaves`] for the same ordered leaves. Topology is FIXED up front by
+/// the SAME [`level0_group_sizes`] (tier 0) + [`build_fold_topology`] (tier ≥ 1); child ordering is
+/// by INDEX (leaf `i` → group `group_of(i)` at slot `i - offset`; tier-≥1 children in their fixed
 /// [`FoldTask`] slots), and every node dispatch uses the SAME predicates via [`prove_leaf_or_short`]
 /// (tier 0) and [`run_fold_task`] (tier ≥ 1). Out-of-order completion only changes WHEN a slot fills.
 ///
@@ -1207,7 +1199,7 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
         "level0 groups must cover all leaves"
     );
     // leaf i -> (group g, slot within group). Contiguous left-to-right: leaf i is slot `s` of group
-    // `g` (byte-identity invariant 2: child ordering is by index).
+    // `g` (determinism invariant: child ordering is by index).
     let leaf_group: Vec<(usize, usize)> = sizes
         .iter()
         .enumerate()
@@ -1339,7 +1331,7 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
                             let (g, slot) = leaf_group[i];
                             let mut st = state.lock().unwrap();
                             // Record the ordered leaf for the caller's return + slot it into its R1
-                            // group by INDEX (byte-identity invariant 2).
+                            // group by INDEX (determinism invariant).
                             st.leaves_out[i] = Some(leaf.clone());
                             st.r1_inputs[g][slot] = Some(leaf);
                             st.r1_remaining[g] -= 1;
@@ -1368,7 +1360,7 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
                             st.done += 1;
                             cv.notify_all();
                         }
-                        // --- Tier ≥ 1: shared node-node R2 fold task (byte-identical dispatch). ---
+                        // --- Tier ≥ 1: shared node-node R2 fold task (same dispatch as sequential). ---
                         Job::Fold(ti) => {
                             let children: Vec<TreeProof> = {
                                 let mut st = state.lock().unwrap();
@@ -1426,7 +1418,7 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
 
 /// The preprocessed root a SHORT node of the given `level` and `arity` (`2..=k-1`) reports —
 /// recomputed witness-independently over that level's child config (`leaf_shared_config` for an R1
-/// leaf-node, `node_shared_config` for an R2 node), byte-identical to what [`prove_leaf_or_short`] /
+/// leaf-node, `node_shared_config` for an R2 node), identical to what [`prove_leaf_or_short`] /
 /// [`prove_short_node`] recompute for the same shape. Pure function of the public `(level, arity)`.
 ///
 /// The two level-specialised recomputes ([`short_leaf_node_preprocessed_root`] /
@@ -1447,7 +1439,7 @@ fn short_node_preprocessed_root_at_level(
 }
 
 /// The preprocessed root a SHORT leaf-verifying (R1) node of the given `arity` (`2..=k-1`) reports —
-/// recomputed witness-independently over `leaf_shared_config`, byte-identical to what
+/// recomputed witness-independently over `leaf_shared_config`, identical to what
 /// [`prove_leaf_or_short`] recomputes for the same shape. Pure function of
 /// the public `arity`.
 fn short_leaf_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> HashValue<QM31> {
@@ -1455,7 +1447,7 @@ fn short_leaf_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> 
 }
 
 /// The single reported-root selector: the trusted preprocessed root a fold node of the given public
-/// `(height, arity)` reports to its parent — byte-identical to what the PROVER reports for that node
+/// `(height, arity)` reports to its parent — identical to what the PROVER reports for that node
 /// and what the unpacker BAKES for it. The level is [`NodeLevel::from_height`] (`height == 1` ⇒ R1
 /// leaf-verifying, else R2 node-verifying); the arity selects full-`k` vs short:
 ///   - full-`k` (`arity == config.fold_arity`) ⇒ the trusted fixed root ([`NodeLevel::preprocessed_root`]):
@@ -1497,8 +1489,8 @@ pub struct RootVerificationOutput {
 /// preprocessed output; see stwo-circuits `finalize_context`), so the trusted final verifier's
 /// canonical-unpacker-root check PINS these roots — a prover cannot substitute a forged value the way
 /// it could for a guessed witness. Because the QM31 value fed to `context.constant` is identical in
-/// the QM31 prove pass and the NoValue recompute pass, the two build byte-identical preprocessed
-/// traces (the byte-identity obligation the trusted verifier relies on).
+/// the QM31 prove pass and the NoValue recompute pass, the two build identical preprocessed
+/// traces (the obligation the trusted verifier relies on).
 fn constant_pp<Value: IValue>(
     context: &mut Context<Value>,
     pp: &HashValue<QM31>,
@@ -1515,7 +1507,7 @@ fn constant_pp<Value: IValue>(
 /// ([`prove_root_verification_leaves`]) and the NoValue canonical-root recompute
 /// ([`leaf_r1r2_unpacker_preprocessed_root`] / [`leaf_r1r2_unpacker_verify_config`], used by the
 /// trusted final verifier). Sharing one builder is what guarantees the recomputed canonical
-/// preprocessed root is byte-identical to the published proof's: identical gate structure, identical
+/// preprocessed root equals the published proof's: identical gate structure, identical
 /// baked constants, identical blinding/padding. The standalone-leaf bottom is the level-0
 /// leaf-verifying R1 layer (via [`level0_group_sizes`]).
 ///
@@ -1585,7 +1577,7 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
         })
         .collect();
 
-    // Shared child-preimage hash for one ordered group — byte-identical to the in-circuit node hash in
+    // Shared child-preimage hash for one ordered group — matches the in-circuit node hash in
     // `build_multiverifier_circuit`.
     let fold_hash = |context: &mut Context<Value>,
                      group: &[(usize, HashValue<Var>, Vec<Var>)]|
@@ -1671,12 +1663,12 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
 }
 
 /// Recomputes the CANONICAL LeafR1R2 unpacker preprocessed root for the trusted public `(n, config)`,
-/// witness-independently — the value the trusted final verifier (gate-air-leaf's
-/// `verify_gate_air_root_leaves`) checks the published `rv.proof` against. Rebuilds the SAME unpacker
+/// witness-independently — the value the trusted final verifier (the downstream root verifier)
+/// checks the published `rv.proof` against. Rebuilds the SAME unpacker
 /// circuit the prover built (via the shared [`build_leaf_r1r2_root_verification_context`], but with a
 /// `NoValue` witness: `empty_proof` + zero leaf outputs), then preprocesses and roots it. Because the
 /// two passes share one builder and the same baked constants + blinding `n_padding`, this equals the
-/// published proof's preprocessed root by construction (the byte-identity obligation).
+/// published proof's preprocessed root by construction.
 ///
 /// All child roots the unpacker bakes (leaf tree0, R1/R2, short leaf-node / short root) are CANONICAL
 /// config-derived values already on `config` (`leaf_preprocessed_root`, `level1_preprocessed_root`,
@@ -1718,9 +1710,10 @@ pub fn leaf_r1r2_unpacker_preprocessed_root(
 ///   - `preprocessed_column_log_sizes` / `config` (PCS) = the recomputed trace's own shape,
 ///   - `n_outputs` = `n * N_RESERVED` (one leaf output per leaf).
 ///
-/// The caller (`verify_gate_air_root_leaves`) passes `rv.proof` + the CALLER-COMMITTED `rv.leaf_outputs`
-/// as `CircuitPublicData`. See [`leaf_r1r2_unpacker_preprocessed_root`] for the `(n, config,
-/// zk_n_padding)` trust contract (all recomputed from trusted public params, never from the prover).
+/// The caller (the downstream root verifier) passes `rv.proof` + the CALLER-COMMITTED
+/// `rv.leaf_outputs` as `CircuitPublicData`. See [`leaf_r1r2_unpacker_preprocessed_root`] for the
+/// `(n, config, zk_n_padding)` trust contract (all recomputed from trusted public params, never from
+/// the prover).
 pub fn leaf_r1r2_unpacker_verify_config(
     n: usize,
     config: &AggregateConfig,
@@ -1758,7 +1751,7 @@ pub fn leaf_r1r2_unpacker_verify_config(
 /// then folds those up with the SHARED level-≥1 R2 group+carry. Reconstructs the same shape
 /// [`recursive_aggregate_prove_leaves`] folds. The circuit-BUILD is factored into the shared generic
 /// [`build_leaf_r1r2_root_verification_context`] so the NoValue canonical-root recompute the trusted
-/// verifier runs is byte-identical.
+/// verifier runs builds the identical circuit.
 ///
 /// `bottom.leaves` must be the same ordered leaves fed to [`recursive_aggregate_prove_leaves`], and
 /// `root` the returned root. Requires a `LeafR1R2` config.
@@ -1962,7 +1955,7 @@ fn prove_short_node(children: &[TreeProof], config: &AggregateConfig, height: us
 
 // ---------------------------------------------------------------------------
 // Config-derivation helpers (general): build an `AggregateConfig` whose multiverifier verifies
-// leaves of a given circuit's config. Replicate stwo-circuits' test-only helpers (not exported).
+// leaves of a given circuit's config.
 // ---------------------------------------------------------------------------
 
 use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
@@ -2072,7 +2065,7 @@ pub fn node_preprocessed_from_shared(
 }
 
 /// The preprocessed root a SHORT R2 node of the given `arity` (`2..=FOLD_ARITY-1`, the short ROOT)
-/// reports — recomputed witness-independently over `node_shared_config`, byte-identical to what
+/// reports — recomputed witness-independently over `node_shared_config`, identical to what
 /// [`prove_short_node`] recomputes for the same shape. Pure function of the public `arity`, so the
 /// unpacker binds the same value the prover reported.
 fn short_node_preprocessed_root(config: &AggregateConfig, arity: usize) -> HashValue<QM31> {
@@ -2093,9 +2086,8 @@ impl AggregateConfig {
             self.node_preprocessed_root,
             "full-{k} node-node preprocessed root recompute != trusted R2",
         );
-        // Also check the R1 (leaf-verifying) full-`k` root against its recompute. The
-        // `decoupled_roots_consistent` regression test exercises this branch in the genuinely
-        // decoupled R1 != R2 regime.
+        // Also check the R1 (leaf-verifying) full-`k` root against its recompute, which matters in
+        // the genuinely decoupled R1 != R2 regime.
         if let Some(level1_root) = &self.level1_preprocessed_root {
             assert_eq!(
                 short_leaf_node_preprocessed_root(self, k),

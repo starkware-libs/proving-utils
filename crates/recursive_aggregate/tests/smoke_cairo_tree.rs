@@ -349,10 +349,10 @@ fn mv_node_hash(children: &[(HashValue<QM31>, [QM31; N_RESERVED])]) -> [QM31; N_
 
 #[test]
 fn smoke_fold_four_cairo_leaves() {
-    if std::env::var("GATE_AIR_HEAVY_RECURSION").is_err() {
+    if std::env::var("HEAVY_RECURSION").is_err() {
         eprintln!(
             "smoke_fold_four_cairo_leaves: SKIPPED (heavy: real STARK proves, VM only). Set \
-             GATE_AIR_HEAVY_RECURSION=1 to run."
+             HEAVY_RECURSION=1 to run."
         );
         return;
     }
@@ -386,12 +386,12 @@ fn smoke_fold_four_cairo_leaves() {
 #[test]
 fn mv_tree_root_output_two_phase() {
     // RUN-GUARD: `aggregate_config()` commits a 2^22-padded node preprocessed tree (CPU
-    // interpolation + Merkle, ~minutes), so gate it to GATE_AIR_HEAVY_RECURSION even though it does
+    // interpolation + Merkle, ~minutes), so gate it to HEAVY_RECURSION even though it does
     // NOT prove/verify — keeps plain `cargo test` fast. Off-circuit shape check only.
-    if std::env::var("GATE_AIR_HEAVY_RECURSION").is_err() {
+    if std::env::var("HEAVY_RECURSION").is_err() {
         eprintln!(
             "mv_tree_root_output_two_phase: SKIPPED (builds a 2^22 preprocessed tree). Set \
-             GATE_AIR_HEAVY_RECURSION=1 to run."
+             HEAVY_RECURSION=1 to run."
         );
         return;
     }
@@ -446,8 +446,8 @@ fn mv_tree_root_output_two_phase() {
 #[ignore = "stale k=2 golden; recapture the k=8 N=4 root on-box (see smoke_fold_four_cairo_leaves)"]
 fn opener_recomputes_known_root() {
     // RUN-GUARD (in addition to #[ignore]): `aggregate_config()` builds a 2^22 preprocessed tree.
-    if std::env::var("GATE_AIR_HEAVY_RECURSION").is_err() {
-        eprintln!("opener_recomputes_known_root: SKIPPED. Set GATE_AIR_HEAVY_RECURSION=1 to run.");
+    if std::env::var("HEAVY_RECURSION").is_err() {
+        eprintln!("opener_recomputes_known_root: SKIPPED. Set HEAVY_RECURSION=1 to run.");
         return;
     }
     let (config, _pre) = aggregate_config();
@@ -481,10 +481,10 @@ fn opener_recomputes_known_root() {
 /// verifies the root in-circuit, unpacks it to the leaf outputs, and emits them. Heavy — VM only.
 #[test]
 fn smoke_root_verification() {
-    if std::env::var("GATE_AIR_HEAVY_RECURSION").is_err() {
+    if std::env::var("HEAVY_RECURSION").is_err() {
         eprintln!(
             "smoke_root_verification: SKIPPED (heavy: real STARK proves, VM only). Set \
-             GATE_AIR_HEAVY_RECURSION=1 to run."
+             HEAVY_RECURSION=1 to run."
         );
         return;
     }
@@ -526,10 +526,10 @@ fn smoke_root_verification() {
 /// still unpacks the same leaf outputs and reports the overhead.
 #[test]
 fn smoke_root_verification_zk_blinded() {
-    if std::env::var("GATE_AIR_HEAVY_RECURSION").is_err() {
+    if std::env::var("HEAVY_RECURSION").is_err() {
         eprintln!(
             "smoke_root_verification_zk_blinded: SKIPPED (heavy: real STARK proves, VM only). Set \
-             GATE_AIR_HEAVY_RECURSION=1 to run."
+             HEAVY_RECURSION=1 to run."
         );
         return;
     }

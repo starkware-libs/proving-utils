@@ -4,7 +4,7 @@
 //! agree:
 //!   - the config's trusted R1/R2 (`level1_preprocessed_root` / `node_preprocessed_root`), built the
 //!     PRODUCTION way via `multiverifier_node_preprocessed` / `node_preprocessed_from_shared`
-//!     (exactly as `gate-air-leaf::derive_aggregate_config` builds them), and
+//!     (exactly as the downstream leaf prover's config derivation builds them), and
 //!   - the witness-independent recompute the unpacker binds short nodes / the root to
 //!     (`AggregateConfig::assert_full_arity_roots_consistent`, which goes through the private
 //!     `short_node_preprocessed_root(FOLD_ARITY)`).
@@ -37,8 +37,8 @@ const LOG_BLOWUP_FACTOR: u32 = 3;
 const CAIRO_TRACE_LOG_SIZE: u32 = 21;
 const CAIRO_N_PREPROCESSED_COLUMNS: usize = 45;
 
-/// Component-wise `max`, mirroring `gate-air-leaf::leaf::max_sizes` (private there), used to grow the
-/// common node target to the R1/R2 fixed point exactly like `derive_aggregate_config` does.
+/// Component-wise `max`, mirroring the downstream leaf prover's private `max_sizes`, used to grow the
+/// common node target to the R1/R2 fixed point exactly like its config derivation does.
 fn max_sizes(a: &ComponentSizes, b: &ComponentSizes) -> ComponentSizes {
     ComponentSizes {
         eq: a.eq.max(b.eq),
@@ -123,15 +123,15 @@ fn leaf_target_seed() -> ComponentSizes {
 }
 
 /// Builds a GENUINELY decoupled `AggregateConfig` (R1 != R2) using ONLY the production build paths
-/// (`multiverifier_node_preprocessed` / `node_preprocessed_from_shared`), replicating
-/// `gate-air-leaf::derive_aggregate_config`'s node-fixed-point loop.
+/// (`multiverifier_node_preprocessed` / `node_preprocessed_from_shared`), replicating the downstream
+/// leaf prover's config-derivation node-fixed-point loop.
 ///
 /// Decoupling source (mirrors production exactly): the "leaf" is a small arity-2 multiverifier node
 /// padded to a SMALLER `leaf_target` (~2^21 trace, PCS lifting one below the node's), while the nodes
 /// pad to `node_target` (~2^22 trace, one-higher lifting). A node verifying LEAF children (R1) then
 /// has a different child Merkle-path length — hence different gate structure and preprocessed root —
 /// than a node verifying NODE children (R2). This is the same leaf(~2^21)↔node(~2^22) lifting split
-/// `derive_aggregate_config` produces for a real gate_air leaf. Crucially, R1/R2 are built via
+/// the config derivation produces for a real leaf circuit. Crucially, R1/R2 are built via
 /// `multiverifier_node_preprocessed` / `node_preprocessed_from_shared`, NOT via
 /// `short_node_preprocessed_root` — that recompute is the thing under test.
 fn build_decoupled_config() -> AggregateConfig {
@@ -221,10 +221,10 @@ fn build_decoupled_config() -> AggregateConfig {
             --ignored --nocapture"]
 fn full_arity_roots_consistent_in_decoupled_regime() {
     // RUN-GUARD (in addition to #[ignore]): builds several 2^22-padded node preprocessed circuits.
-    if std::env::var("GATE_AIR_HEAVY_RECURSION").is_err() {
+    if std::env::var("HEAVY_RECURSION").is_err() {
         eprintln!(
             "full_arity_roots_consistent_in_decoupled_regime: SKIPPED. Set \
-             GATE_AIR_HEAVY_RECURSION=1 (and --ignored) to run."
+             HEAVY_RECURSION=1 (and --ignored) to run."
         );
         return;
     }
