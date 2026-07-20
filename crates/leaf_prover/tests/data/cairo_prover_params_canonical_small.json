@@ -8,10 +8,12 @@
             "log_blowup_factor": 1,
             "log_last_layer_degree_bound": 0,
             "n_queries": 70,
-            "fold_step": 1},
-        "min_lifting_log_size": 21
+            "fold_step": 1
         },
+        "min_lifting_log_size": 21
+    },
     "store_polynomials_coefficients": false,
     "include_all_preprocessed_columns": true,
-    "opt_n_id_to_big_components": 16
+    "opt_n_id_to_big_components": 16,
+    "raise_min_lifting_to_max_column": true
 }
