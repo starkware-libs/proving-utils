@@ -1,5 +1,7 @@
-//! Computes the leaf-prover verifier circuit's per-component sizes for the CANONICAL preprocessed
-//! trace config, across a range of verified trace sizes, and writes them as text.
+//! Computes per-component sizes for the CANONICAL preprocessed trace config, across a range of
+//! verified trace sizes, and writes them as text. For each trace size it reports two circuits:
+//! the leaf-prover verifier circuit (which verifies one Cairo proof), and the multiverifier circuit
+//! (which verifies two proofs of that leaf verifier circuit).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -9,13 +11,26 @@ use cairo_air::verifier::INTERACTION_POW_BITS;
 use circuit_cairo_verifier::privacy::get_pcs_config;
 use circuit_cairo_verifier::statement::MEMORY_VALUES_LIMBS;
 use circuit_cairo_verifier::verify::{CairoVerifierConfig, build_cairo_verifier_circuit};
+use circuit_common::N_RESERVED;
 use circuit_common::finalize::{ComponentSizes, compute_padded_sizes};
-use circuits_stark_verifier::proof::ProofConfig;
+use circuit_common::preprocessed::PreprocessedCircuit;
+use circuit_multiverifier::verify::{
+    MultiverifierInput, SharedConfig, build_multiverifier_circuit,
+};
+use circuit_verifier::statement::{
+    INTERACTION_POW_BITS as CIRCUIT_INTERACTION_POW_BITS, all_circuit_components,
+    circuit_component_log_sizes,
+};
+use circuits::blake::HashValue;
+use circuits::context::FinalizedContext;
+use circuits::ivalue::NoValue;
+use circuits_stark_verifier::proof::{ProofConfig, empty_proof};
 use clap::Parser;
 use leaf_prover::consts::DISABLED_COMPONENTS_CANONICAL_PREPROCESSED;
 use leaf_prover::prove_leaf::{LeafVerifierComponents, leaf_verifier_components};
 use stwo_cairo_common::preprocessed_columns::preprocessed_trace::PreProcessedTraceVariant;
 use stwo_cairo_common::prover_types::cpu::M31;
+use stwo_cairo_prover::stwo::core::pcs::PcsConfig;
 use stwo_cairo_utils::binary_utils::run_binary;
 
 #[derive(Parser)]
@@ -71,12 +86,12 @@ fn format_sizes(raw: &RawSizes, padded: &ComponentSizes) -> String {
 }
 
 /// Builds the leaf-prover verifier circuit topology (with the CANONICAL preprocessed trace and its
-/// component set) for a verified Cairo proof whose trace has the given log size, and returns the
-/// non-padded row counts and padded sizes of its AIR components.
-fn leaf_verifier_component_sizes(
+/// component set) for a verified Cairo proof whose trace has the given log size. The result is a
+/// `NoValue` context (topology only; no witness values).
+fn build_leaf_verifier_context(
     trace_log_size: u32,
     log_blowup_factor: u32,
-) -> (RawSizes, ComponentSizes) {
+) -> FinalizedContext<NoValue> {
     let preprocessed_trace_variant = PreProcessedTraceVariant::Canonical;
 
     // The Cairo-proof PCS config the leaf prover uses (canonical preprocessed).
@@ -106,8 +121,49 @@ fn leaf_verifier_component_sizes(
         preprocessed_trace_variant,
     };
 
-    let context = build_cairo_verifier_circuit(&verifier_config);
-    let padded = compute_padded_sizes(&context);
+    build_cairo_verifier_circuit(&verifier_config)
+}
+
+/// Builds the multiverifier circuit topology that verifies two proofs of `preprocessed_leaf`.
+///
+/// Mirrors `circuit_multiverifier`'s test-only `get_preprocessed_multiverifier_from_circuit`:
+/// the multiverifier is fed two empty (zero-valued) proofs of the leaf circuit, which is enough to
+/// build the `NoValue` topology and measure its component sizes. No target padding is applied so
+/// the reported sizes are the raw ones. `pcs_config` must be the leaf proof's config; its
+/// `min_lifting_log_size` must equal `preprocessed_leaf.trace_log_size + log_blowup_factor`.
+fn build_multiverifier_context(
+    preprocessed_leaf: &PreprocessedCircuit,
+    pcs_config: PcsConfig,
+) -> FinalizedContext<NoValue> {
+    let preprocessed_column_log_sizes = preprocessed_leaf.preprocessed_trace.log_sizes();
+
+    // `ProofConfig` expects the components in ascending log-size order.
+    let mut components = all_circuit_components::<NoValue>();
+    let log_sizes = circuit_component_log_sizes(&components, &preprocessed_column_log_sizes);
+    components.sort_by(|a, _, b, _| log_sizes[*a].cmp(&log_sizes[*b]));
+
+    let proof_config = ProofConfig::new(
+        &components,
+        preprocessed_leaf.preprocessed_trace.n_columns(),
+        &pcs_config,
+        CIRCUIT_INTERACTION_POW_BITS,
+    );
+    let shared_config = SharedConfig {
+        pcs_config,
+        preprocessed_column_log_sizes,
+        proof_config: proof_config.clone(),
+    };
+    let empty_input = || MultiverifierInput {
+        proof: empty_proof(&proof_config),
+        preprocessed_root: HashValue::from([0u32; 8]),
+        output_values: [0u32; N_RESERVED],
+    };
+    build_multiverifier_circuit::<NoValue>(empty_input(), empty_input(), &shared_config)
+}
+
+/// Non-padded row counts and padded sizes of a circuit context's AIR components.
+fn component_sizes(context: &FinalizedContext<NoValue>) -> (RawSizes, ComponentSizes) {
+    let padded = compute_padded_sizes(context);
 
     // Non-padded row counts, mirroring `compute_padded_sizes` before its power-of-two rounding.
     let circuit = context.circuit();
@@ -128,6 +184,31 @@ fn leaf_verifier_component_sizes(
     (raw, padded)
 }
 
+/// Builds the leaf verifier circuit for the given verified trace log size and returns its
+/// component sizes.
+fn leaf_component_sizes(trace_log_size: u32, log_blowup_factor: u32) -> (RawSizes, ComponentSizes) {
+    let context = build_leaf_verifier_context(trace_log_size, log_blowup_factor);
+    component_sizes(&context)
+}
+
+/// Builds the multiverifier circuit that verifies two proofs of the leaf verifier circuit for the
+/// given verified trace log size, and returns its component sizes.
+fn multiverifier_component_sizes(
+    trace_log_size: u32,
+    log_blowup_factor: u32,
+) -> (RawSizes, ComponentSizes) {
+    let mut leaf_context = build_leaf_verifier_context(trace_log_size, log_blowup_factor);
+
+    // The multiverifier verifies proofs of the (preprocessed) leaf circuit, proven at the leaf
+    // circuit's own trace log size.
+    let preprocessed_leaf = PreprocessedCircuit::preprocess_circuit(&mut leaf_context);
+    let multiverifier_pcs_config =
+        get_pcs_config(preprocessed_leaf.trace_log_size, log_blowup_factor);
+    let multiverifier_context =
+        build_multiverifier_context(&preprocessed_leaf, multiverifier_pcs_config);
+    component_sizes(&multiverifier_context)
+}
+
 fn main() -> ExitCode {
     run_binary(run, "circuit_params")
 }
@@ -135,14 +216,25 @@ fn main() -> ExitCode {
 fn run() -> Result<(), String> {
     let args = Args::parse();
 
-    let output = (args.min_trace_log_size..=args.max_trace_log_size)
+    // The leaf verifier circuit's size grows with the verified trace size, so it's reported for
+    // every trace log size in the range, under a `leaf:` header. The multiverifier verifies proofs
+    // of the leaf circuit; we only report it for the largest leaf (`max_trace_log_size`), which
+    // bounds the multiverifier size across the range.
+    let leaf_lines: Vec<String> = (args.min_trace_log_size..=args.max_trace_log_size)
         .map(|trace_log_size| {
-            let (raw, padded) =
-                leaf_verifier_component_sizes(trace_log_size, args.log_blowup_factor);
+            let (raw, padded) = leaf_component_sizes(trace_log_size, args.log_blowup_factor);
             format!("{}: {}", trace_log_size, format_sizes(&raw, &padded))
         })
-        .collect::<Vec<_>>()
-        .join("\n");
+        .collect();
+    let leaf_section = format!("leaf:\n{}", leaf_lines.join("\n"));
+
+    // We report a single multiverifier line, as the multiverifier is about the same for all trace
+    // log sizes.
+    let (mv_raw, mv_padded) =
+        multiverifier_component_sizes(args.max_trace_log_size, args.log_blowup_factor);
+    let multiverifier_line = format!("multiverifier:\n{}", format_sizes(&mv_raw, &mv_padded,));
+
+    let output = format!("{leaf_section}\n\n{multiverifier_line}");
 
     match args.output_path {
         Some(path) => std::fs::write(&path, format!("{output}\n"))

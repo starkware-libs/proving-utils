@@ -14,7 +14,10 @@ leaf-prover.workspace = true
 cairo-air.workspace = true
 circuit-cairo-verifier.workspace = true
 circuits-stark-verifier.workspace = true
-circuit-common.workspace = true
+circuit-common = { workspace = true, features = ["prover"] }
+circuit-verifier.workspace = true
+circuit-multiverifier.workspace = true
+circuits.workspace = true
 stwo-cairo-common.workspace = true
 stwo-cairo-prover.workspace = true
 stwo-cairo-utils.workspace = true

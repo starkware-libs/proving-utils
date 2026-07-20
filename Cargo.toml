@@ -79,6 +79,9 @@ circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circui
 circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
 circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
 circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
+circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
