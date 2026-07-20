@@ -24,23 +24,24 @@ use circuit_verifier::statement::{
     circuit_component_log_sizes,
 };
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
+use circuits::blake::HashValue;
 use circuits::context::FinalizedContext;
-use circuits::ivalue::{IValue, NoValue};
+use circuits::ivalue::NoValue;
 use circuits_stark_verifier::proof::ProofConfig;
-use circuits_stark_verifier::proof_from_stark_proof::pack_into_qm31s;
 use itertools::Itertools;
 use starknet_types_core::felt::Felt;
 use starknet_types_core::hash::Blake2Felt252;
 use stwo::core::fields::m31::M31;
 use stwo::core::fields::qm31::QM31;
+use stwo::core::vcs::blake2_hash::{Blake2sHash, Blake2sHasher};
 use stwo_cairo_common::preprocessed_columns::preprocessed_trace::PreProcessedTraceVariant;
-use stwo_cairo_common::prover_types::cpu::{FELT252_N_WORDS, Felt252};
+use stwo_cairo_common::prover_types::cpu::Felt252;
 use tracing::{Level, info, span};
 pub use utils::{VERSION_BYTES, Version};
 
 use crate::consts::{
     CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_OUTPUT_ADDRESSES, CIRCUIT_PCS_CONFIG,
-    MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES, NUM_OUTPUTS,
+    MAX_CAIRO_PROOF_UNCOMPRESSED_BYTES, MAX_RECURSIVE_PROOF_UNCOMPRESSED_BYTES,
     PRIVACY_BOOTLOADER_JSON, PRIVACY_CIRCUIT_PREPROCESSED_IDS,
     PRIVACY_CIRCUIT_PREPROCESSED_LOG_SIZES, PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT,
     PRIVACY_TRANSACTION_COMPONENTS,
@@ -84,7 +85,7 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     let program_len = bootloader_program.data_len();
     let n_components = verifier_config.proof_config.n_components();
     let (serialized_aux_data_bytes, serialized_proof_bytes) =
-        proof_bytes.split_at((AUX_DATA_FIXED_LEN + NUM_OUTPUTS + program_len + n_components) * 4);
+        proof_bytes.split_at((AUX_DATA_FIXED_LEN + program_len + n_components) * 4);
     let serialized_aux_data: Vec<M31> = serialized_aux_data_bytes
         .chunks_exact(4)
         .map(|c| M31::from(u32::from_le_bytes(c.try_into().unwrap())))
@@ -97,10 +98,10 @@ pub fn verify_cairo(proof_output: &PrivacyProofOutput) -> Result<(), Box<dyn Err
     }
 
     info!("Compute the output");
-    let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
+    let output_hash = compute_privacy_bootloader_output_hash(&proof_output.output_preimage);
 
     info!("Call the verifier");
-    verify_fixed_cairo_circuit(&verifier_config, proof, serialized_aux_data, vec![outputs])?;
+    verify_fixed_cairo_circuit(&verifier_config, proof, serialized_aux_data, output_hash)?;
 
     Ok(())
 }
@@ -121,13 +122,13 @@ pub fn verify_recursive_circuit(proof_output: &PrivacyProofOutput) -> Result<(),
     }
 
     info!("Compute the output values");
-    let outputs = compute_privacy_bootloader_output(&proof_output.output_preimage);
-    let output_qm31s = pack_into_qm31s(outputs.into_iter());
-    let output_hash = QM31::blake2s(&output_qm31s, output_qm31s.len() * 16);
-    // The circuit outputs the full unreduced Blake2s digest (8 words) at the reserved output
-    // wires. The `u` anchor wire is appended internally by the verifier, so it must not be part
-    // of `output_values`.
-    let output_values: Vec<QM31> = output_hash.iter().map(|w| *w.get()).collect();
+    // The cairo-verifier circuit outputs the program's Blake2s digest words directly at the
+    // reserved output wires (see its `set_outputs`), so reproduce them via the same
+    // `HashValue::<QM31>::from(_)` conversion the circuit uses on the digest. The `u` anchor wire
+    // is appended internally by the verifier, so it must not be part of `output_values`.
+    let output_hash = compute_privacy_bootloader_output_hash(&proof_output.output_preimage);
+    let output_values: Vec<QM31> =
+        HashValue::<QM31>::from(output_hash).iter().map(|w| *w.get()).collect();
 
     info!("Call the verifier");
     verify_circuit(circuit_config, proof, CircuitPublicData { output_values })?;
@@ -176,7 +177,6 @@ pub fn get_cairo_verifier_config() -> Result<CairoVerifierConfig, Box<dyn Error>
         proof_config: cairo_proof_config,
         enabled_bits,
         program: Arc::from(program_entries.as_slice()),
-        n_outputs: NUM_OUTPUTS,
         preprocessed_root: get_preprocessed_root(cairo_lifting_log_size),
         preprocessed_trace_variant,
     })
@@ -187,9 +187,16 @@ pub fn get_privacy_bootloader_program() -> Result<Program, Box<dyn Error>> {
     Ok(bootloader_program)
 }
 
-pub fn compute_privacy_bootloader_output(output_preimage: &[Felt]) -> [M31; FELT252_N_WORDS] {
-    let output = Blake2Felt252::encode_felt252_data_and_calc_blake_hash(output_preimage);
-    Felt252::from(output).get_limbs()
+/// Computes the Blake2s digest that the privacy bootloader emits as its output memory cells.
+///
+/// The bootloader hashes the felt-encoded `output_preimage` with Blake2s (the same encoding as
+/// [`Blake2Felt252::encode_felt252_data_and_calc_blake_hash`]) and stores the raw 256-bit digest
+/// across its output cells. This returns that digest directly (before any packing/reduction into
+/// a felt), which is the `output_hash` the cairo-circuit verifier expects.
+pub fn compute_privacy_bootloader_output_hash(output_preimage: &[Felt]) -> Blake2sHash {
+    let u32_words = Blake2Felt252::encode_felts_to_u32s(output_preimage);
+    let byte_stream: Vec<u8> = u32_words.iter().flat_map(|word| word.to_le_bytes()).collect();
+    Blake2sHasher::hash(&byte_stream)
 }
 
 pub fn get_recursive_circuit_config() -> CircuitConfig {

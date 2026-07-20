@@ -13,13 +13,17 @@ fn test_privacy_bootloader_program_hash_snapshot() {
     // Source code for this compiled privacy bootloader can be found at:
     // repo: https://github.com/starkware-industries/starkware
     // branch: "dev"
-    // commit: "4d1ae5848dd49802ddd620601d2d1bb303d15c66"
-    // md5sum: "0494f41365e482142d04b58bd64aa5fe"
-    // Compiled by command:
-    // `bazel build --config=rbe
-    // //src/starkware/cairo/bootloaders/simple_bootloader:privacy_simple_bootloader_program`
+    // commit: "7e08556cbf0bf75dc9651d297c3246be5871eeae"
+    // Built (with debug info) via the standard BUILD target, then stripped of debug info to keep
+    // the checked-in file small, from the starkware repo root:
+    //   bazel build //src/starkware/cairo/bootloaders/simple_bootloader:privacy_simple_bootloader_program
+    //   jq --indent 4 '.debug_info = null' \
+    //     "$(bazel info bazel-bin)/src/starkware/cairo/bootloaders/simple_bootloader/privacy_simple_bootloader_compiled.json" \
+    //     > privacy_simple_bootloader_compiled.json
+    // (--indent 4 with no --sort-keys reproduces the compiler's json.dump(indent=4,
+    //  sort_keys=True) output byte-for-byte, as the build output already has that key order.)
     let expected_hash_str =
-        expect!["1750040183559192178681351064048820676105364457180846249135562594342068277738"];
+        expect!["73747894710436589082477846004984361876990600795917652715762276452157777094"];
     expected_hash_str.assert_eq(&program_hash.to_string());
 }
 

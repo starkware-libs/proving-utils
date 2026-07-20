@@ -30,21 +30,21 @@ cairo-vm = { workspace = true, features = [
 ] }
 
 # stwo cairo
-cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "12260008" }
-stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "12260008" }
-stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "12260008" }
-stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "12260008" }
+cairo-air = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "82f21252" }
+stwo-cairo-adapter = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "82f21252" }
+stwo-cairo-prover = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "82f21252" }
+stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev = "82f21252" }
 
 # stwo circuits
-circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "7bbff4c9" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "7bbff4c9" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "7bbff4c9" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "7bbff4c9" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "7bbff4c9" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "7bbff4c9" }
 
 # stwo
-stwo = { git = "https://github.com/starkware-libs/stwo", rev = "8f9b7be9", features = ["parallel"] }
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "7b211edd", features = ["parallel"] }
 
 [dev-dependencies]
 ctor.workspace = true
