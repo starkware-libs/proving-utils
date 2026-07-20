@@ -12,7 +12,7 @@ use circuit_cairo_verifier::privacy::get_pcs_config;
 use circuit_cairo_verifier::statement::MEMORY_VALUES_LIMBS;
 use circuit_cairo_verifier::verify::{CairoVerifierConfig, build_cairo_verifier_circuit};
 use circuit_common::N_RESERVED;
-use circuit_common::finalize::{ComponentSizes, compute_padded_sizes};
+use circuit_common::finalize::{ComponentSizes, compute_padded_sizes, qm31_ops_n_rows};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_multiverifier::verify::{
     MultiverifierInput, SharedConfig, build_multiverifier_circuit,
@@ -107,8 +107,8 @@ fn build_leaf_verifier_context(
         INTERACTION_POW_BITS,
     );
 
-    // Program length and output count are held fixed for this measurement; only the trace size
-    // varies. The preprocessed root value is irrelevant for the [NoValue] topology.
+    // TODO(ilya): Use a real program for the circuit construction.
+    // Pass a dummy program for the circuit construction.
     let program: Arc<[[M31; MEMORY_VALUES_LIMBS]]> =
         std::iter::repeat_n([M31::from(0u32); MEMORY_VALUES_LIMBS], 128).collect();
 
@@ -116,7 +116,6 @@ fn build_leaf_verifier_context(
         proof_config,
         enabled_bits,
         program,
-        n_outputs: 1,
         preprocessed_root: [0u32; 8].into(),
         preprocessed_trace_variant,
     };
@@ -167,12 +166,7 @@ fn component_sizes(context: &FinalizedContext<NoValue>) -> (RawSizes, ComponentS
 
     // Non-padded row counts, mirroring `compute_padded_sizes` before its power-of-two rounding.
     let circuit = context.circuit();
-    // TODO(ilya): Use `qm31_ops_n_rows` instead of counting the operations manually.
-    let qm31_ops = circuit.add.len()
-        + circuit.sub.len()
-        + circuit.mul.len()
-        + circuit.pointwise_mul.len()
-        + circuit.permutation.iter().map(|p| p.inputs.len() + p.outputs.len()).sum::<usize>();
+    let qm31_ops = qm31_ops_n_rows(circuit);
     let raw = RawSizes {
         eq: circuit.eq.len(),
         qm31_ops,

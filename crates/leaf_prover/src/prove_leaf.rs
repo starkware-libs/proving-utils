@@ -6,9 +6,10 @@ use cairo_program_runner_lib::{ProgramInput, cairo_run_program};
 use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::types::program::Program;
 use circuit_cairo_verifier::all_components::all_components;
-use circuit_cairo_verifier::statement::MEMORY_VALUES_LIMBS;
+use circuit_cairo_verifier::statement::{MEMORY_VALUES_LIMBS, N_OUTPUTS, N_WORDS_PER_OUTPUT_CELL};
 use circuit_cairo_verifier::verify::{
-    CairoVerifierConfig, build_fixed_cairo_circuit, prepare_cairo_proof_for_circuit_verifier,
+    CairoVerifierConfig, build_and_fill_cairo_verifier_circuit,
+    prepare_cairo_proof_for_circuit_verifier,
 };
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
@@ -18,14 +19,13 @@ use circuit_serialize::serialize::CircuitSerialize;
 use circuits_stark_verifier::constraint_eval::CircuitEval;
 use circuits_stark_verifier::proof::ProofConfig;
 use indexmap::IndexMap;
-use itertools::Itertools;
 use leaf_proof_format::SerializedLeafProof;
 use stwo_cairo_adapter::adapter::adapt;
 use stwo_cairo_common::preprocessed_columns::preprocessed_trace::PreProcessedTraceVariant;
 use stwo_cairo_common::prover_types::cpu::M31;
-use stwo_cairo_common::prover_types::felt::split_f252;
 use stwo_cairo_prover::prover::{ProverParameters, prove_cairo};
 use stwo_cairo_prover::stwo::core::pcs::PcsConfig;
+use stwo_cairo_prover::stwo::core::vcs::blake2_hash::Blake2sHash;
 use stwo_cairo_prover::stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
 use stwo_cairo_prover::stwo::core::verifier::PREPROCESSED_TRACE_IDX;
 use stwo_cairo_prover::witness::prelude::{Felt252, QM31};
@@ -83,8 +83,21 @@ pub fn prove_leaf(
     let n_outputs = program_output_u256s.len();
     info!("Adapter done. Program created {n_outputs} outputs.");
 
-    let outputs_as_m31_slices =
-        program_output_u256s.iter().map(|value| split_f252(*value)).collect_vec();
+    assert_eq!(
+        n_outputs, N_OUTPUTS,
+        "The circuit cairo verifier expects exactly {N_OUTPUTS} output cells but the program \
+         produced {n_outputs}."
+    );
+    // The program emits its output as the raw 256-bit Blake2s digest, one 128-bit half per output
+    // cell. Concatenate the low `N_WORDS_PER_OUTPUT_CELL` words of each cell into the 8-word
+    // digest.
+    let mut digest_words = [0u32; N_OUTPUTS * N_WORDS_PER_OUTPUT_CELL];
+    for (chunk, cell) in
+        digest_words.chunks_exact_mut(N_WORDS_PER_OUTPUT_CELL).zip(program_output_u256s.iter())
+    {
+        chunk.copy_from_slice(&cell[..N_WORDS_PER_OUTPUT_CELL]);
+    }
+    let output_hash = Blake2sHash::from(digest_words);
     let proof =
         prove_cairo::<Blake2sM31MerkleChannel>(prover_input, cairo_prover_parameters).unwrap();
     info!("Cairo proving done");
@@ -134,16 +147,15 @@ pub fn prove_leaf(
         program: Arc::from(program_felts(program)),
         enabled_bits,
         proof_config,
-        n_outputs,
         preprocessed_trace_variant: cairo_prover_parameters.preprocessed_trace,
         preprocessed_root: preprocessed_root.into(),
     };
 
-    let mut context = build_fixed_cairo_circuit(
+    let mut context = build_and_fill_cairo_verifier_circuit(
         &verifier_config,
         proof_for_circuit,
         serialized_aux_data,
-        outputs_as_m31_slices,
+        output_hash,
     );
 
     // TODO: Pad to multiverifier size.
@@ -157,7 +169,7 @@ pub fn prove_leaf(
     Proof pow bits: {}
     Proof FRI config: {:?}",
         verifier_config.program.len(),
-        verifier_config.n_outputs,
+        n_outputs,
         verifier_config.preprocessed_trace_variant,
         verifier_config.preprocessed_root,
         verifier_config.proof_config.n_pow_bits,

@@ -16,7 +16,8 @@ use cairo_program_runner_lib::types::{
 use cairo_program_runner_lib::{ProgramInput, Task, TaskSpec, cairo_run_program};
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use circuit_cairo_verifier::verify::{
-    CairoVerifierConfig, build_fixed_cairo_circuit, prepare_cairo_proof_for_circuit_verifier,
+    CairoVerifierConfig, build_and_fill_cairo_verifier_circuit,
+    prepare_cairo_proof_for_circuit_verifier,
 };
 use circuit_common::finalize::{add_zk_blinding, pad_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
@@ -29,9 +30,9 @@ use circuits_stark_verifier::proof::ProofConfig;
 use itertools::chain;
 use privacy_circuit_verify::consts::{CAIRO_PCS_CONFIG, CIRCUIT_FRI_CONFIG, CIRCUIT_PCS_CONFIG};
 use privacy_circuit_verify::{
-    PrivacyProofOutput, Version, compute_privacy_bootloader_output, get_cairo_preprocessed_circuit,
-    get_cairo_verifier_config, get_privacy_bootloader_program, get_proof_config,
-    get_recursive_circuit_config,
+    PrivacyProofOutput, Version, compute_privacy_bootloader_output_hash,
+    get_cairo_preprocessed_circuit, get_cairo_verifier_config, get_privacy_bootloader_program,
+    get_proof_config, get_recursive_circuit_config,
 };
 use serde_json::from_str;
 use starknet_types_core::felt::Felt;
@@ -195,12 +196,12 @@ pub fn privacy_recursive_prove(
         prepare_cairo_proof_for_circuit_verifier(&cairo_proof, &component_enable_bits);
 
     info!("Build the cairo-circuit verifier context");
-    let outputs = compute_privacy_bootloader_output(&output_preimage);
-    let mut context = build_fixed_cairo_circuit(
+    let output_hash = compute_privacy_bootloader_output_hash(&output_preimage);
+    let mut context = build_and_fill_cairo_verifier_circuit(
         &precomputes.cairo_verifier_config,
         proof,
         serialized_aux_data,
-        vec![outputs],
+        output_hash,
     );
     if !context.is_circuit_valid() {
         return Err("Circuit is not valid".into());

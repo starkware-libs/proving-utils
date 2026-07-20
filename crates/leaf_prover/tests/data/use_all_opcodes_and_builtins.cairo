@@ -287,7 +287,7 @@ func main{
     mul_mod_ptr: ModBuiltin*,
 }() {
     alloc_locals;
-    local n_output = 50;
+    local n_output = 2;
     local n_pedersen = 50;
     local n_range_check = 50;
     local n_ecdsa = 0;
