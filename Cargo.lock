@@ -1509,12 +1509,14 @@ dependencies = [
  "circuit-cairo-verifier",
  "circuit-common",
  "circuit-multiverifier",
+ "circuit-registry",
  "circuit-verifier",
  "circuits",
  "circuits-stark-verifier",
  "clap",
  "indexmap 2.14.0",
  "leaf-prover",
+ "serde_json",
  "stwo-cairo-common",
  "stwo-cairo-prover",
  "stwo-cairo-utils",
@@ -1540,6 +1542,14 @@ dependencies = [
  "stwo-cairo-common",
  "stwo-cairo-prover",
  "stwo-constraint-framework",
+]
+
+[[package]]
+name = "circuit-registry"
+version = "1.2.2"
+dependencies = [
+ "circuit-common",
+ "serde",
 ]
 
 [[package]]
