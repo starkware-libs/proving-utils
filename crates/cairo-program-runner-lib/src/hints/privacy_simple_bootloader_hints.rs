@@ -58,8 +58,7 @@ pub fn dump_privacy_simple_bootloader_output_preimage(
 mod tests {
     use std::path::PathBuf;
 
-    use cairo_vm::Felt252;
-    use cairo_vm::math_utils::signed_felt;
+    use blake2::{Blake2s256, Digest};
     use cairo_vm::serde::deserialize_program::ApTracking;
     use cairo_vm::types::exec_scope::ExecutionScopes;
     use cairo_vm::types::layout_name::LayoutName;
@@ -253,23 +252,29 @@ mod tests {
             "Preimage length should be 1 + task_size (1 being n_tasks in this case)"
         );
 
-        // Verify the bootloader output (single felt) equals Blake hash of the full preimage.
-        let expected_hash = Blake2Felt252::encode_felt252_data_and_calc_blake_hash(&preimage_felts);
+        // The bootloader emits the raw 256-bit Blake2s digest of the preimage as two 128-bit
+        // output cells: the low half followed by the high half. Recompute the digest directly
+        // (the same felt encoding the Cairo hash uses, then a plain Blake2s-256) and compare each
+        // half, avoiding the lossy `blake2s_to_felt` packing.
+        let encoded_words = Blake2Felt252::encode_felts_to_u32s(&preimage_felts);
+        let encoded_bytes: Vec<u8> = encoded_words.iter().flat_map(|w| w.to_le_bytes()).collect();
+        let digest: [u8; 32] = Blake2s256::digest(&encoded_bytes).into();
+        let expected_low = u128::from_le_bytes(digest[..16].try_into().unwrap());
+        let expected_high = u128::from_le_bytes(digest[16..].try_into().unwrap());
 
         let mut output_buffer = String::new();
         runner.vm.write_output(&mut output_buffer).expect("Failed to write VM output.");
 
-        let expected_hash_str =
-            signed_felt(Felt252::from_bytes_be(&expected_hash.to_bytes_be())).to_string();
         let output_lines: Vec<&str> = output_buffer.lines().collect();
         assert_eq!(
             output_lines.len(),
-            1,
-            "Expected exactly 1 output line (blake hash). Got:\n{output_buffer}"
+            2,
+            "Expected 2 output lines (the 128-bit halves of the Blake2s digest). Got:\n\
+             {output_buffer}"
         );
-        assert_eq!(
-            output_lines[0], expected_hash_str,
-            "Privacy bootloader output should equal Blake hash of dumped preimage",
-        );
+        let actual_low: u128 = output_lines[0].parse().expect("Failed to parse low output half");
+        let actual_high: u128 = output_lines[1].parse().expect("Failed to parse high output half");
+        assert_eq!(actual_low, expected_low, "Low half of the Blake2s digest mismatch");
+        assert_eq!(actual_high, expected_high, "High half of the Blake2s digest mismatch");
     }
 }

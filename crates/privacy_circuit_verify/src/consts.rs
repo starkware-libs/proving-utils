@@ -1,10 +1,8 @@
 use stwo::core::fri::FriConfig;
 use stwo::core::pcs::PcsConfig;
 
-pub const NUM_OUTPUTS: usize = 1;
-
 /// Uncompressed size in bytes of the serialized cairo proof (including public claim prefix).
-pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 627_244;
+pub const CAIRO_PROOF_UNCOMPRESSED_BYTES: usize = 627_280;
 
 /// Uncompressed size in bytes of the serialized recursive circuit proof.
 pub const RECURSIVE_PROOF_UNCOMPRESSED_BYTES: usize = 263_796;
@@ -30,8 +28,9 @@ pub const PRIVACY_BOOTLOADER_JSON: &[u8] = include_bytes!(
      privacy_simple_bootloader_compiled.json"
 );
 pub const CIRCUIT_OUTPUT_ADDRESSES: [usize; 9] = [3, 4, 5, 6, 7, 8, 9, 10, 2];
-pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] =
-    [3967156988, 4180250654, 1309785659, 122263411, 178123464, 4171424983, 139020011, 2812255849];
+pub const PRIVACY_RECURSION_CIRCUIT_PREPROCESSED_ROOT: [u32; 8] = [
+    4235871417, 507420065, 2942256183, 1576290908, 2944656310, 761816949, 3338186241, 1661306849,
+];
 pub const CAIRO_LOG_BLOWUP_FACTOR: u32 = 3;
 pub const CAIRO_TRACE_LOG_SIZE: u32 = 20;
 pub const CIRCUIT_LOG_BLOWUP_FACTOR: u32 = 2;
