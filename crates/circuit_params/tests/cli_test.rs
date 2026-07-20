@@ -18,7 +18,9 @@ fn run_circuit_params_binary() {
 
     let stdout = String::from_utf8(output.stdout).expect("stdout is not valid UTF-8");
     assert!(
-        stdout.contains("25: eq:(log:") && stdout.contains("blake_g_gate:(log:"),
+        stdout.contains("leaf:\n25: eq:(log:")
+            && stdout.contains("multiverifier:\n25: eq:(log:")
+            && stdout.contains("blake_g_gate:(log:"),
         "unexpected output: {stdout}"
     );
 }
