@@ -1487,6 +1487,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit-params"
+version = "1.2.2"
+dependencies = [
+ "cairo-air",
+ "circuit-cairo-verifier",
+ "circuit-common",
+ "circuits-stark-verifier",
+ "clap",
+ "indexmap 2.14.0",
+ "leaf-prover",
+ "stwo-cairo-common",
+ "stwo-cairo-prover",
+ "stwo-cairo-utils",
+]
+
+[[package]]
 name = "circuit-prover"
 version = "0.1.0"
 source = "git+https://github.com/starkware-libs/stwo-circuits?rev=8b63880#8b6388022d34401d4923f4647b15e4ff6a7ea901"

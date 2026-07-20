@@ -1,0 +1,20 @@
+[package]
+name = "circuit-params"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Compute the leaf-prover verifier circuit's per-component sizes for a range of trace sizes"
+
+[dependencies]
+clap.workspace = true
+indexmap = { version = "2.10.0", default-features = false, features = ["std"] }
+
+leaf-prover.workspace = true
+
+cairo-air.workspace = true
+circuit-cairo-verifier.workspace = true
+circuits-stark-verifier.workspace = true
+circuit-common.workspace = true
+stwo-cairo-common.workspace = true
+stwo-cairo-prover.workspace = true
+stwo-cairo-utils.workspace = true
