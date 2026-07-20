@@ -1503,6 +1503,39 @@ fn constant_pp<Value: IValue>(
     }))
 }
 
+/// The `SharedConfig` used to verify the ROOT proof in the root-verification unpacker. This is the
+/// SINGLE `n == 1` selector shared by the QM31 prove pass (step (1) of
+/// [`build_leaf_r1r2_root_verification_context`]) and the NoValue recompute helpers'
+/// `empty_proof(&…proof_config)`, so both passes deserialize/guess the root proof with the identical
+/// shape. For N≥2 the root is a genuine R1/R2 node (`node_shared_config`, UNCHANGED). For N==1 the
+/// root IS the lone leaf ([`recursive_aggregate_prove_leaves`] short-circuits and returns the leaf
+/// verbatim — the same `n == 1` special case step (2) makes), proved with the LEAF config, so it must
+/// be verified with `leaf_shared_config`.
+fn root_verification_shared_config(n: usize, config: &AggregateConfig) -> &SharedConfig {
+    if n == 1 {
+        config
+            .leaf_shared_config
+            .as_ref()
+            .expect("leaf_shared_config required for a single-leaf root (LeafR1R2 mode)")
+    } else {
+        &config.node_shared_config
+    }
+}
+
+/// The `PcsConfig` used to verify the ROOT proof (leaf lifting for the N==1 lone-leaf root, node
+/// lifting otherwise). The N==1 leaf branch is what makes the in-circuit Merkle `validate_structure`
+/// auth-path height match how the lone leaf was actually proved; N≥2 keeps `node_pcs_config`
+/// UNCHANGED. Mirrors [`root_verification_shared_config`]'s `n == 1` selection.
+fn root_verification_pcs_config(n: usize, config: &AggregateConfig) -> PcsConfig {
+    if n == 1 {
+        config
+            .leaf_pcs_config
+            .expect("leaf_pcs_config required for a single-leaf root (LeafR1R2 mode)")
+    } else {
+        config.node_pcs_config
+    }
+}
+
 /// Builds the LEAF/R1/R2 root-verification unpacker circuit, generic over `Value`, through finalize +
 /// (optional) zk-blinding + power-of-two padding — the SINGLE code path shared by the QM31 prove
 /// ([`prove_root_verification_leaves`]) and the NoValue canonical-root recompute
@@ -1539,12 +1572,20 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
     // Exposes every leaf's N_RESERVED outputs.
     let mut context = Context::<Value>::new(n * N_RESERVED);
 
-    // (1) Verify the root multiverifier proof in-circuit (a NODE proof, node_shared_config / node PCS).
+    // (1) Verify the root multiverifier proof in-circuit. For N≥2 the root is a genuine R1/R2 NODE, so
+    // verify it with the node config (node_shared_config / node PCS). For N==1 the root IS the lone
+    // leaf (recursive_aggregate_prove_leaves short-circuits and returns the leaf verbatim, mirrored by
+    // step (2)'s `n == 1` branch below), so it was proved with the LEAF config/PCS — verify it with the
+    // leaf config so the in-circuit Merkle auth-path height matches how it was actually proved. The
+    // leaf-vs-node choice is the SINGLE `n == 1` selector (`root_verification_shared_config` /
+    // `root_verification_pcs_config`) also used by the NoValue recompute helpers' `empty_proof`, so the
+    // prover pass and the recompute pass build the identical circuit shape.
+    let root_shared_config = root_verification_shared_config(n, config);
+    let root_pcs_config = root_verification_pcs_config(n, config);
     let circuit_config = CircuitConfig {
-        config: config.node_pcs_config,
+        config: root_pcs_config,
         n_outputs: N_RESERVED,
-        preprocessed_column_log_sizes: config
-            .node_shared_config
+        preprocessed_column_log_sizes: root_shared_config
             .preprocessed_column_log_sizes
             .clone(),
         preprocessed_root: root_preprocessed_root.clone(),
@@ -1554,7 +1595,7 @@ fn build_leaf_r1r2_root_verification_context<Value: IValue>(
     verify(
         &mut context,
         &proof_vars,
-        &config.node_shared_config.proof_config,
+        &root_shared_config.proof_config,
         &statement,
     );
     let root_out_vars: Vec<Var> = statement.get_output_values().to_vec();
@@ -1690,7 +1731,7 @@ pub fn leaf_r1r2_unpacker_preprocessed_root(
     let root_output_values = [QM31::zero(); N_RESERVED];
     let leaf_output_values = vec![[NoValue; N_RESERVED]; n];
     let mut context = build_leaf_r1r2_root_verification_context::<NoValue>(
-        empty_proof(&config.node_shared_config.proof_config),
+        empty_proof(&root_verification_shared_config(n, config).proof_config),
         &root_output_values,
         &root_pp,
         &leaf_output_values,
@@ -1726,7 +1767,7 @@ pub fn leaf_r1r2_unpacker_verify_config(
     let root_output_values = [QM31::zero(); N_RESERVED];
     let leaf_output_values = vec![[NoValue; N_RESERVED]; n];
     let mut context = build_leaf_r1r2_root_verification_context::<NoValue>(
-        empty_proof(&config.node_shared_config.proof_config),
+        empty_proof(&root_verification_shared_config(n, config).proof_config),
         &root_output_values,
         &root_pp,
         &leaf_output_values,
