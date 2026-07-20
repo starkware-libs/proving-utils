@@ -85,13 +85,6 @@ pub fn prove_leaf(
 
     let preprocessed_root = proof.extended_stark_proof.proof.commitments[PREPROCESSED_TRACE_IDX];
 
-    // Create the component list and enabled bits for the circuit that verifies the Cairo proof.
-    // The set of components is constant (all possible components for the given preprocessed trace)
-    // to keep the verifier circuit stable. The trace is expected to contain all the components
-    // in this set.
-    let mut cairo_components: IndexMap<&'static str, Box<dyn CircuitEval<_>>> = IndexMap::default();
-    let mut enabled_bits = vec![];
-
     let disabled_components: &[&str] = match cairo_prover_parameters.preprocessed_trace {
         PreProcessedTraceVariant::Canonical => &DISABLED_COMPONENTS_CANONICAL_PREPROCESSED,
         PreProcessedTraceVariant::CanonicalSmall => &DISABLED_COMPONENTS_SMALL_PREPROCESSED,
@@ -100,14 +93,7 @@ pub fn prove_leaf(
             cairo_prover_parameters.preprocessed_trace
         ),
     };
-    for (name, component) in all_components::<QM31>() {
-        if disabled_components.contains(&name) {
-            enabled_bits.push(false);
-        } else {
-            cairo_components.insert(name, component);
-            enabled_bits.push(true);
-        }
-    }
+    let (cairo_components, enabled_bits) = leaf_verifier_components(disabled_components);
 
     let proof_config = ProofConfig::new(
         &cairo_components,
@@ -192,6 +178,27 @@ pub fn prove_leaf(
     proof_qm31s.serialize(&mut proof_bytes);
 
     SerializedLeafProof { circuit_preprocessed_root, proof: proof_bytes }
+}
+
+/// Creates the component list and enabled bits for the circuit that verifies the Cairo proof.
+/// The set of components is constant (all possible components for the given preprocessed trace,
+/// minus `disabled_components`) to keep the verifier circuit stable. The trace is expected to
+/// contain all the components in this set.
+pub fn leaf_verifier_components(
+    disabled_components: &[&str],
+) -> (IndexMap<&'static str, Box<dyn CircuitEval<QM31>>>, Vec<bool>) {
+    let mut cairo_components: IndexMap<&'static str, Box<dyn CircuitEval<QM31>>> =
+        IndexMap::default();
+    let mut enabled_bits = vec![];
+    for (name, component) in all_components::<QM31>() {
+        if disabled_components.contains(&name) {
+            enabled_bits.push(false);
+        } else {
+            cairo_components.insert(name, component);
+            enabled_bits.push(true);
+        }
+    }
+    (cairo_components, enabled_bits)
 }
 
 fn program_felts(program: &Program) -> Vec<[M31; MEMORY_VALUES_LIMBS]> {
