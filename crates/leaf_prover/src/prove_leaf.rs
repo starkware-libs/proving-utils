@@ -45,6 +45,11 @@ pub fn prove_leaf(
         cairo_prover_parameters.include_all_preprocessed_columns,
         "The prover parameters must set include_all_preprocessed_columns=true because the verifier circuit expects a constant number of preprocessed columns"
     );
+    assert!(
+        cairo_prover_parameters.raise_min_lifting_to_max_column,
+        "The prover parameters must set raise_min_lifting_to_max_column=true \
+        because the circuit-cairo-verifier only supports verifying proofs where the lifting size is >= the preprocessed trace height"
+    );
 
     // Execute & prove the input Cairo program.
 
