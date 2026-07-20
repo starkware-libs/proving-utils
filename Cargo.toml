@@ -74,14 +74,14 @@ stwo-cairo-common = { git = "https://github.com/starkware-libs/stwo-cairo", rev 
 
 # stwo circuits
 # Pinned to match the stwo-cairo rev above.
-circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
-circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14285a" }
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
+circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "3ba71ae" }
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }

@@ -1456,7 +1456,7 @@ dependencies = [
 [[package]]
 name = "circuit-cairo-verifier"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "cairo-air",
  "circuit-common",
@@ -1475,7 +1475,7 @@ dependencies = [
 [[package]]
 name = "circuit-common"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "circuits",
  "circuits-stark-verifier",
@@ -1489,7 +1489,7 @@ dependencies = [
 [[package]]
 name = "circuit-multiverifier"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "circuit-common",
  "circuit-verifier",
@@ -1522,7 +1522,7 @@ dependencies = [
 [[package]]
 name = "circuit-prover"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "circuit-common",
  "circuit-verifier",
@@ -1544,7 +1544,7 @@ dependencies = [
 [[package]]
 name = "circuit-serialize"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "circuits",
  "circuits-stark-verifier",
@@ -1554,7 +1554,7 @@ dependencies = [
 [[package]]
 name = "circuit-verifier"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "circuit-common",
  "circuits",
@@ -1569,7 +1569,7 @@ dependencies = [
 [[package]]
 name = "circuits"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "blake2",
  "hashbrown 0.17.1",
@@ -1583,7 +1583,7 @@ dependencies = [
 [[package]]
 name = "circuits-stark-verifier"
 version = "0.1.0"
-source = "git+https://github.com/starkware-libs/stwo-circuits?rev=b14285a#b14285ae25a7a7010de74164487771cbaf6d12e4"
+source = "git+https://github.com/starkware-libs/stwo-circuits?rev=3ba71ae#3ba71aec456189b8e28a2a76a9472569ac2bb368"
 dependencies = [
  "circuits",
  "hashbrown 0.17.1",

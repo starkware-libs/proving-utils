@@ -8,7 +8,8 @@ use cairo_vm::types::program::Program;
 use circuit_cairo_verifier::all_components::all_components;
 use circuit_cairo_verifier::statement::MEMORY_VALUES_LIMBS;
 use circuit_cairo_verifier::verify::{
-    CairoVerifierConfig, build_fixed_cairo_circuit, prepare_cairo_proof_for_circuit_verifier,
+    CairoVerifierConfig, build_and_fill_cairo_verifier_circuit,
+    prepare_cairo_proof_for_circuit_verifier,
 };
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
@@ -139,7 +140,7 @@ pub fn prove_leaf(
         preprocessed_root: preprocessed_root.into(),
     };
 
-    let mut context = build_fixed_cairo_circuit(
+    let mut context = build_and_fill_cairo_verifier_circuit(
         &verifier_config,
         proof_for_circuit,
         serialized_aux_data,

@@ -16,7 +16,8 @@ use cairo_program_runner_lib::types::{
 use cairo_program_runner_lib::{ProgramInput, Task, TaskSpec, cairo_run_program};
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use circuit_cairo_verifier::verify::{
-    CairoVerifierConfig, build_fixed_cairo_circuit, prepare_cairo_proof_for_circuit_verifier,
+    CairoVerifierConfig, build_and_fill_cairo_verifier_circuit,
+    prepare_cairo_proof_for_circuit_verifier,
 };
 use circuit_common::finalize::{add_zk_blinding, pad_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
@@ -196,7 +197,7 @@ pub fn privacy_recursive_prove(
 
     info!("Build the cairo-circuit verifier context");
     let outputs = compute_privacy_bootloader_output(&output_preimage);
-    let mut context = build_fixed_cairo_circuit(
+    let mut context = build_and_fill_cairo_verifier_circuit(
         &precomputes.cairo_verifier_config,
         proof,
         serialized_aux_data,
