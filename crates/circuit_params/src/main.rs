@@ -107,8 +107,8 @@ fn build_leaf_verifier_context(
         INTERACTION_POW_BITS,
     );
 
-    // Program length and output count are held fixed for this measurement; only the trace size
-    // varies. The preprocessed root value is irrelevant for the [NoValue] topology.
+    // Program length is held fixed for this measurement; only the trace size varies. The
+    // preprocessed root value is irrelevant for the [NoValue] topology.
     let program: Arc<[[M31; MEMORY_VALUES_LIMBS]]> =
         std::iter::repeat_n([M31::from(0u32); MEMORY_VALUES_LIMBS], 128).collect();
 
@@ -116,7 +116,6 @@ fn build_leaf_verifier_context(
         proof_config,
         enabled_bits,
         program,
-        n_outputs: 1,
         preprocessed_root: [0u32; 8].into(),
         preprocessed_trace_variant,
     };
