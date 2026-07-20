@@ -8,6 +8,8 @@ description = "Compute the leaf-prover verifier circuit's per-component sizes fo
 [dependencies]
 clap.workspace = true
 indexmap = { version = "2.10.0", default-features = false, features = ["std"] }
+serde.workspace = true
+serde_json.workspace = true
 
 leaf-prover.workspace = true
 

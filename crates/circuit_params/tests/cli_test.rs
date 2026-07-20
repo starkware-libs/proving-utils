@@ -1,11 +1,18 @@
 use std::process::Command;
 
-/// Runs the `circuit-params` binary for a single trace log size and checks it prints one info line.
-#[test]
-fn run_circuit_params_binary() {
+/// Runs the `circuit-params` binary for a single trace log size in the given format and returns its
+/// stdout, asserting success.
+fn run(format: &str) -> String {
     let binary = env!("CARGO_BIN_EXE_circuit-params");
     let output = Command::new(binary)
-        .args(["--min-trace-log-size", "25", "--max-trace-log-size", "25"])
+        .args([
+            "--min-trace-log-size",
+            "25",
+            "--max-trace-log-size",
+            "25",
+            "--format",
+            format,
+        ])
         .output()
         .expect("Cannot run circuit-params");
 
@@ -16,11 +23,34 @@ fn run_circuit_params_binary() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let stdout = String::from_utf8(output.stdout).expect("stdout is not valid UTF-8");
+    String::from_utf8(output.stdout).expect("stdout is not valid UTF-8")
+}
+
+#[test]
+fn run_circuit_params_binary_info() {
+    let stdout = run("info");
     assert!(
         stdout.contains("leaf:\n25: eq:(log:")
             && stdout.contains("multiverifier:\n25: eq:(log:")
             && stdout.contains("blake_g_gate:(log:"),
+        "unexpected output: {stdout}"
+    );
+}
+
+// Slow: builds and Merkle-commits a ~2^24 preprocessed trace. Run with `cargo test -- --ignored`.
+#[test]
+#[ignore = "slow: computes a preprocessed root"]
+fn run_circuit_params_binary_json() {
+    let stdout = run("json");
+    assert!(
+        stdout.contains("\"circuit_configs\":")
+            && stdout.contains("\"leaf_verifiers\":")
+            && stdout.contains("\"multiverifiers\":")
+            && stdout.contains("\"input_configs\":")
+            && stdout.contains("\"trace_log_size\": 25")
+            && stdout.contains("\"log_blowup_factor\":")
+            && stdout.contains("\"preprocessed_root\":")
+            && stdout.contains("\"0x"),
         "unexpected output: {stdout}"
     );
 }
