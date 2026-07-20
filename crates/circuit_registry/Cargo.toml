@@ -1,0 +1,11 @@
+[package]
+name = "circuit-registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The circuit registry JSON schema: the verifier circuits the system supports and their preprocessed roots"
+
+[dependencies]
+serde.workspace = true
+
+circuit-common.workspace = true

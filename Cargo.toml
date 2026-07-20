@@ -10,6 +10,7 @@ members = [
     "crates/vm_runner",
     "crates/privacy_prove",
     "crates/privacy_circuit_verify",
+    "crates/circuit_registry",
     "crates/circuit_params",
 ]
 resolver = "2"
@@ -85,6 +86,7 @@ circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "b14
 
 # local crates
 cairo-program-runner-lib = { path = "crates/cairo-program-runner-lib", version = "1.0.0" }
+circuit-registry = { path = "crates/circuit_registry" }
 leaf-prover = { path = "crates/leaf_prover" }
 leaf-proof-format = { path = "crates/leaf_proof_format" }
 privacy-circuit-verify = { path = "crates/privacy_circuit_verify", version = "1.0.0" }
