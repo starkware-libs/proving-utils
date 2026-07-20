@@ -260,9 +260,10 @@ pub struct AggregateConfig {
 
 /// Witness-independent proving precompute for the whole recursion, built UP FRONT from public params
 /// (decoupled from [`AggregateConfig`] so the recursion config stays pure metadata and the heavy
-/// [`CircuitPrecompute`] builds happen off the critical path). Each field is `None` under
-/// `RECURSION_NO_PRECOMPUTE` (or when the corresponding tier is inactive), falling back to the
-/// self-contained [`prove_circuit_assignment`] path that rebuilds tree0 each call.
+/// [`CircuitPrecompute`] builds happen off the critical path). A field is `None` when the
+/// corresponding tier is inactive (or in the precompute-OFF control arm the
+/// `recursion_precompute_identity` byte-identity test builds), falling back to the self-contained
+/// [`prove_circuit_assignment`] path that rebuilds tree0 each call.
 pub struct RecursionPrecompute {
     /// Precompute for the level-≥2 (node-verifying, R2) multiverifier node circuit. Reused for every
     /// [`prove_node`] call at height ≥ 2.
