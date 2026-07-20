@@ -1514,6 +1514,8 @@ dependencies = [
  "clap",
  "indexmap 2.14.0",
  "leaf-prover",
+ "serde",
+ "serde_json",
  "stwo-cairo-common",
  "stwo-cairo-prover",
  "stwo-cairo-utils",
