@@ -110,12 +110,19 @@ pub fn prove_leaf(
         }
     }
 
-    let proof_config = ProofConfig::new(
+    let mut proof_config = ProofConfig::new(
         &cairo_components,
         cairo_prover_parameters.preprocessed_trace.n_columns(),
         &cairo_prover_parameters.pcs_config,
         INTERACTION_POW_BITS,
     );
+
+    // Set the actual trace_log_size from the cairo proof.
+    let actual_log_trace_size = proof.claim.log_sizes().iter().flatten().fold(
+        PreProcessedTraceVariant::CanonicalSmall.max_log_trace_size(),
+        |max, &size| max.max(size),
+    ) as usize;
+    proof_config.fri.log_trace_size = actual_log_trace_size;
 
     // Verify that the Cairo proof has the expected trace width (if not - this is an
     // indication that the program doesn't use all components).
