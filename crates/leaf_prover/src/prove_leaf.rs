@@ -46,6 +46,12 @@ pub fn prove_leaf(
         "The prover parameters must set include_all_preprocessed_columns=true because the \
          verifier circuit expects a constant number of preprocessed columns"
     );
+    assert!(
+        cairo_prover_parameters.raise_min_lifting_to_max_column,
+        "The prover parameters must set raise_min_lifting_to_max_column=true because the \
+         circuit-cairo-verifier only supports verifying proofs where the lifting size is >= the \
+         preprocessed trace height"
+    );
 
     // Execute & prove the input Cairo program.
 
@@ -109,10 +115,14 @@ pub fn prove_leaf(
         }
     }
 
+    // Set min_lifting_log_size from the cairo proof.
+    let mut pcs_config = cairo_prover_parameters.pcs_config;
+    pcs_config.min_lifting_log_size = proof.extended_stark_proof.proof.config.min_lifting_log_size;
+
     let proof_config = ProofConfig::new(
         &cairo_components,
         cairo_prover_parameters.preprocessed_trace.n_columns(),
-        &cairo_prover_parameters.pcs_config,
+        &pcs_config,
         INTERACTION_POW_BITS,
     );
 
