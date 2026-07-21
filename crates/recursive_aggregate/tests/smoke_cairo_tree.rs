@@ -22,11 +22,17 @@ use circuits_stark_verifier::order_hash_map::OrderedHashMap;
 use circuits_stark_verifier::proof::ProofConfig;
 use std::sync::Arc;
 
+use recursive_aggregate::pools::PoolSet;
+use recursive_aggregate::precomputes::{CircuitPrecompute, RecursionPrecompute};
+use recursive_aggregate::prove::recursive_aggregate_prove_leaves;
+use recursive_aggregate::root_prover::{LeafBottom, ZkBlind, prove_root_verification_leaves};
 use recursive_aggregate::{
-    AggregateConfig, CircuitPrecompute, FOLD_ARITY, LeafBottom, PoolSet, RecursionPrecompute,
-    TreeProof, ZkBlind, node_preprocessed_from_shared, preprocessed_root,
-    prove_root_verification_leaves, recursive_aggregate_prove_leaves,
+    AggregateConfig, TreeProof, node_preprocessed_from_shared, preprocessed_root,
 };
+
+/// Fold arity `k` used by these tests (the production default; env parsing lives in the
+/// `gate-air-leaf` binary, so the value is inlined here byte-identically).
+const FOLD_ARITY: usize = 8;
 use stwo::core::fields::m31::M31;
 use stwo::core::fields::qm31::QM31;
 use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
@@ -43,10 +49,10 @@ fn test_pools() -> PoolSet {
 // --- Constants mirrored from stwo-circuits circuit_multiverifier::verify_test (rev 041ec610). ---
 
 const LOG_BLOWUP_FACTOR: u32 = 3;
-const PRIVACY_CAIRO_VERIFIER_TRACE_LOG_SIZE: u32 = 21;
+const LEAF_VERIFIER_TRACE_LOG_SIZE: u32 = 21;
 const CIRCUIT_N_PREPROCESSED_COLUMNS: usize = 45;
 
-const PRIVACY_CAIRO_VERIFIER_PREPROCESSED_ROOT: [u32; 8] = [
+const LEAF_VERIFIER_PREPROCESSED_ROOT: [u32; 8] = [
     1564451235, 1866679958, 2011431219, 402982173, 1661380608, 1553398776, 620364350, 714877734,
 ];
 
@@ -145,7 +151,7 @@ fn multiverifier_preprocessed_column_log_sizes() -> OrderedHashMap<PreProcessedC
 }
 
 fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
-    let pcs_config = get_pcs_config(PRIVACY_CAIRO_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR);
+    let pcs_config = get_pcs_config(LEAF_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR);
     let proof_config = ProofConfig::new(
         &all_circuit_components::<QM31>(),
         CIRCUIT_N_PREPROCESSED_COLUMNS,
@@ -165,12 +171,12 @@ fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
     // Build the witness-independent node precompute once (committed tree0 + twiddles), reused by
     // every node prove. The leaves arrive pre-proven, so no leaf precompute is needed here.
     //
-    // NOTE: the hardcoded `MULTIVERIFIER_PREPROCESSED_ROOT` / `PRIVACY_CAIRO_VERIFIER_PREPROCESSED_ROOT`
+    // NOTE: the hardcoded `MULTIVERIFIER_PREPROCESSED_ROOT` / `LEAF_VERIFIER_PREPROCESSED_ROOT`
     // constants above are stale relative to stwo-circuits rev 041ec610 (the canonical node root the
     // cairo-leaf path produces at this rev is different). The off-circuit-only tests still use the old
     // constants as opaque hash inputs, so we don't touch them here; for the precompute's soundness
     // guard we assert against the *freshly computed* node root so the optimization is exercised and the
-    // cache is internally consistent with the circuit `prove_node` actually proves.
+    // cache is internally consistent with the circuit `prove_fold_node` actually proves.
     let node_pp = node_preprocessed_from_shared(&shared_config, target_padding_sizes(), FOLD_ARITY);
     let node_root = preprocessed_root(&node_pp, LOG_BLOWUP_FACTOR);
     let node_precompute = Some(Arc::new(CircuitPrecompute::new(
@@ -181,29 +187,31 @@ fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
 
     // These cairo stand-in smoke tests exercise the fold plumbing, not the leaf↔node decoupling.
     // The synthetic cairo leaves share the node's shape (the historical single-target regime), so
-    // the level-1 (leaf-verifying) and level-≥2 (node-verifying) configs coincide here: R1 == R2 and
+    // the level-1 (leaf-verifying) and level-≥2 (node-verifying) configs coincide here: the level1-node and fold-node roots are equal and
     // both shared configs are the same. `node_shared_config` is used both to build node-verifying
     // nodes and to verify the root in the unpacker.
-    let leaf_preprocessed_root = HashValue::from(PRIVACY_CAIRO_VERIFIER_PREPROCESSED_ROOT);
+    let leaf_preprocessed_root = HashValue::from(LEAF_VERIFIER_PREPROCESSED_ROOT);
     let config = AggregateConfig {
-        // Shared / R2 fields — real values, used by the shared up-tree fold.
-        node_shared_config: shared_config,
-        node_preprocessed_root: node_preprocessed_root.clone(),
+        // Shared / fold-node fields — real values, used by the shared up-tree fold.
+        fold_shared_config: shared_config,
+        fold_preprocessed_root: node_preprocessed_root.clone(),
         node_target_padding_sizes: target_padding_sizes(),
         node_pcs_config: pcs_config,
         fold_arity: FOLD_ARITY,
-        // LeafR1R2 extras — the tier these cairo-leaf smoke tests exercise. Cairo stand-in: leaves
-        // share the node's shape (single-target regime), so R1 == R2 and the leaf/node PCS coincide.
-        leaf_shared_config: Some(make_shared()),
-        level1_preprocessed_root: Some(node_preprocessed_root),
-        leaf_preprocessed_root: Some(leaf_preprocessed_root),
-        leaf_target_padding_sizes: Some(target_padding_sizes()),
-        leaf_pcs_config: Some(pcs_config),
+        // Leaf / level1 fields — the tier these cairo-leaf smoke tests exercise. Cairo stand-in:
+        // leaves share the node's shape (single-target regime), so the level1-node and fold-node
+        // roots coincide and the leaf/node PCS coincide.
+        leaf_shared_config: make_shared(),
+        level1_preprocessed_root: node_preprocessed_root,
+        leaf_preprocessed_root,
+        leaf_target_padding_sizes: target_padding_sizes(),
+        leaf_pcs_config: pcs_config,
     };
     // Precompute now lives in a separate `RecursionPrecompute` (decoupled from the config). Cairo
-    // stand-in: leaves share the node shape, so R1 == R2 → reuse the node precompute for level1 too.
+    // stand-in: leaves share the node shape, so the level1-node and fold-node roots coincide → reuse
+    // the fold-node precompute for level1 too.
     let pre = RecursionPrecompute {
-        node_precompute: node_precompute.clone(),
+        fold_precompute: node_precompute.clone(),
         level1_precompute: node_precompute,
         leaf_precompute: None,
     };
@@ -216,17 +224,14 @@ fn load_cairo_leaves(config: &AggregateConfig, n: usize) -> Vec<TreeProof> {
         "/test_data/proof_cairo.bin"
     ))
     .expect("test_data/proof_cairo.bin");
-    let leaf_shared_config = config
-        .leaf_shared_config
-        .as_ref()
-        .expect("smoke_cairo_tree config is LeafR1R2 (leaf_shared_config present)");
+    let leaf_shared_config = &config.leaf_shared_config;
     let proof =
         deserialize_proof_with_config(&mut bytes.as_slice(), &leaf_shared_config.proof_config)
             .expect("deserialize cairo proof");
     (0..n)
         .map(|_| TreeProof {
             proof: proof.clone(),
-            preprocessed_root: HashValue::from(PRIVACY_CAIRO_VERIFIER_PREPROCESSED_ROOT),
+            preprocessed_root: HashValue::from(LEAF_VERIFIER_PREPROCESSED_ROOT),
             output_values: cairo_output_values(),
         })
         .collect()
@@ -263,8 +268,8 @@ fn level0_group_sizes(n: usize) -> Vec<usize> {
 /// multiverifier proof's `output_values`). Mirrors the two-phase fold for any `N >= 1`.
 ///
 /// `node_preprocessed_root` is the reported root a produced node carries. Under the cairo stand-in
-/// (single-target) regime R1 == R2 and short-node roots collapse to the same value, so ONE constant
-/// suffices here; the real decoupled unpacker recomputes R1/R2/short roots per (level, arity).
+/// (single-target) regime the level1-node and fold-node roots are equal and short-node roots collapse to the same value, so ONE constant
+/// suffices here; the real decoupled unpacker recomputes level1/fold-node/short roots per (kind, arity).
 fn mv_tree_root_output(
     leaves: &[TreeProof],
     node_preprocessed_root: HashValue<QM31>,
@@ -398,7 +403,7 @@ fn mv_tree_root_output_two_phase() {
     assert_eq!(FOLD_ARITY, 8, "this hand-rolled shape is written for k=8");
     let (config, _pre) = aggregate_config();
     let base = load_cairo_leaves(&config, 1).pop().unwrap();
-    let node_pp = config.node_preprocessed_root.clone();
+    let node_pp = config.fold_preprocessed_root.clone();
     let q = |a: u32| QM31::from_m31_array([M31(a), M31(0), M31(0), M31(0)]);
     // Distinct 8-word pp_root + 8-word outputs per leaf so position matters.
     // The proof field is unused by `mv_tree_root_output`; only (pp_root, output_values) matter.
@@ -453,7 +458,7 @@ fn opener_recomputes_known_root() {
     let (config, _pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
 
-    let root = mv_tree_root_output(&leaves, config.node_preprocessed_root);
+    let root = mv_tree_root_output(&leaves, config.fold_preprocessed_root);
 
     // The root output_values printed by the passing N=4 smoke prove (gate-for-gate the in-circuit
     // Blake binding the multiverifier emitted). STALE at k=8 AND at the #1425 8-word root — the root
@@ -509,7 +514,7 @@ fn smoke_root_verification() {
     }
     // Off-circuit twin of the in-circuit unpack must reach the same root.
     assert_eq!(
-        mv_tree_root_output(&leaves, config.node_preprocessed_root),
+        mv_tree_root_output(&leaves, config.fold_preprocessed_root),
         out.root.output_values,
         "off-circuit recomputation of R must match"
     );
@@ -537,7 +542,7 @@ fn smoke_root_verification_zk_blinded() {
     let leaves = load_cairo_leaves(&config, 4);
     let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &pre, &test_pools());
 
-    let n_queries = get_pcs_config(PRIVACY_CAIRO_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR)
+    let n_queries = get_pcs_config(LEAF_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR)
         .fri_config
         .n_queries;
     let zk = ZkBlind {
@@ -572,4 +577,3 @@ fn smoke_root_verification_zk_blinded() {
 // (verify-root + unpacker + commitment), which is the only published proof. That wrapper is a
 // circuit_verifier-family circuit — the family `add_zk_blinding` is validated against — so blinding
 // is tested there, once the wrapper exists.
-

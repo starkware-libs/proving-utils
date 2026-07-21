@@ -1,18 +1,18 @@
 //! Defense-in-depth regression test for the leaf↔node decoupling fix: in a GENUINELY decoupled
-//! config (R1 != R2, i.e. the leaf shape differs from the node shape — the regime that hid the
+//! config (level1-node != fold-node, i.e. the leaf shape differs from the node shape — the regime that hid the
 //! original carry bug), the two DIFFERENT full-`FOLD_ARITY` preprocessed-root build paths must
 //! agree:
-//!   - the config's trusted R1/R2 (`level1_preprocessed_root` / `node_preprocessed_root`), built the
+//!   - the config's trusted level1/fold-node roots (`level1_preprocessed_root` / `fold_preprocessed_root`), built the
 //!     PRODUCTION way via `multiverifier_node_preprocessed` / `node_preprocessed_from_shared`
 //!     (exactly as the downstream leaf prover's config derivation builds them), and
 //!   - the witness-independent recompute the unpacker binds short nodes / the root to
 //!     (`AggregateConfig::assert_full_arity_roots_consistent`, which goes through the private
-//!     `short_node_preprocessed_root(FOLD_ARITY)`).
+//!     `short_fold_preprocessed_root(FOLD_ARITY)`).
 //!
 //! If those diverged at full arity, the unpacker would bind full-`FOLD_ARITY` nodes to a root the
 //! prover never reported and the fold/root verification would REJECT (fail-closed) — so this only
 //! turns that one otherwise-unasserted recompute equivalence into a loud early check, and pins it in
-//! the decoupled regime the smoke tests do NOT cover (their config is the collapsed R1==R2 regime).
+//! the decoupled regime the smoke tests do NOT cover (their config is the collapsed level1==fold regime).
 //!
 //! Laptop-runnable: builds preprocessed multiverifier circuits (CPU interpolation + Merkle commit),
 //! NO full STARK prove. It is `#[ignore]`d because building several 2^22-padded node preprocessed
@@ -27,18 +27,22 @@ use circuits::blake::HashValue;
 use circuits_stark_verifier::order_hash_map::OrderedHashMap;
 use circuits_stark_verifier::proof::ProofConfig;
 use recursive_aggregate::{
-    AggregateConfig, FOLD_ARITY, multiverifier_node_preprocessed, node_preprocessed_from_shared,
+    AggregateConfig, multiverifier_node_preprocessed, node_preprocessed_from_shared,
     preprocessed_root, shared_config_for_leaf,
 };
+
+/// Fold arity `k` used by these tests (the production default; env parsing lives in the
+/// `gate-air-leaf` binary, so the value is inlined here byte-identically).
+const FOLD_ARITY: usize = 8;
 use stwo::core::fields::qm31::QM31;
 use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
 
 const LOG_BLOWUP_FACTOR: u32 = 3;
-const CAIRO_TRACE_LOG_SIZE: u32 = 21;
-const CAIRO_N_PREPROCESSED_COLUMNS: usize = 45;
+const LEAF_VERIFIER_TRACE_LOG_SIZE: u32 = 21;
+const LEAF_VERIFIER_N_PREPROCESSED_COLUMNS: usize = 45;
 
 /// Component-wise `max`, mirroring the downstream leaf prover's private `max_sizes`, used to grow the
-/// common node target to the R1/R2 fixed point exactly like its config derivation does.
+/// common node target to the level1/fold-node fixed point exactly like its config derivation does.
 fn max_sizes(a: &ComponentSizes, b: &ComponentSizes) -> ComponentSizes {
     ComponentSizes {
         eq: a.eq.max(b.eq),
@@ -49,10 +53,10 @@ fn max_sizes(a: &ComponentSizes, b: &ComponentSizes) -> ComponentSizes {
     }
 }
 
-/// The cairo-verifier preprocessed column log sizes (a real, fixed leaf-verifier shape) — mirrored
+/// The leaf-verifier preprocessed column log sizes (a real, fixed leaf-verifier shape) — mirrored
 /// from `smoke_cairo_tree.rs`. Used only to build a *seed* `SharedConfig` from which we manufacture
 /// a small distinct "leaf" preprocessed circuit below.
-fn cairo_preprocessed_column_log_sizes() -> OrderedHashMap<PreProcessedColumnId, u32> {
+fn leaf_verifier_preprocessed_column_log_sizes() -> OrderedHashMap<PreProcessedColumnId, u32> {
     [
         ("bitwise_xor_4_0", 8),
         ("bitwise_xor_4_1", 8),
@@ -108,8 +112,8 @@ fn cairo_preprocessed_column_log_sizes() -> OrderedHashMap<PreProcessedColumnId,
 /// A strictly-SMALLER LEAF target — dominant components one power below the node target — so the
 /// leaf's trace_log_size (~2^21) is strictly below the node's (~2^22). This is the real production
 /// decoupling axis: the leaf PCS lifting (leaf_trace + blowup) is one below the node PCS lifting, so
-/// a node verifying LEAF children (R1) has a different child Merkle-path length — hence different gate
-/// structure — than a node verifying NODE children (R2). The leaf here is a small arity-2
+/// a node verifying LEAF children (level1-node) has a different child Merkle-path length — hence different gate
+/// structure — than a node verifying NODE children (fold-node). The leaf here is a small arity-2
 /// multiverifier node whose unpadded sizes fit comfortably below these; `build_decoupled_config`
 /// asserts the trace actually came out strictly smaller (fail-loud if the assumption breaks).
 fn leaf_target_seed() -> ComponentSizes {
@@ -122,31 +126,31 @@ fn leaf_target_seed() -> ComponentSizes {
     }
 }
 
-/// Builds a GENUINELY decoupled `AggregateConfig` (R1 != R2) using ONLY the production build paths
+/// Builds a GENUINELY decoupled `AggregateConfig` (level1-node != fold-node) using ONLY the production build paths
 /// (`multiverifier_node_preprocessed` / `node_preprocessed_from_shared`), replicating the downstream
 /// leaf prover's config-derivation node-fixed-point loop.
 ///
 /// Decoupling source (mirrors production exactly): the "leaf" is a small arity-2 multiverifier node
 /// padded to a SMALLER `leaf_target` (~2^21 trace, PCS lifting one below the node's), while the nodes
-/// pad to `node_target` (~2^22 trace, one-higher lifting). A node verifying LEAF children (R1) then
+/// pad to `node_target` (~2^22 trace, one-higher lifting). A node verifying LEAF children (level1-node) then
 /// has a different child Merkle-path length — hence different gate structure and preprocessed root —
-/// than a node verifying NODE children (R2). This is the same leaf(~2^21)↔node(~2^22) lifting split
-/// the config derivation produces for a real leaf circuit. Crucially, R1/R2 are built via
+/// than a node verifying NODE children (fold-node). This is the same leaf(~2^21)↔node(~2^22) lifting split
+/// the config derivation produces for a real leaf circuit. Crucially, the level1/fold-node roots are built via
 /// `multiverifier_node_preprocessed` / `node_preprocessed_from_shared`, NOT via
-/// `short_node_preprocessed_root` — that recompute is the thing under test.
+/// `short_fold_preprocessed_root` — that recompute is the thing under test.
 fn build_decoupled_config() -> AggregateConfig {
-    // Seed shared config in the cairo-verifier shape (a real leaf-verifier proof shape).
-    let seed_pcs = get_pcs_config(CAIRO_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR);
+    // Seed shared config in the leaf-verifier shape (a real leaf-verifier proof shape).
+    let seed_pcs = get_pcs_config(LEAF_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR);
     let seed_proof_config = ProofConfig::new(
         &all_circuit_components::<QM31>(),
-        CAIRO_N_PREPROCESSED_COLUMNS,
+        LEAF_VERIFIER_N_PREPROCESSED_COLUMNS,
         &seed_pcs,
         INTERACTION_POW_BITS,
     );
     let seed_shared = SharedConfig {
         pcs_config: seed_pcs,
         proof_config: seed_proof_config,
-        preprocessed_column_log_sizes: cairo_preprocessed_column_log_sizes(),
+        preprocessed_column_log_sizes: leaf_verifier_preprocessed_column_log_sizes(),
     };
 
     // Manufacture the "leaf" as a SMALL (arity-2) multiverifier node padded to the SMALLER leaf
@@ -159,7 +163,7 @@ fn build_decoupled_config() -> AggregateConfig {
     let leaf_shared_config = shared_config_for_leaf(&leaf_pp, pcs);
 
     // Node-size fixed point over the two variants, IDENTICAL to `derive_aggregate_config` (uses the
-    // LEAF pcs throughout the loop; the node pcs is applied to R2's shape afterwards).
+    // LEAF pcs throughout the loop; the node pcs is applied to the fold-node shape afterwards).
     let (_, node1_seed_sizes) = multiverifier_node_preprocessed(&leaf_pp, pcs, None, FOLD_ARITY);
     let mut node_target = node1_seed_sizes;
     let level1_pp = loop {
@@ -175,7 +179,7 @@ fn build_decoupled_config() -> AggregateConfig {
     };
 
     // The node trace MUST have come out strictly larger than the leaf trace — otherwise the PCS
-    // liftings coincide and R1 == R2 (collapse). Fail loud here so the test can never silently run in
+    // liftings coincide and level1-node == fold-node (collapse). Fail loud here so the test can never silently run in
     // the collapsed regime.
     assert!(
         level1_pp.trace_log_size > leaf_pp.trace_log_size,
@@ -184,10 +188,10 @@ fn build_decoupled_config() -> AggregateConfig {
         leaf_pp.trace_log_size
     );
 
-    // R1: the leaf-verifying node's root, built (like the loop) with the LEAF pcs child config.
+    // level1-node: the leaf-verifying node's root, built (like the loop) with the LEAF pcs child config.
     let level1_preprocessed_root = preprocessed_root(&level1_pp, LOG_BLOWUP_FACTOR);
 
-    // Node PCS (lifting one above the leaf's) + node shared config, then build R2 from that config
+    // Node PCS (lifting one above the leaf's) + node shared config, then build the fold-node from that config
     // with the NODE pcs — exactly as `derive_aggregate_config` does.
     let node_pcs = get_pcs_config(level1_pp.trace_log_size, LOG_BLOWUP_FACTOR);
     let node_shared_config = shared_config_for_leaf(&level1_pp, node_pcs);
@@ -195,25 +199,26 @@ fn build_decoupled_config() -> AggregateConfig {
     let node_preprocessed_root = preprocessed_root(&node_pp, LOG_BLOWUP_FACTOR);
 
     AggregateConfig {
-        // Shared / R2 fields — real values (this is a genuinely decoupled R1 != R2
-        // config; the R2 tier is real, so the R2 half of the consistency check is exercised too).
-        node_shared_config,
-        node_preprocessed_root,
+        // Shared / fold-node fields — real values (this is a genuinely decoupled
+        // level1-node != fold-node config; the fold-node tier is real, so the fold-node half of the
+        // consistency check is exercised too).
+        fold_shared_config: node_shared_config,
+        fold_preprocessed_root: node_preprocessed_root,
         node_target_padding_sizes: node_target,
         node_pcs_config: node_pcs,
         fold_arity: FOLD_ARITY,
-        // LeafR1R2 extras — the tier under test.
-        leaf_shared_config: Some(leaf_shared_config),
-        level1_preprocessed_root: Some(level1_preprocessed_root),
-        leaf_preprocessed_root: Some(leaf_preprocessed_root),
-        leaf_target_padding_sizes: Some(leaf_target),
-        leaf_pcs_config: Some(pcs),
+        // Leaf / level1 fields — the tier under test.
+        leaf_shared_config,
+        level1_preprocessed_root,
+        leaf_preprocessed_root,
+        leaf_target_padding_sizes: leaf_target,
+        leaf_pcs_config: pcs,
         // No precomputes: this test builds preprocessed circuits only, never proves. The precompute
         // fields now live on a separate `RecursionPrecompute` (unused here).
     }
 }
 
-/// In a genuinely decoupled config (R1 != R2), the trusted full-`FOLD_ARITY` roots the unpacker binds
+/// In a genuinely decoupled config (level1-node != fold-node), the trusted full-`FOLD_ARITY` roots the unpacker binds
 /// to must equal the witness-independent recompute path used for short nodes / the root.
 #[test]
 #[ignore = "builds several 2^22-padded node preprocessed circuits (~minutes, CPU-only, no prove); \
@@ -230,23 +235,20 @@ fn full_arity_roots_consistent_in_decoupled_regime() {
     }
     let config = build_decoupled_config();
 
-    // MUST be the decoupled regime — a collapsed R1 == R2 config is exactly what hid the original
-    // carry bug, so fail loudly if it ever collapses here.
-    let r1 = config
-        .level1_preprocessed_root
-        .clone()
-        .expect("decoupled config carries R1 (LeafR1R2 tier)");
-    let r2 = config.node_preprocessed_root.clone();
-    println!("R1 (level1/leaf-verifying) = {:?}", hv(&r1));
-    println!("R2 (node-verifying)        = {:?}", hv(&r2));
+    // MUST be the decoupled regime — a collapsed level1-node == fold-node config is exactly what hid
+    // the original carry bug, so fail loudly if it ever collapses here.
+    let level1_root = config.level1_preprocessed_root.clone();
+    let fold_root = config.fold_preprocessed_root.clone();
+    println!("level1-node root = {:?}", hv(&level1_root));
+    println!("fold-node root   = {:?}", hv(&fold_root));
     assert_ne!(
-        r1, r2,
-        "test config collapsed to R1 == R2 — NOT the decoupled regime; the check would be vacuous"
+        level1_root, fold_root,
+        "test config collapsed to level1-node == fold-node — NOT the decoupled regime; the check would be vacuous"
     );
-    println!("DECOUPLED regime confirmed: R1 != R2");
+    println!("DECOUPLED regime confirmed: level1-node root != fold-node root");
 
-    // The check under test: the config's production-built R1/R2 equal the unpacker's
-    // witness-independent full-arity recompute (`short_node_preprocessed_root(FOLD_ARITY)`).
+    // The check under test: the config's production-built level1/fold-node roots equal the unpacker's
+    // witness-independent full-arity recompute (`short_fold_preprocessed_root(FOLD_ARITY)`).
     config.assert_full_arity_roots_consistent();
     println!("assert_full_arity_roots_consistent PASSED at full arity in the decoupled regime");
 }
