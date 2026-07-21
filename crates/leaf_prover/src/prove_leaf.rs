@@ -115,10 +115,20 @@ pub fn prove_leaf(
         }
     }
 
+    // Calculate min_lifting_log_size from the actual log_trace_size.
+    let mut pcs_config = cairo_prover_parameters.pcs_config;
+    let actual_log_trace_size = proof.claim.log_sizes().iter().flatten().fold(
+        PreProcessedTraceVariant::CanonicalSmall.max_log_trace_size(),
+        |max, &size| max.max(size),
+    );
+    let lifting_log_size = actual_log_trace_size + pcs_config.fri_config.log_blowup_factor;
+    info!("Calculated lifting_log_size: {lifting_log_size}");
+    pcs_config.min_lifting_log_size = lifting_log_size;
+
     let proof_config = ProofConfig::new(
         &cairo_components,
         cairo_prover_parameters.preprocessed_trace.n_columns(),
-        &cairo_prover_parameters.pcs_config,
+        &pcs_config,
         INTERACTION_POW_BITS,
     );
 
