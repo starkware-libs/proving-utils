@@ -1,10 +1,10 @@
-//! Root verification / unpacker: build and prove the published, zk-blinded root-verification proof —
-//! verify the root multiverifier proof in-circuit, then unpack it (reconstruct + bind the tree root
-//! from per-leaf output hints, emit the leaf outputs). See the crate root for the unpack contract.
+//! Root verification / unpacker: build and prove the published, zk-blinded root-verification proof
+//! — verify the root multiverifier proof in-circuit, then unpack it (reconstruct + bind the tree
+//! root from per-leaf output hints, emit the leaf outputs). See the crate root for the unpack
+//! contract.
 
-use crate::{
-    AggregateConfig, TreeProof, level0_group_sizes, preprocessed_root, reported_root,
-};
+use crate::precomputes::build_one_shot_tree;
+use crate::{AggregateConfig, TreeProof, level0_group_sizes, preprocessed_root, reported_root};
 
 use circuit_cairo_verifier::privacy::get_pcs_config;
 use circuit_common::N_RESERVED;
@@ -12,22 +12,22 @@ use circuit_common::finalize::{add_zk_blinding, pad_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_multiverifier::verify::SharedConfig;
 use circuit_prover::prover::{
-    prepare_circuit_proof_for_circuit_verifier, prove_circuit_assignment,
+    prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
 };
 use circuit_verifier::statement::CircuitStatement;
 use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
 use circuits::blake::{HashValue, blake2s_u32s, unpack_qm31s_to_u32_words};
-use circuits::wrappers::U32Wrapper;
 use circuits::context::{Context, FinalizedContext, Var};
 use circuits::ivalue::{IValue, NoValue};
 use circuits::ops::{Guess, eq};
+use circuits::wrappers::U32Wrapper;
 use circuits_stark_verifier::proof::{Proof, empty_proof};
 use circuits_stark_verifier::verify::verify;
 use num_traits::Zero;
 use stwo::core::fields::qm31::QM31;
 use stwo::core::pcs::PcsConfig;
-use stwo::prover::backend::simd::SimdBackend;
-use stwo::prover::mempool::BaseColumnPool;
+use stwo::core::utils::MaybeOwned;
+use stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
 
 /// The bottom-level input to the unpacker: the ordered standalone leaves.
 pub struct LeafBottom {
@@ -54,43 +54,16 @@ pub struct ZkBlind {
     pub n_padding: usize,
 }
 
-/// Recomputes the canonical unpacker preprocessed root for the trusted public `(n, config)`,
-/// witness-independently — the value the trusted final verifier checks `rv.proof` against. Rebuilds
-/// the SAME circuit via the shared [`build_root_verification_context`] with a `NoValue` witness, so it
-/// equals the published proof's root by construction.
+/// Recomputes the full [`CircuitConfig`] a trusted final verifier would use to `verify_circuit` the
+/// published root-verification proof, from public `(n, config)` via the same shared builder
+/// (NoValue witness), so it is byte-identical to the honest proof's preprocessed shape. Its
+/// `preprocessed_root` is the canonical unpacker root.
 ///
-/// The caller must pass a `config` whose child roots are the canonical (trusted) values derived from
-/// public `(n, config)`, never from the prover. `zk_n_padding` must equal the prover's blinding
-/// `n_padding` (`None` = no blinding).
-pub fn unpacker_preprocessed_root(
-    n: usize,
-    config: &AggregateConfig,
-    log_blowup_factor: u32,
-    zk_n_padding: Option<usize>,
-) -> HashValue<QM31> {
-    // The root node's own preprocessed root is guessed (a witness), so a placeholder suffices here.
-    let root_pp = HashValue::from([0u32; N_RESERVED]);
-    let zk_blind = zk_n_padding.map(|n_padding| ZkBlind { seed: [0u8; 32], n_padding });
-    let root_output_values = [QM31::zero(); N_RESERVED];
-    let leaf_output_values = vec![[NoValue; N_RESERVED]; n];
-    let mut context = build_root_verification_context::<NoValue>(
-        empty_proof(&root_verification_shared_config(n, config).proof_config),
-        &root_output_values,
-        &root_pp,
-        &leaf_output_values,
-        n,
-        config,
-        zk_blind,
-    );
-    let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
-    preprocessed_root(&preprocessed, log_blowup_factor)
-}
-
-/// Recomputes the full [`CircuitConfig`] the trusted final verifier uses to `verify_circuit` the
-/// published root-verification proof, from trusted public `(n, config)` via the same shared builder.
-/// `preprocessed_root` is the canonical unpacker root (the pin — a forged reconstruction yields a
-/// different root ⇒ rejected); the rest is the recomputed trace's own shape. See
-/// [`unpacker_preprocessed_root`] for the trust contract.
+/// NOT on any production verify path — production verifies against a pinned `CircuitConfig` const.
+/// This is the CAPTURE/DRIFT helper the caller uses to regenerate + check the pinned per-N unpacker
+/// config. The caller must pass a `config` whose child roots are the canonical values (never
+/// prover-supplied); `zk_n_padding` must equal the prover's blinding `n_padding` (`None` = no
+/// blinding).
 pub fn unpacker_verify_config(
     n: usize,
     config: &AggregateConfig,
@@ -98,7 +71,10 @@ pub fn unpacker_verify_config(
     zk_n_padding: Option<usize>,
 ) -> CircuitConfig {
     let root_pp = HashValue::from([0u32; N_RESERVED]);
-    let zk_blind = zk_n_padding.map(|n_padding| ZkBlind { seed: [0u8; 32], n_padding });
+    let zk_blind = zk_n_padding.map(|n_padding| ZkBlind {
+        seed: [0u8; 32],
+        n_padding,
+    });
     let root_output_values = [QM31::zero(); N_RESERVED];
     let leaf_output_values = vec![[NoValue; N_RESERVED]; n];
     let mut context = build_root_verification_context::<NoValue>(
@@ -121,14 +97,20 @@ pub fn unpacker_verify_config(
 }
 
 /// Builds and proves the root verification — the only published, only zk-blinded proof — for the
-/// standalone-leaf topology, via the shared [`build_root_verification_context`].
-/// `bottom.leaves` must be the same ordered leaves fed to
-/// [`crate::prove::recursive_aggregate_prove_leaves`], and `root` its returned root.
+/// standalone-leaf topology, via the shared [`build_root_verification_context`]. `bottom.leaves`
+/// must be the same ordered leaves fed to [`crate::prove::recursive_aggregate_prove_leaves`], and
+/// `root` its returned root.
+///
+/// `unpacker_config` is the pinned per-N unpacker [`CircuitConfig`] the caller supplies: its
+/// `preprocessed_root` is the trusted canonical unpacker root and its `config` the trusted PCS. The
+/// per-run unpacker tree is a ONE-SHOT built here by the shared tree-builder, asserting the
+/// committed root equals that pinned root (so a shape mismatch aborts before proving). `zk_blind`
+/// must match the blinding baked into the pinned config (`None` = no blinding).
 pub fn prove_root_verification_leaves(
     root: &TreeProof,
     bottom: &LeafBottom,
     config: &AggregateConfig,
-    log_blowup_factor: u32,
+    unpacker_config: &CircuitConfig,
     zk_blind: Option<ZkBlind>,
 ) -> RootVerificationOutput {
     let leaves = &bottom.leaves;
@@ -146,31 +128,42 @@ pub fn prove_root_verification_leaves(
         config,
         zk_blind,
     );
-    // Correctness tripwire (QM31 prove pass only; the shared builder skips it for the NoValue recompute).
+    // Correctness tripwire (QM31 prove pass only; the shared builder skips it for the NoValue
+    // recompute).
     context.validate_circuit();
 
     let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
     let trace_log_size = preprocessed.trace_log_size;
-    let pcs_config = get_pcs_config(trace_log_size, log_blowup_factor);
-    let circuit_proof = prove_circuit_assignment(
+    // One-shot unpacker tree via the shared builder; asserts the committed root == the pinned root.
+    let (tree, twiddles, pool) = build_one_shot_tree(
+        preprocessed,
+        unpacker_config.config,
+        unpacker_config.preprocessed_root.clone(),
+    );
+    let circuit_proof = prove_circuit_with_precompute::<Blake2sM31MerkleChannel>(
+        &pool,
+        &twiddles,
+        &tree.preprocessed,
+        MaybeOwned::Borrowed(&tree.tree),
         context.values(),
-        &preprocessed,
-        &BaseColumnPool::<SimdBackend>::new(),
-        pcs_config,
+        tree.pcs_config,
     )
     .expect("root-verification prove failed");
     let (proof, public_data) = prepare_circuit_proof_for_circuit_verifier(circuit_proof);
 
-    let verify_config = CircuitConfig {
-        config: pcs_config,
-        n_outputs: n * N_RESERVED,
-        preprocessed_column_log_sizes: preprocessed.preprocessed_trace.log_sizes(),
-        preprocessed_root: preprocessed_root(&preprocessed, log_blowup_factor),
-    };
+    // Final-proof sanity check against the pinned unpacker config (its root == the one-shot
+    // tree's).
     verify_circuit(
-        verify_config,
+        CircuitConfig {
+            config: tree.pcs_config,
+            n_outputs: n * N_RESERVED,
+            preprocessed_column_log_sizes: tree.preprocessed.preprocessed_trace.log_sizes(),
+            preprocessed_root: unpacker_config.preprocessed_root.clone(),
+        },
         proof.clone(),
-        CircuitPublicData { output_values: public_data.output_values },
+        CircuitPublicData {
+            output_values: public_data.output_values,
+        },
     )
     .expect("root-verification proof failed to verify (final-proof sanity check)");
 
@@ -183,9 +176,9 @@ pub fn prove_root_verification_leaves(
 
 /// Bakes a canonical preprocessed root into the circuit as eight `context.constant` wires, usable
 /// exactly where a guessed root was. SOUNDNESS: a constant is FIXED circuit data (hashed into the
-/// preprocessed output), so a forged value can only miss the trusted verifier's root check — it cannot
-/// be substituted the way a guessed witness could. Identical constants in both the QM31 prove and
-/// NoValue recompute passes ⇒ identical preprocessed traces.
+/// preprocessed output), so a forged value can only miss the trusted verifier's root check — it
+/// cannot be substituted the way a guessed witness could. Identical constants in both the QM31
+/// prove and NoValue recompute passes ⇒ identical preprocessed traces.
 fn constant_pp<Value: IValue>(
     context: &mut Context<Value>,
     pp: &HashValue<QM31>,
@@ -195,8 +188,8 @@ fn constant_pp<Value: IValue>(
     }))
 }
 
-/// The `SharedConfig` used to verify the ROOT proof — the single `n == 1` selector shared by the QM31
-/// prove pass and the NoValue recompute so both build the identical shape. N≥2 ⇒ a genuine
+/// The `SharedConfig` used to verify the ROOT proof — the single `n == 1` selector shared by the
+/// QM31 prove pass and the NoValue recompute so both build the identical shape. N≥2 ⇒ a genuine
 /// level1-/fold-node (`fold_shared_config`); N==1 ⇒ the root IS the lone leaf (proved with the
 /// LEAF config).
 fn root_verification_shared_config(n: usize, config: &AggregateConfig) -> &SharedConfig {
@@ -218,14 +211,15 @@ fn root_verification_pcs_config(n: usize, config: &AggregateConfig) -> PcsConfig
     }
 }
 
-/// Builds the root-verification unpacker circuit, generic over `Value` — the SINGLE code path shared
-/// by the QM31 prove ([`prove_root_verification_leaves`]) and the NoValue canonical-root recompute the
-/// trusted verifier runs. Sharing one builder is what guarantees the recomputed preprocessed root
-/// equals the published proof's (identical structure, baked constants, blinding).
+/// Builds the root-verification unpacker circuit, generic over `Value` — the SINGLE code path
+/// shared by the QM31 prove ([`prove_root_verification_leaves`]) and the NoValue canonical-root
+/// recompute the trusted verifier runs. Sharing one builder is what guarantees the recomputed
+/// preprocessed root equals the published proof's (identical structure, baked constants, blinding).
 ///
-/// `root_proof` / `leaf_output_values` carry the witness; `root_output_values` and every preprocessed
-/// root are QM31 constants independent of `Value`. Every child preprocessed root is a canonical
-/// config-derived value BAKED as a constant ([`constant_pp`]), pinning the whole reconstructed fold.
+/// `root_proof` / `leaf_output_values` carry the witness; `root_output_values` and every
+/// preprocessed root are QM31 constants independent of `Value`. Every child preprocessed root is a
+/// canonical config-derived value BAKED as a constant ([`constant_pp`]), pinning the whole
+/// reconstructed fold.
 fn build_root_verification_context<Value: IValue>(
     root_proof: Proof<Value>,
     root_output_values: &[QM31],
@@ -236,7 +230,11 @@ fn build_root_verification_context<Value: IValue>(
     zk_blind: Option<ZkBlind>,
 ) -> FinalizedContext<Value> {
     assert!(n >= 1, "need at least one leaf");
-    assert_eq!(leaf_output_values.len(), n, "leaf_output_values count must equal n");
+    assert_eq!(
+        leaf_output_values.len(),
+        n,
+        "leaf_output_values count must equal n"
+    );
     let leaf_preprocessed_root = config.leaf_preprocessed_root.clone();
     let k = config.fold_arity;
 
@@ -249,9 +247,7 @@ fn build_root_verification_context<Value: IValue>(
     let circuit_config = CircuitConfig {
         config: root_pcs_config,
         n_outputs: N_RESERVED,
-        preprocessed_column_log_sizes: root_shared_config
-            .preprocessed_column_log_sizes
-            .clone(),
+        preprocessed_column_log_sizes: root_shared_config.preprocessed_column_log_sizes.clone(),
         preprocessed_root: root_preprocessed_root.clone(),
     };
     let statement = CircuitStatement::new(&mut context, &circuit_config, root_output_values);
@@ -264,9 +260,9 @@ fn build_root_verification_context<Value: IValue>(
     );
     let root_out_vars: Vec<Var> = statement.get_output_values().to_vec();
 
-    // (2) Unpack: reconstruct the tree root from the guessed per-leaf outputs and bind it. Every child
-    // root is BAKED as a `constant_pp` (soundness-pinned), not guessed. One trusted leaf tree0 root
-    // for EVERY leaf (forces a shared leaf AIR).
+    // (2) Unpack: reconstruct the tree root from the guessed per-leaf outputs and bind it. Every
+    // child root is BAKED as a `constant_pp` (soundness-pinned), not guessed. One trusted leaf
+    // tree0 root for EVERY leaf (forces a shared leaf AIR).
     let leaf_pp = constant_pp(&mut context, &leaf_preprocessed_root);
     let mut leaf_output_vars: Vec<Vec<Var>> = Vec::with_capacity(n);
     // Per-leaf entries (height 0), each carrying `leaf_pp` and its guessed outputs.
@@ -279,7 +275,8 @@ fn build_root_verification_context<Value: IValue>(
         })
         .collect();
 
-    // Bottom (level 0): consume ALL leaves into height-1 leaf-nodes (n == 1 ⇒ the lone leaf is the root).
+    // Bottom (level 0): consume ALL leaves into height-1 leaf-nodes (n == 1 ⇒ the lone leaf is the
+    // root).
     let mut level: Vec<(usize, HashValue<Var>, Vec<Var>)> = if n == 1 {
         leaf_entries
     } else {

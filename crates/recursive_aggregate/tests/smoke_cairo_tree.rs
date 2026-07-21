@@ -11,24 +11,26 @@
 
 use std::time::Instant;
 
+use blake2::{Blake2s256, Digest};
 use circuit_cairo_verifier::privacy::get_pcs_config;
+use circuit_common::N_RESERVED;
 use circuit_multiverifier::verify::SharedConfig;
 use circuit_serialize::deserialize::deserialize_proof_with_config;
 use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
-use blake2::{Blake2s256, Digest};
-use circuit_common::N_RESERVED;
 use circuits::blake::HashValue;
 use circuits_stark_verifier::order_hash_map::OrderedHashMap;
 use circuits_stark_verifier::proof::ProofConfig;
-use std::sync::Arc;
 
 use recursive_aggregate::pools::PoolSet;
-use recursive_aggregate::precomputes::{CircuitPrecompute, RecursionPrecompute};
+use recursive_aggregate::precomputes::{RecursionPrecompute, TreeSpec};
 use recursive_aggregate::prove::recursive_aggregate_prove_leaves;
-use recursive_aggregate::root_prover::{LeafBottom, ZkBlind, prove_root_verification_leaves};
+use recursive_aggregate::root_prover::{
+    LeafBottom, ZkBlind, prove_root_verification_leaves, unpacker_verify_config,
+};
 use recursive_aggregate::{
     AggregateConfig, TreeProof, node_preprocessed_from_shared, preprocessed_root,
 };
+use std::collections::BTreeMap;
 
 /// Fold arity `k` used by these tests (the production default; env parsing lives in the
 /// `gate-air-leaf` binary, so the value is inlined here byte-identically).
@@ -56,13 +58,9 @@ const LEAF_VERIFIER_PREPROCESSED_ROOT: [u32; 8] = [
     1564451235, 1866679958, 2011431219, 402982173, 1661380608, 1553398776, 620364350, 714877734,
 ];
 
-const MULTIVERIFIER_PREPROCESSED_ROOT: [u32; 8] = [
-    1207218485, 45060776, 317382138, 1169749503, 506165738, 1544606560, 1742997373, 1081501915,
-];
-
-// NOTE: under #1425 `N_RESERVED == BLAKE2S_DIGEST_N_WORDS == 8`; a leaf's `output_values` is now the
-// full eight-word digest. These first two words are the historical cairo-leaf fixture outputs; the
-// remaining six are zero-padded stand-ins. The tests that actually PROVE with `proof_cairo.bin`
+// NOTE: under #1425 `N_RESERVED == BLAKE2S_DIGEST_N_WORDS == 8`; a leaf's `output_values` is now
+// the full eight-word digest. These first two words are the historical cairo-leaf fixture outputs;
+// the remaining six are zero-padded stand-ins. The tests that actually PROVE with `proof_cairo.bin`
 // (`smoke_*`, `opener_recomputes_known_root`) are VM-only and require regenerating the fixture's
 // eight-word outputs on-box — a box concern. The laptop-runnable `mv_tree_root_output_two_phase`
 // builds its own synthetic 8-word leaves, so it does not depend on these values.
@@ -84,9 +82,10 @@ fn cairo_output_values() -> [QM31; N_RESERVED] {
 }
 
 /// Padding targets shared by every node. Sized for the k=FOLD_ARITY(=8) node under the #1425 8-word
-/// root: the multiverifier test's original targets were for a 2-child node, and an 8-child node with
-/// the 8-word preprocessed-root + `blake2s_u32s` preimage needs the larger targets below (measured
-/// via `probe_node_sizes`; each is the smallest power of two that fits the k=8 node's unpadded size).
+/// root: the multiverifier test's original targets were for a 2-child node, and an 8-child node
+/// with the 8-word preprocessed-root + `blake2s_u32s` preimage needs the larger targets below
+/// (measured via `probe_node_sizes`; each is the smallest power of two that fits the k=8 node's
+/// unpadded size).
 fn target_padding_sizes() -> circuit_common::finalize::ComponentSizes {
     circuit_common::finalize::ComponentSizes {
         eq: 1 << 17,
@@ -166,54 +165,67 @@ fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
         preprocessed_column_log_sizes: multiverifier_preprocessed_column_log_sizes(),
     };
     let shared_config = make_shared();
-    let node_preprocessed_root = HashValue::from(MULTIVERIFIER_PREPROCESSED_ROOT);
-
-    // Build the witness-independent node precompute once (committed tree0 + twiddles), reused by
-    // every node prove. The leaves arrive pre-proven, so no leaf precompute is needed here.
-    //
-    // NOTE: the hardcoded `MULTIVERIFIER_PREPROCESSED_ROOT` / `LEAF_VERIFIER_PREPROCESSED_ROOT`
-    // constants above are stale relative to stwo-circuits rev 041ec610 (the canonical node root the
-    // cairo-leaf path produces at this rev is different). The off-circuit-only tests still use the old
-    // constants as opaque hash inputs, so we don't touch them here; for the precompute's soundness
-    // guard we assert against the *freshly computed* node root so the optimization is exercised and the
-    // cache is internally consistent with the circuit `prove_fold_node` actually proves.
-    let node_pp = node_preprocessed_from_shared(&shared_config, target_padding_sizes(), FOLD_ARITY);
-    let node_root = preprocessed_root(&node_pp, LOG_BLOWUP_FACTOR);
-    let node_precompute = Some(Arc::new(CircuitPrecompute::new(
-        node_pp,
-        pcs_config,
-        node_root,
-    )));
 
     // These cairo stand-in smoke tests exercise the fold plumbing, not the leaf↔node decoupling.
-    // The synthetic cairo leaves share the node's shape (the historical single-target regime), so
-    // the level-1 (leaf-verifying) and level-≥2 (node-verifying) configs coincide here: the level1-node and fold-node roots are equal and
-    // both shared configs are the same. `node_shared_config` is used both to build node-verifying
-    // nodes and to verify the root in the unpacker.
+    // The synthetic cairo leaves share the node's shape (single-target regime), so the
+    // level1-node and fold-node roots coincide at every arity and both shared configs are the
+    // same. `node_shared_config` builds node-verifying nodes and verifies the root in the
+    // unpacker.
+    //
+    // NOTE: the hardcoded `LEAF_VERIFIER_PREPROCESSED_ROOT` constant is stale relative to
+    // stwo-circuits (the canonical leaf root the cairo-leaf path produces is different). The
+    // off-circuit-only tests use it as an opaque hash input; the tree precompute's soundness guard
+    // asserts against the FRESHLY computed node root so the cache is internally consistent with the
+    // circuit `prove_leaf_or_short` / `prove_short_fold_node` actually proves.
+    //
+    // Build a per-arity level1/fold root table + the held per-arity trees. `RecursionPrecompute`
+    // now holds one tree per arity, so build every arity 2..=k (the pinned-tree design proves
+    // each short arity from its own held tree, not by rebuilding).
+    let arity_root = |arity: usize| -> HashValue<QM31> {
+        let pp = node_preprocessed_from_shared(&shared_config, target_padding_sizes(), arity);
+        preprocessed_root(&pp, LOG_BLOWUP_FACTOR)
+    };
+    let mut level1_roots: BTreeMap<usize, HashValue<QM31>> = BTreeMap::new();
+    let mut fold_roots: BTreeMap<usize, HashValue<QM31>> = BTreeMap::new();
+    for arity in 2..=FOLD_ARITY {
+        let root = arity_root(arity);
+        level1_roots.insert(arity, root.clone());
+        fold_roots.insert(arity, root);
+    }
+
     let leaf_preprocessed_root = HashValue::from(LEAF_VERIFIER_PREPROCESSED_ROOT);
+
+    // Held per-arity trees (leaf tree stands in as an arity-2 node — leaves arrive pre-proven so it
+    // is never actually used, but the flat struct requires a leaf tree). Cairo stand-in: level1
+    // == fold. Built before the config moves `shared_config`.
+    let spec = |arity: usize, root: &HashValue<QM31>| TreeSpec {
+        preprocessed: node_preprocessed_from_shared(&shared_config, target_padding_sizes(), arity),
+        pcs_config,
+        expected_root: root.clone(),
+    };
+    let leaf = spec(2, level1_roots.get(&2).unwrap());
+    let level1: BTreeMap<usize, TreeSpec> = (2..=FOLD_ARITY)
+        .map(|a| (a, spec(a, level1_roots.get(&a).unwrap())))
+        .collect();
+    let fold: BTreeMap<usize, TreeSpec> = (2..=FOLD_ARITY)
+        .map(|a| (a, spec(a, fold_roots.get(&a).unwrap())))
+        .collect();
+    let pre = RecursionPrecompute::new(leaf, level1, fold);
+
     let config = AggregateConfig {
         // Shared / fold-node fields — real values, used by the shared up-tree fold.
         fold_shared_config: shared_config,
-        fold_preprocessed_root: node_preprocessed_root.clone(),
         node_target_padding_sizes: target_padding_sizes(),
         node_pcs_config: pcs_config,
         fold_arity: FOLD_ARITY,
         // Leaf / level1 fields — the tier these cairo-leaf smoke tests exercise. Cairo stand-in:
-        // leaves share the node's shape (single-target regime), so the level1-node and fold-node
-        // roots coincide and the leaf/node PCS coincide.
+        // level1 == fold roots at every arity (single-target regime); leaf/node PCS coincide.
         leaf_shared_config: make_shared(),
-        level1_preprocessed_root: node_preprocessed_root,
+        level1_roots,
+        fold_roots,
         leaf_preprocessed_root,
         leaf_target_padding_sizes: target_padding_sizes(),
         leaf_pcs_config: pcs_config,
-    };
-    // Precompute now lives in a separate `RecursionPrecompute` (decoupled from the config). Cairo
-    // stand-in: leaves share the node shape, so the level1-node and fold-node roots coincide → reuse
-    // the fold-node precompute for level1 too.
-    let pre = RecursionPrecompute {
-        fold_precompute: node_precompute.clone(),
-        level1_precompute: node_precompute,
-        leaf_precompute: None,
     };
     (config, pre)
 }
@@ -268,8 +280,9 @@ fn level0_group_sizes(n: usize) -> Vec<usize> {
 /// multiverifier proof's `output_values`). Mirrors the two-phase fold for any `N >= 1`.
 ///
 /// `node_preprocessed_root` is the reported root a produced node carries. Under the cairo stand-in
-/// (single-target) regime the level1-node and fold-node roots are equal and short-node roots collapse to the same value, so ONE constant
-/// suffices here; the real decoupled unpacker recomputes level1/fold-node/short roots per (kind, arity).
+/// (single-target) regime the level1-node and fold-node roots are equal and short-node roots
+/// collapse to the same value, so ONE constant suffices here; the real decoupled unpacker
+/// recomputes level1/fold-node/short roots per (kind, arity).
 fn mv_tree_root_output(
     leaves: &[TreeProof],
     node_preprocessed_root: HashValue<QM31>,
@@ -336,8 +349,8 @@ fn hash_value_to_u32s(hash: &HashValue<QM31>) -> [u32; N_RESERVED] {
 /// concatenated left-to-right — the plain-Rust mirror of the in-circuit node preimage in
 /// `build_multiverifier_circuit`. Per child, the preimage is
 /// `chain!(preprocessed_root [8 words], each output QM31 unpacked to its four M31 coords as u32)`,
-/// hashed with `blake2s_u32s`. The node's output is the eight raw digest words, each re-encoded as a
-/// QM31 `(lo, hi, 0, 0)` via `HashValue::from` — exactly what the in-circuit node emits.
+/// hashed with `blake2s_u32s`. The node's output is the eight raw digest words, each re-encoded as
+/// a QM31 `(lo, hi, 0, 0)` via `HashValue::from` — exactly what the in-circuit node emits.
 fn mv_node_hash(children: &[(HashValue<QM31>, [QM31; N_RESERVED])]) -> [QM31; N_RESERVED] {
     let mut preimage: Vec<u32> = Vec::new();
     for (pp, outs) in children {
@@ -369,7 +382,10 @@ fn smoke_fold_four_cairo_leaves() {
     let elapsed = t0.elapsed();
 
     // At k=FOLD_ARITY (=8), 4 leaves (< k) fold in ONE level into a single short 4-child root.
-    assert_eq!(out.n_levels, 1, "4 leaves at k=8 fold in one level (single short root)");
+    assert_eq!(
+        out.n_levels, 1,
+        "4 leaves at k=8 fold in one level (single short root)"
+    );
     println!(
         "SMOKE OK (no blinding): 4 cairo leaves folded to root in {:.2}s ({} level, 1 node prove); \
          root output_values = {:?}",
@@ -381,13 +397,13 @@ fn smoke_fold_four_cairo_leaves() {
 
 /// Two-phase (decoupling-fix) shape check — NO proving, runs anywhere (laptop).
 ///
-/// At k=FOLD_ARITY (=8), builds N=k+1 leaves with distinct `(pp_root, outputs)` so positions matter,
-/// and checks [`mv_tree_root_output`] against a hand-rolled recompute of the NEW topology: level 0
-/// splits the 9 leaves into TWO leaf-nodes of arity `(k-1, 2)` (`level0_group_sizes(9) == [7, 2]`),
-/// then the root folds those two NODES. This is the fix: no bare leaf is carried above height 1 (the
-/// old shape `node([0..8]) + carried leaf 8` put a lift24 leaf under the lift25 root ⇒ Merkle panic).
-/// Exercises the short level-0 grouping and the homogeneous node-node root off circuit (the
-/// in-circuit twin is exercised on the VM).
+/// At k=FOLD_ARITY (=8), builds N=k+1 leaves with distinct `(pp_root, outputs)` so positions
+/// matter, and checks [`mv_tree_root_output`] against a hand-rolled recompute of the NEW topology:
+/// level 0 splits the 9 leaves into TWO leaf-nodes of arity `(k-1, 2)` (`level0_group_sizes(9) ==
+/// [7, 2]`), then the root folds those two NODES. This is the fix: no bare leaf is carried above
+/// height 1 (the old shape `node([0..8]) + carried leaf 8` put a lift24 leaf under the lift25 root
+/// ⇒ Merkle panic). Exercises the short level-0 grouping and the homogeneous node-node root off
+/// circuit (the in-circuit twin is exercised on the VM).
 #[test]
 fn mv_tree_root_output_two_phase() {
     // RUN-GUARD: `aggregate_config()` commits a 2^22-padded node preprocessed tree (CPU
@@ -403,7 +419,7 @@ fn mv_tree_root_output_two_phase() {
     assert_eq!(FOLD_ARITY, 8, "this hand-rolled shape is written for k=8");
     let (config, _pre) = aggregate_config();
     let base = load_cairo_leaves(&config, 1).pop().unwrap();
-    let node_pp = config.fold_preprocessed_root.clone();
+    let node_pp = config.fold_root(FOLD_ARITY);
     let q = |a: u32| QM31::from_m31_array([M31(a), M31(0), M31(0), M31(0)]);
     // Distinct 8-word pp_root + 8-word outputs per leaf so position matters.
     // The proof field is unused by `mv_tree_root_output`; only (pp_root, output_values) matter.
@@ -416,7 +432,11 @@ fn mv_tree_root_output_two_phase() {
     };
     let n = FOLD_ARITY + 1; // 9
     let leaves: Vec<TreeProof> = (0..n as u32).map(leaf).collect();
-    assert_eq!(level0_group_sizes(n), vec![FOLD_ARITY - 1, 2], "N=9 level-0 split");
+    assert_eq!(
+        level0_group_sizes(n),
+        vec![FOLD_ARITY - 1, 2],
+        "N=9 level-0 split"
+    );
 
     let group = |lo: usize, hi: usize| -> Vec<(HashValue<QM31>, [QM31; N_RESERVED])> {
         (lo..hi)
@@ -445,8 +465,9 @@ fn mv_tree_root_output_two_phase() {
 /// does not), so that the in-circuit opener can bind verified leaf outputs to the verified root.
 // IGNORED pending on-box golden recapture at k=FOLD_ARITY: the stored `expected` below is the k=2
 // N=4 root (two 2-child levels). At k=8 the N=4 tree is a single 4-child root, so the root's Blake
-// binding — and thus this value — changes. Re-capture it from a fresh `smoke_fold_four_cairo_leaves`
-// prove on the VM (it prints `root output_values`) and drop the `#[ignore]`.
+// binding — and thus this value — changes. Re-capture it from a fresh
+// `smoke_fold_four_cairo_leaves` prove on the VM (it prints `root output_values`) and drop the
+// `#[ignore]`.
 #[test]
 #[ignore = "stale k=2 golden; recapture the k=8 N=4 root on-box (see smoke_fold_four_cairo_leaves)"]
 fn opener_recomputes_known_root() {
@@ -458,11 +479,12 @@ fn opener_recomputes_known_root() {
     let (config, _pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
 
-    let root = mv_tree_root_output(&leaves, config.fold_preprocessed_root);
+    let root = mv_tree_root_output(&leaves, config.fold_root(FOLD_ARITY));
 
     // The root output_values printed by the passing N=4 smoke prove (gate-for-gate the in-circuit
-    // Blake binding the multiverifier emitted). STALE at k=8 AND at the #1425 8-word root — the root
-    // is now the full eight-word digest, not two reduced QM31s. Recapture all eight words on-box.
+    // Blake binding the multiverifier emitted). STALE at k=8 AND at the #1425 8-word root — the
+    // root is now the full eight-word digest, not two reduced QM31s. Recapture all eight words
+    // on-box.
     let mut expected = [QM31::from_m31_array([M31(0), M31(0), M31(0), M31(0)]); N_RESERVED];
     expected[0] = QM31::from_m31_array([
         M31(1466062331),
@@ -499,8 +521,13 @@ fn smoke_root_verification() {
     let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &pre, &test_pools());
 
     let t0 = Instant::now();
-    let bottom = LeafBottom { leaves: leaves.clone() };
-    let rv = prove_root_verification_leaves(&out.root, &bottom, &config, LOG_BLOWUP_FACTOR, None);
+    let bottom = LeafBottom {
+        leaves: leaves.clone(),
+    };
+    // Capture-style: recompute the pinned unpacker config to hand into the prover (production
+    // supplies a pinned const instead).
+    let unpacker_config = unpacker_verify_config(4, &config, LOG_BLOWUP_FACTOR, None);
+    let rv = prove_root_verification_leaves(&out.root, &bottom, &config, &unpacker_config, None);
     let elapsed = t0.elapsed();
 
     // The unpacker emits all 4 leaf outputs, bound in-circuit to the verified root.
@@ -514,7 +541,7 @@ fn smoke_root_verification() {
     }
     // Off-circuit twin of the in-circuit unpack must reach the same root.
     assert_eq!(
-        mv_tree_root_output(&leaves, config.fold_preprocessed_root),
+        mv_tree_root_output(&leaves, config.fold_root(FOLD_ARITY)),
         out.root.output_values,
         "off-circuit recomputation of R must match"
     );
@@ -551,9 +578,12 @@ fn smoke_root_verification_zk_blinded() {
     };
 
     let t0 = Instant::now();
-    let bottom = LeafBottom { leaves: leaves.clone() };
+    let bottom = LeafBottom {
+        leaves: leaves.clone(),
+    };
+    let unpacker_config = unpacker_verify_config(4, &config, LOG_BLOWUP_FACTOR, Some(n_queries));
     let rv =
-        prove_root_verification_leaves(&out.root, &bottom, &config, LOG_BLOWUP_FACTOR, Some(zk));
+        prove_root_verification_leaves(&out.root, &bottom, &config, &unpacker_config, Some(zk));
     let elapsed = t0.elapsed();
 
     assert_eq!(rv.leaf_outputs.len(), 4);

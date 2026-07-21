@@ -9,15 +9,15 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 ///
 /// Each prove already saturates rayon's global pool, so independent proves on the same pool just
 /// contend. `K` pools of `M` threads let `K` proves run concurrently, each confined to its own `M`
-/// cores — real speedup for the tree's independent siblings when per-prove scaling plateaus below the
-/// full core count. Build once and reuse (pool creation spawns OS threads).
+/// cores — real speedup for the tree's independent siblings when per-prove scaling plateaus below
+/// the full core count. Build once and reuse (pool creation spawns OS threads).
 pub struct PoolSet {
     pub(crate) pools: Vec<Arc<ThreadPool>>,
 }
 
 impl PoolSet {
-    /// Creates `n_pools` pools of `threads_per_pool` worker threads each (e.g. `PoolSet::new(2, 48)`
-    /// on a 96-core machine).
+    /// Creates `n_pools` pools of `threads_per_pool` worker threads each (e.g. `PoolSet::new(2,
+    /// 48)` on a 96-core machine).
     pub fn new(n_pools: usize, threads_per_pool: usize) -> Self {
         // Optionally deprioritize pool workers so GPU-producer / composition threads win CPU.
         // Byte-neutral. OFF unless RECURSION_POOL_NICE is set (an integer nice delta, or "idle").
@@ -42,8 +42,9 @@ impl PoolSet {
         self.pools.len()
     }
 
-    /// Runs `f` on pool `i % n_pools`, blocking until it completes. Unlike [`Self::map`], dispatches
-    /// ONE job at a time, so a caller can stream jobs onto specific pools as they arrive.
+    /// Runs `f` on pool `i % n_pools`, blocking until it completes. Unlike [`Self::map`],
+    /// dispatches ONE job at a time, so a caller can stream jobs onto specific pools as they
+    /// arrive.
     pub fn install_on<T, F>(&self, i: usize, f: F) -> T
     where
         F: FnOnce() -> T + Send,
@@ -92,8 +93,9 @@ impl PoolSet {
     }
 }
 
-/// Lower THIS thread's scheduling priority (once per pool worker at startup). Byte-neutral scheduling
-/// syscall only; unprivileged. `who==0` targets the calling thread (per-thread nice on Linux).
+/// Lower THIS thread's scheduling priority (once per pool worker at startup). Byte-neutral
+/// scheduling syscall only; unprivileged. `who==0` targets the calling thread (per-thread nice on
+/// Linux).
 fn apply_pool_thread_priority(sched: Option<&str>) {
     match sched {
         None => {}

@@ -1,8 +1,8 @@
 use super::{Child, FoldTask, build_fold_topology};
 use crate::level0_group_sizes;
 
-/// The arity these topology tests run at — k=8 (the production default). The k=8-pinned expectations
-/// below assert `K == 8` so they trip if the default ever changes.
+/// The arity these topology tests run at — k=8 (the production default). The k=8-pinned
+/// expectations below assert `K == 8` so they trip if the default ever changes.
 const K: usize = 8;
 
 /// A symbolic, index-aware tree shape — the byte-identity-relevant structure of the node-node fold
@@ -13,8 +13,8 @@ enum Shape {
     Node(Vec<Shape>),
 }
 
-/// The arity (`∈ 2..=k`) of the ROOT node of the fold over `m` base-nodes — a deterministic function
-/// of the public `m`. `m == 1` ⇒ returns `1` (the lone base-node is the root, no fold).
+/// The arity (`∈ 2..=k`) of the ROOT node of the fold over `m` base-nodes — a deterministic
+/// function of the public `m`. `m == 1` ⇒ returns `1` (the lone base-node is the root, no fold).
 fn root_arity(m_base_nodes: usize, k: usize) -> usize {
     if m_base_nodes == 1 {
         return 1;
@@ -93,7 +93,11 @@ fn streaming_shape(m: usize) -> Shape {
         match c {
             Child::Input(i) => Shape::Leaf(i),
             Child::Fold(j) => Shape::Node(
-                tasks[j].children.iter().map(|&ch| resolve(ch, tasks)).collect(),
+                tasks[j]
+                    .children
+                    .iter()
+                    .map(|&ch| resolve(ch, tasks))
+                    .collect(),
             ),
         }
     }
@@ -117,7 +121,10 @@ fn streaming_topology_matches_sequential() {
 /// m=17 → root over `node([0..8]), node([8..16]), Leaf(16)`.
 #[test]
 fn streaming_topology_m9_m17_example_k8() {
-    assert_eq!(K, 8, "this pinned example is written for k=8 (the production default)");
+    assert_eq!(
+        K, 8,
+        "this pinned example is written for k=8 (the production default)"
+    );
     use Shape::{Leaf, Node};
     let m9 = Node(vec![Node((0..8).map(Leaf).collect()), Leaf(8)]);
     assert_eq!(streaming_shape(9), m9);
@@ -185,11 +192,14 @@ fn arities_valid_shorts_at_root() {
     }
 }
 
-/// Pins k=8 root arities + total fold-node count for m ∈ {8, 9, 35, 69} (m=8 clean, the rest exercise
-/// the carry).
+/// Pins k=8 root arities + total fold-node count for m ∈ {8, 9, 35, 69} (m=8 clean, the rest
+/// exercise the carry).
 #[test]
 fn fold_pins_key_m() {
-    assert_eq!(K, 8, "these pinned expectations are for k=8 (the production default)");
+    assert_eq!(
+        K, 8,
+        "these pinned expectations are for k=8 (the production default)"
+    );
     let cases = [(8usize, 8usize), (9, 2), (35, 7), (69, 6)]; // (m, root_arity)
     for (m, want_root_arity) in cases {
         let (tasks, root) = build_fold_topology(m, K);
@@ -202,7 +212,11 @@ fn fold_pins_key_m() {
             want_root_arity,
             "m={m}: unexpected root arity"
         );
-        assert_eq!(root_arity(m, K), want_root_arity, "m={m}: root_arity mismatch");
+        assert_eq!(
+            root_arity(m, K),
+            want_root_arity,
+            "m={m}: root_arity mismatch"
+        );
         assert_eq!(
             tasks.len(),
             sequential_node_count(m),
@@ -211,12 +225,13 @@ fn fold_pins_key_m() {
     }
 }
 
-// Two-tier (leaf→level1-node→fold-node) streaming DAG topology tests for `recursive_aggregate_prove_leaves_streaming`.
-// SYMBOLIC — assert the coordinator's fixed DAG folds the same tree, same child ordering, as
-// `recursive_aggregate_prove_leaves` (the byte-identity invariant).
+// Two-tier (leaf→level1-node→fold-node) streaming DAG topology tests for
+// `recursive_aggregate_prove_leaves_streaming`. SYMBOLIC — assert the coordinator's fixed DAG folds
+// the same tree, same child ordering, as `recursive_aggregate_prove_leaves` (the byte-identity
+// invariant).
 
-/// A symbolic two-tier tree shape over leaves: `Leaf(i)`, `Level1(children)` (a leaf-verifying node),
-/// `Fold(children)` (a node-node fold). Index-aware to capture per-node child ordering.
+/// A symbolic two-tier tree shape over leaves: `Leaf(i)`, `Level1(children)` (a leaf-verifying
+/// node), `Fold(children)` (a node-node fold). Index-aware to capture per-node child ordering.
 #[derive(PartialEq, Eq, Debug, Clone)]
 enum LeafShape {
     Leaf(usize),
@@ -224,8 +239,9 @@ enum LeafShape {
     Fold(Vec<LeafShape>),
 }
 
-/// The tree `recursive_aggregate_prove_leaves` realizes over `n` leaves (level 0 → level1-nodes, then the
-/// up-tree fold) — the reference for the streaming DAG. `n == 1` ⇒ the lone leaf is the root.
+/// The tree `recursive_aggregate_prove_leaves` realizes over `n` leaves (level 0 → level1-nodes,
+/// then the up-tree fold) — the reference for the streaming DAG. `n == 1` ⇒ the lone leaf is the
+/// root.
 fn sequential_leaf_shape(n: usize) -> LeafShape {
     if n == 1 {
         return LeafShape::Leaf(0);
@@ -271,8 +287,9 @@ fn sequential_leaf_shape(n: usize) -> LeafShape {
     level.into_iter().next().unwrap()
 }
 
-/// The tree the STREAMING coordinator realizes over `n` leaves, from the two fixed topology functions
-/// (tier 0 = `level0_group_sizes`, tier ≥ 1 = `build_fold_topology` with `Child::Input(g)` = level1-node g).
+/// The tree the STREAMING coordinator realizes over `n` leaves, from the two fixed topology
+/// functions (tier 0 = `level0_group_sizes`, tier ≥ 1 = `build_fold_topology` with
+/// `Child::Input(g)` = level1-node g).
 fn streaming_leaf_shape(n: usize) -> LeafShape {
     if n == 1 {
         return LeafShape::Leaf(0);
@@ -327,12 +344,16 @@ fn streaming_leaf_topology_matches_sequential() {
     }
 }
 
-/// Tier-0 grouping IS `level0_group_sizes` slicing: leaves land contiguously, each level1-node consuming
-/// its group size, every index once in order. Pins n=k+1 (r==1 splits into k-1 and 2).
+/// Tier-0 grouping IS `level0_group_sizes` slicing: leaves land contiguously, each level1-node
+/// consuming its group size, every index once in order. Pins n=k+1 (r==1 splits into k-1 and 2).
 #[test]
 fn tier0_group_assignment_matches_level0_sizes() {
-    assert_eq!(K, 8, "the k+1 (r==1) pin is written for k=8 (the production default)");
-    // n=9 (r==1): level0_group_sizes → [7, 2], so level1-node 0 = leaves 0..7, level1-node 1 = leaves 7..9.
+    assert_eq!(
+        K, 8,
+        "the k+1 (r==1) pin is written for k=8 (the production default)"
+    );
+    // n=9 (r==1): level0_group_sizes → [7, 2], so level1-node 0 = leaves 0..7, level1-node 1 =
+    // leaves 7..9.
     use LeafShape::{Leaf, Level1};
     assert_eq!(
         streaming_leaf_shape(9),
@@ -350,10 +371,16 @@ fn tier0_group_assignment_matches_level0_sizes() {
         let mut collected: Vec<usize> = Vec::new();
         collect_leaf_indices(&shape, &mut collected);
         let expected: Vec<usize> = (0..n).collect();
-        assert_eq!(collected, expected, "n={n}: leaves not consumed contiguously in order");
+        assert_eq!(
+            collected, expected,
+            "n={n}: leaves not consumed contiguously in order"
+        );
         let mut level1_sizes: Vec<usize> = Vec::new();
         collect_level1_sizes(&shape, &mut level1_sizes);
-        assert_eq!(level1_sizes, sizes, "n={n}: level1 group sizes != level0_group_sizes");
+        assert_eq!(
+            level1_sizes, sizes,
+            "n={n}: level1 group sizes != level0_group_sizes"
+        );
     }
 }
 

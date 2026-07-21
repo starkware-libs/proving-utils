@@ -1,7 +1,7 @@
 //! Non-streaming (collect-then-fold) recursion tree entry points: the shared up-tree fold
 //! ([`recursive_aggregate_prove`]) and the standalone-leaf entry point
-//! ([`recursive_aggregate_prove_leaves`], which does level 0 then delegates to it). See the crate root
-//! for the tree-shape contract; streaming variants in [`crate::prove_streaming`].
+//! ([`recursive_aggregate_prove_leaves`], which does level 0 then delegates to it). See the crate
+//! root for the tree-shape contract; streaming variants in [`crate::prove_streaming`].
 
 use crate::pools::PoolSet;
 use crate::precomputes::RecursionPrecompute;
@@ -11,9 +11,10 @@ use crate::{
 };
 
 /// The SHARED up-tree fold: folds `base_nodes` (height-1 node proofs) into a single root by the
-/// `k`-ary group+carry loop — leading full-`k` runs become exactly-`k` fold-nodes, the `< k` remainder
-/// carries up unchanged, and the first level `≤ k` folds whole into the (possibly short) root. `M ==
-/// 1` ⇒ the lone node IS the root. Sibling groups are proved concurrently across `pools`.
+/// `k`-ary group+carry loop — leading full-`k` runs become exactly-`k` fold-nodes, the `< k`
+/// remainder carries up unchanged, and the first level `≤ k` folds whole into the (possibly short)
+/// root. `M == 1` ⇒ the lone node IS the root. Sibling groups are proved concurrently across
+/// `pools`.
 pub fn recursive_aggregate_prove(
     base_nodes: Vec<TreeProof>,
     config: &AggregateConfig,
@@ -40,7 +41,7 @@ pub fn recursive_aggregate_prove(
             // Terminal step: fold the whole (2..=k) level into the single (possibly short) root.
             let height = level.iter().map(|(h, _)| *h).max().unwrap() + 1;
             let children: Vec<TreeProof> = level.into_iter().map(|(_, p)| p).collect();
-            let root = prove_short_fold_node(&children, config, height);
+            let root = prove_short_fold_node(&children, config, pre, height);
             return AggregateOutput {
                 root,
                 n_levels: height,
@@ -59,14 +60,17 @@ pub fn recursive_aggregate_prove(
         }
         let jobs: Vec<_> = groups
             .iter()
-            .map(|(height, children)| move || (*height, prove_fold_node(children, config, pre, *height)))
+            .map(|(height, children)| {
+                move || (*height, prove_fold_node(children, config, pre, *height))
+            })
             .collect();
         let mut next: Vec<(usize, TreeProof)> = pools.map(jobs);
         next.extend(carry);
         level = next;
     }
 
-    // M >= 2 folds to a root via the loop's terminal step; reaching here means a single carried entry.
+    // M >= 2 folds to a root via the loop's terminal step; reaching here means a single carried
+    // entry.
     let (height, root) = level.into_iter().next().unwrap();
     AggregateOutput {
         root,
@@ -75,8 +79,8 @@ pub fn recursive_aggregate_prove(
 }
 
 /// Folds standalone `leaves` into a single root. Level 0 consumes ALL leaves into height-1
-/// level1-nodes via [`level0_group_sizes`], then the shared [`recursive_aggregate_prove`] folds those
-/// up. `n_leaves == 1` ⇒ the lone leaf is the root (`n_levels == 0`).
+/// level1-nodes via [`level0_group_sizes`], then the shared [`recursive_aggregate_prove`] folds
+/// those up. `n_leaves == 1` ⇒ the lone leaf is the root (`n_levels == 0`).
 pub fn recursive_aggregate_prove_leaves(
     leaves: Vec<TreeProof>,
     config: &AggregateConfig,
