@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use cairo_program_runner_lib::utils::{get_program, get_program_input_from_path};
+use circuit_registry::CircuitRegistry;
 use clap::Parser;
 use leaf_prover::prove_leaf::prove_leaf;
 use stwo_cairo_utils::binary_utils::run_binary;
@@ -28,6 +29,12 @@ struct Args {
     cairo_prover_params_json: PathBuf,
     #[clap(long, help = "JSON file containing the circuit prover parameters.")]
     circuit_prover_params_json: PathBuf,
+    #[clap(
+        long,
+        help = "JSON file containing the circuit registry; the leaf circuit is padded to its \
+                component-size target."
+    )]
+    circuit_registry_json: PathBuf,
     #[clap(long, help = "Path to write the output file")]
     output_path: PathBuf,
 }
@@ -65,8 +72,20 @@ fn run() -> Result<(), String> {
         });
     let circuit_prover_pcs_config = sonic_rs::from_str(&circuit_prover_pcs_config).unwrap();
 
-    let output =
-        prove_leaf(&program, program_input, cairo_prover_parameters, circuit_prover_pcs_config);
+    let registry = read_to_string(&args.circuit_registry_json).unwrap_or_else(|err| {
+        panic!("Cannot get circuit registry from {}: {err}", args.circuit_registry_json.display())
+    });
+    let registry: CircuitRegistry = serde_json::from_str(&registry).unwrap_or_else(|err| {
+        panic!("Cannot parse circuit registry from {}: {err}", args.circuit_registry_json.display())
+    });
+
+    let output = prove_leaf(
+        &program,
+        program_input,
+        cairo_prover_parameters,
+        circuit_prover_pcs_config,
+        &registry,
+    );
 
     fs::write(&args.output_path, serde_json::to_string_pretty(&output).unwrap()).unwrap_or_else(
         |err| panic!("Cannot write output to {}: {err}", args.output_path.display()),
