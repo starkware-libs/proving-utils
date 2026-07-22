@@ -10,10 +10,12 @@ use circuit_cairo_verifier::statement::MEMORY_VALUES_LIMBS;
 use circuit_cairo_verifier::verify::{
     CairoVerifierConfig, build_fixed_cairo_circuit, prepare_cairo_proof_for_circuit_verifier,
 };
+use circuit_common::finalize::pad_to_targets;
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
     BaseColumnPool, prepare_circuit_proof_for_circuit_verifier, prove_circuit_assignment,
 };
+use circuit_registry::CircuitRegistry;
 use circuit_serialize::serialize::CircuitSerialize;
 use circuits_stark_verifier::constraint_eval::CircuitEval;
 use circuits_stark_verifier::proof::ProofConfig;
@@ -40,6 +42,7 @@ pub fn prove_leaf(
     program_input: Option<ProgramInput>,
     cairo_prover_parameters: ProverParameters,
     circuit_prover_pcs_config: PcsConfig,
+    registry: &CircuitRegistry,
 ) -> SerializedLeafProof {
     assert!(
         cairo_prover_parameters.include_all_preprocessed_columns,
@@ -106,6 +109,23 @@ pub fn prove_leaf(
     let mut pcs_config = cairo_prover_parameters.pcs_config;
     pcs_config.min_lifting_log_size = proof.extended_stark_proof.proof.config.min_lifting_log_size;
 
+    // Look up this leaf in the registry by the verified Cairo proof's trace log size and blowup.
+    // `get_pcs_config` sets `min_lifting_log_size = trace_log_size + log_blowup_factor`, so we
+    // invert it here. The matched entry gives the component-size target to pad to and the
+    // preprocessed root the resulting circuit must produce.
+    let log_blowup_factor = pcs_config.fri_config.log_blowup_factor;
+    let trace_log_size = pcs_config.min_lifting_log_size - log_blowup_factor;
+    let leaf_verifier =
+        registry.leaf_verifier(trace_log_size, log_blowup_factor).unwrap_or_else(|| {
+            panic!(
+                "No leaf verifier in the registry for trace_log_size={trace_log_size}, \
+                 log_blowup_factor={log_blowup_factor}"
+            )
+        });
+    let pad_target = registry.config_pad_target(&leaf_verifier.config).unwrap_or_else(|| {
+        panic!("Registry has no config {:?} for the matched leaf verifier", leaf_verifier.config)
+    });
+
     let proof_config = ProofConfig::new(
         &cairo_components,
         cairo_prover_parameters.preprocessed_trace.n_columns(),
@@ -146,7 +166,7 @@ pub fn prove_leaf(
         outputs_as_m31_slices,
     );
 
-    // TODO: Pad to multiverifier size.
+    pad_to_targets(&mut context, pad_target);
 
     info!(
         "Verifier config:
@@ -180,6 +200,14 @@ pub fn prove_leaf(
     let circuit_preprocessed_root =
         circuit_proof.stark_proof.proof.commitments[PREPROCESSED_TRACE_IDX].0;
     info!("Circuit preprocessed root: {:?}", circuit_preprocessed_root);
+
+    // The circuit we built and proved must be the one the registry describes for this leaf.
+    let expected_root = leaf_verifier.preprocessed_root.to_le_bytes();
+    assert!(
+        circuit_preprocessed_root == expected_root,
+        "Circuit preprocessed root {circuit_preprocessed_root:?} does not match the registry's \
+         leaf verifier root {expected_root:?}"
+    );
 
     // Convert the proof to our output format.
 

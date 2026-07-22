@@ -1,0 +1,32 @@
+{
+  "circuit_configs": {
+    "default": {
+      "log_blowup_factor": 1,
+      "component_log_sizes": {
+        "eq": 20,
+        "qm31_ops": 23,
+        "m31_to_u32": 20,
+        "triple_xor": 19,
+        "blake_g_gate": 23
+      }
+    }
+  },
+  "leaf_verifiers": [
+    {
+      "config": "default",
+      "trace_log_size": 20,
+      "log_blowup_factor": 1,
+      "preprocessed_root": [
+        "0x6de807ae",
+        "0x0bf50621",
+        "0x05cbd9f4",
+        "0x87b08e05",
+        "0x12453193",
+        "0x89e82e30",
+        "0x25a779de",
+        "0x7da05a04"
+      ]
+    }
+  ],
+  "multiverifiers": []
+}
