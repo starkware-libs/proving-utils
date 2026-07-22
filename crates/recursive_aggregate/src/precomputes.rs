@@ -1,20 +1,30 @@
 //! Witness-independent proving precomputes: the whole-recursion [`RecursionPrecompute`] (a flat set
-//! of committed trees sharing one twiddle tree + column pool) and the per-shape
-//! [`PreprocessedTree`].
+//! of committed trees sharing one twiddle tree + column pool), the per-shape [`PreprocessedTree`],
+//! and the node-shape derivation ([`node_preprocessed_from_shared`], [`fold_used_arities`]) the
+//! prover uses to build each held tree.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+use circuit_common::N_RESERVED;
+use circuit_common::finalize::{ComponentSizes, pad_to_targets};
 use circuit_common::preprocessed::PreprocessedCircuit;
+use circuit_multiverifier::verify::{
+    MultiverifierInput, SharedConfig, build_multiverifier_circuit,
+};
+use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
 use circuits::blake::HashValue;
+use circuits::ivalue::NoValue;
+use circuits_stark_verifier::proof::{ProofConfig, empty_proof};
+use num_traits::Zero;
 use stwo::core::fields::qm31::QM31;
 use stwo::core::pcs::PcsConfig;
 use stwo::core::poly::circle::CanonicCoset;
 use stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
+use stwo::prover::CommitmentTreeProver;
 use stwo::prover::backend::simd::SimdBackend;
 use stwo::prover::mempool::BaseColumnPool;
 use stwo::prover::poly::circle::PolyOps;
 use stwo::prover::poly::twiddles::TwiddleTree;
-use stwo::prover::CommitmentTreeProver;
 
 /// One fixed circuit shape's committed preprocessed tree: the preprocessed circuit, its committed
 /// tree0, and the PCS config (its `lifting_log_size` pinned to the tree's domain). Every prove of
@@ -99,6 +109,48 @@ pub fn build_one_shot_tree(
         &base_column_pool,
     );
     (tree, twiddles, base_column_pool)
+}
+
+/// Builds + preprocesses the NoValue multiverifier node circuit of `arity` children for a given
+/// `shared` config, padded to `target_padding`. Keyed on the already-built `SharedConfig`. The node
+/// shape the prover commits per held tree, and the shape the caller's capture/drift path rebuilds.
+pub fn node_preprocessed_from_shared(
+    shared: &SharedConfig,
+    target_padding: ComponentSizes,
+    arity: usize,
+) -> PreprocessedCircuit {
+    // Same node circuit as `prove_fold_node`/`prove_short_fold_node`, with NoValue witnesses (the
+    // preprocessed trace is witness-independent).
+    let proof_config = noval_node_proof_config(
+        shared.proof_config.n_preprocessed_columns,
+        &shared.pcs_config,
+    );
+    let node_shared = SharedConfig {
+        pcs_config: shared.pcs_config,
+        proof_config: proof_config.clone(),
+        preprocessed_column_log_sizes: shared.preprocessed_column_log_sizes.clone(),
+    };
+    let inputs: Vec<MultiverifierInput<NoValue>> = (0..arity)
+        .map(|_| empty_node_input(&proof_config))
+        .collect();
+    let mut ctx = build_multiverifier_circuit::<NoValue>(inputs, &node_shared);
+    pad_to_targets(&mut ctx, target_padding);
+    PreprocessedCircuit::preprocess_circuit(&mut ctx)
+}
+
+/// The distinct node arities a fold over `n_leaves` (fold arity `k`) actually uses: `(level1,
+/// fold)`. A curve point touches only a handful of the `2..=k` arities, so the prover commits a
+/// preprocessed tree ONLY for these. Reuses the real topology helpers
+/// (`crate::level0_group_sizes`, `crate::prove_streaming::fold_node_arities`) so it cannot diverge
+/// from the fold. Node sets are empty for `n_leaves <= 1` (the lone leaf is the root).
+pub fn fold_used_arities(n_leaves: usize, k: usize) -> (BTreeSet<usize>, BTreeSet<usize>) {
+    if n_leaves <= 1 {
+        return (BTreeSet::new(), BTreeSet::new());
+    }
+    let sizes = crate::level0_group_sizes(n_leaves, k);
+    let level1: BTreeSet<usize> = sizes.iter().copied().collect();
+    let fold = crate::prove_streaming::fold_node_arities(sizes.len(), k);
+    (level1, fold)
 }
 
 impl RecursionPrecompute {
@@ -220,4 +272,27 @@ fn build_tree(
 /// 1)` (matches `prove_circuit_assignment`'s twiddle domain).
 fn shape_prove_domain(spec: &TreeSpec) -> u32 {
     spec.preprocessed.trace_log_size + spec.pcs_config.fri_config.log_blowup_factor.max(1)
+}
+
+/// The `NoValue` node `ProofConfig` a multiverifier NODE circuit is built/proved with. Shared by
+/// the NoValue node builders (here + `test_utils`) so they derive the config identically.
+pub(crate) fn noval_node_proof_config(
+    n_preprocessed_columns: usize,
+    pcs_config: &PcsConfig,
+) -> ProofConfig {
+    ProofConfig::new(
+        &all_circuit_components::<NoValue>(),
+        n_preprocessed_columns,
+        pcs_config,
+        INTERACTION_POW_BITS,
+    )
+}
+
+/// A placeholder `NoValue` child input for building the witness-independent node shape.
+pub(crate) fn empty_node_input(proof_config: &ProofConfig) -> MultiverifierInput<NoValue> {
+    MultiverifierInput {
+        proof: empty_proof(proof_config),
+        preprocessed_root: HashValue::from([0u32; N_RESERVED]),
+        output_values: [QM31::zero(); N_RESERVED],
+    }
 }

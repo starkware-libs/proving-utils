@@ -3545,6 +3545,7 @@ dependencies = [
  "libc",
  "num-traits",
  "rayon",
+ "recursive-aggregate",
  "stwo 2.2.0 (git+https://github.com/starkware-libs/stwo?rev=5ea05973)",
  "stwo-constraint-framework 2.2.0 (git+https://github.com/starkware-libs/stwo?rev=5ea05973)",
 ]

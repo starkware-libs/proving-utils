@@ -22,14 +22,13 @@ use circuits_stark_verifier::order_hash_map::OrderedHashMap;
 use circuits_stark_verifier::proof::ProofConfig;
 
 use recursive_aggregate::pools::PoolSet;
-use recursive_aggregate::precomputes::{RecursionPrecompute, TreeSpec};
+use recursive_aggregate::precomputes::{
+    RecursionPrecompute, TreeSpec, node_preprocessed_from_shared,
+};
 use recursive_aggregate::prove::recursive_aggregate_prove_leaves;
-use recursive_aggregate::root_prover::{
-    LeafBottom, ZkBlind, prove_root_verification_leaves, unpacker_verify_config,
-};
-use recursive_aggregate::{
-    AggregateConfig, TreeProof, node_preprocessed_from_shared, preprocessed_root,
-};
+use recursive_aggregate::root_prover::{LeafBottom, ZkBlind, prove_root_verification_leaves};
+use recursive_aggregate::test_utils::{preprocessed_root, unpacker_verify_config};
+use recursive_aggregate::{AggregateConfig, TreeProof};
 use std::collections::BTreeMap;
 
 /// Fold arity `k` used by these tests (the production default; env parsing lives in the

@@ -6,6 +6,12 @@ license.workspace = true
 repository.workspace = true
 description = "Fold an N-leaf 2-to-1 multiverifier recursion tree into a single zk-blinded root proof, then unpack leaf outputs."
 
+[features]
+# Capture/drift helpers (`test_utils`), off by default so they never ship in a production build. A
+# dependent crate turns it on as a dev-dependency feature to reach them from its tests. (The pinned
+# config machinery it exercises lives in the always-compiled `pinned_configs` module.)
+test-utils = []
+
 [dependencies]
 # stwo circuits (rev pinned to the multiverifier merge on main)
 circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "041ec6101ba782aa00e325433929cda6ef15c1b9" }
@@ -21,11 +27,17 @@ circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuit
 # stwo: bumped 74951f79 -> 5ea05973 to match the local stwo-circuits branch (#1425). Must match
 # for type identity with the [patch]'d local stwo-circuits in the workspace root Cargo.toml.
 stwo = { git = "https://github.com/starkware-libs/stwo", rev = "5ea05973", features = ["prover"] }
+# `PreProcessedColumnId`, used to build the pinned-config `CircuitConfig` columns in the (production,
+# non-gated) `pinned_configs` module.
+stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "5ea05973" }
 num-traits = "0.2"
 rayon = "1"
 libc = "0.2"
 
 [dev-dependencies]
+# Self dev-dependency enabling `test-utils` so the crate's own integration tests (which link the lib
+# built WITHOUT `cfg(test)`) can reach `test_utils` (`preprocessed_root` / `unpacker_verify_config`).
+recursive-aggregate = { path = ".", features = ["test-utils"] }
 stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "5ea05973" }
 # Out-of-circuit Blake2s mirror for the smoke-test node-hash oracle (mirrors circuit_multiverifier
 # verify_test's `blake2s_u32s_host`). CPU-only, test scope.

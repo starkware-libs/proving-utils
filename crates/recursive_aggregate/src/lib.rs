@@ -7,45 +7,37 @@
 //! fold: level 0 consumes ALL leaves into height-1 nodes (a leaf surviving higher fails the
 //! in-circuit Merkle height check); levels >=1 fold nodes k-ary into the (possibly short) root.
 
+pub mod pinned_configs;
 pub mod pools;
 pub mod precomputes;
 pub mod prove;
 pub mod prove_streaming;
 pub mod root_prover;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::precomputes::{PreprocessedTree, RecursionPrecompute};
 
-use circuit_common::finalize::{compute_padded_sizes, pad_to_targets, ComponentSizes};
-use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_common::N_RESERVED;
+use circuit_common::finalize::{ComponentSizes, pad_to_targets};
 use circuit_multiverifier::verify::{
-    build_multiverifier_circuit, MultiverifierInput, SharedConfig,
+    MultiverifierInput, SharedConfig, build_multiverifier_circuit,
 };
 use circuit_prover::prover::{
-    prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute, CircuitProof,
+    CircuitProof, prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
 };
+use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
+use circuit_verifier::verify::CircuitConfig;
 use circuits::blake::HashValue;
 use circuits::context::FinalizedContext;
-use circuits_stark_verifier::proof::Proof;
+use circuits_stark_verifier::proof::{Proof, ProofConfig};
 use stwo::core::fields::qm31::QM31;
 use stwo::core::pcs::PcsConfig;
 use stwo::core::utils::MaybeOwned;
 use stwo::core::vcs_lifted::blake2_merkle::{Blake2sM31MerkleChannel, Blake2sMerkleHasher};
 use stwo::prover::ProvingError;
-
-use circuit_cairo_verifier::privacy::get_pcs_config;
-use circuit_verifier::statement::{all_circuit_components, INTERACTION_POW_BITS};
-use circuit_verifier::verify::CircuitConfig;
-use circuits::ivalue::NoValue;
-use circuits_stark_verifier::proof::{empty_proof, ProofConfig};
-use num_traits::Zero;
-use stwo::core::poly::circle::CanonicCoset;
-use stwo::prover::backend::simd::SimdBackend;
-use stwo::prover::mempool::BaseColumnPool;
-use stwo::prover::poly::circle::PolyOps;
-use stwo::prover::CommitmentTreeProver;
 
 /// A proven node carried up the tree: the proof plus the two pieces the parent multiverifier needs
 /// (the producing circuit's preprocessed root and its output values).
@@ -121,60 +113,11 @@ pub struct AggregateOutput {
     pub n_levels: usize,
 }
 
-// Shape-derivation helpers: build the preprocessed node/leaf shapes an `AggregateConfig` verifies.
-// Roots are supplied by the caller (pinned consts); production never computes them.
-// [`preprocessed_root`] remains only for the caller's capture/drift path (regenerating the pinned
-// root table off-line).
-
-/// Merkle root of a circuit's preprocessed trace. NOT on any production prove/verify path (roots
-/// are pinned consts there); used only by the caller's capture/drift test to regenerate the pinned
-/// table.
-pub fn preprocessed_root(
-    preprocessed: &PreprocessedCircuit,
-    log_blowup_factor: u32,
-) -> HashValue<QM31> {
-    let lifting_log_size = preprocessed.trace_log_size + log_blowup_factor;
-    let twiddles = SimdBackend::precompute_twiddles(
-        CanonicCoset::new(lifting_log_size)
-            .circle_domain()
-            .half_coset,
-    );
-    let trace = preprocessed.preprocessed_trace.get_trace::<SimdBackend>();
-    let polys = SimdBackend::interpolate_columns(trace, &twiddles);
-    let tree = CommitmentTreeProver::<SimdBackend, Blake2sM31MerkleChannel>::new(
-        polys,
-        log_blowup_factor,
-        &twiddles,
-        true,
-        Some(lifting_log_size),
-        &BaseColumnPool::<SimdBackend>::new(),
-    );
-    tree.commitment.root().into()
-}
-
-/// The `SharedConfig` a multiverifier needs to verify leaves of `leaf_preprocessed`'s config.
-pub fn shared_config_for_leaf(
-    leaf_preprocessed: &PreprocessedCircuit,
-    pcs_config: PcsConfig,
-) -> SharedConfig {
-    let proof_config = ProofConfig::new(
-        &all_circuit_components::<QM31>(),
-        leaf_preprocessed.preprocessed_trace.n_columns(),
-        &pcs_config,
-        INTERACTION_POW_BITS,
-    );
-    SharedConfig {
-        pcs_config,
-        proof_config,
-        preprocessed_column_log_sizes: leaf_preprocessed.preprocessed_trace.log_sizes(),
-    }
-}
-
 /// The `SharedConfig` a multiverifier needs to verify children of a pinned child [`CircuitConfig`]
 /// (its `config` = child PCS, its `preprocessed_column_log_sizes` = child columns). The pure-const
-/// twin of [`shared_config_for_leaf`]: equal to it when the child `CircuitConfig` mirrors the
-/// child's `PreprocessedCircuit`. Lets the prover reconstruct a node's child-verifier config from a
-/// pinned config alone (no `PreprocessedCircuit` at hand).
+/// twin of `test_utils::shared_config_for_leaf`: equal to it when the child `CircuitConfig` mirrors
+/// the child's `PreprocessedCircuit`. Lets the prover reconstruct a node's child-verifier config
+/// from a pinned config alone (no `PreprocessedCircuit` at hand).
 pub fn shared_config_from_circuit_config(child_config: &CircuitConfig) -> SharedConfig {
     let proof_config = ProofConfig::new(
         &all_circuit_components::<QM31>(),
@@ -187,89 +130,6 @@ pub fn shared_config_from_circuit_config(child_config: &CircuitConfig) -> Shared
         proof_config,
         preprocessed_column_log_sizes: child_config.preprocessed_column_log_sizes.clone(),
     }
-}
-
-/// Generic drift helper: recompute a fold-node's [`CircuitConfig`] + preprocessed root from its
-/// pinned CHILD config, `arity`, the common `node_target`, and the node FRI blowup. AIR-agnostic —
-/// the caller passes the child config (a leaf config for a level-1 node, a level-1 node config for
-/// a fold node), so a per-layer drift test recomputes ONE layer without rebuilding the layers
-/// below. NOT on any prove/verify path; the pinned consts are the source of truth there.
-pub fn recompute_node(
-    child_config: &CircuitConfig,
-    arity: usize,
-    node_target: ComponentSizes,
-    node_log_blowup: u32,
-) -> (CircuitConfig, HashValue<QM31>) {
-    let child_shared = shared_config_from_circuit_config(child_config);
-    let node_pp = node_preprocessed_from_shared(&child_shared, node_target, arity);
-    let root = preprocessed_root(&node_pp, node_log_blowup);
-    let config = CircuitConfig {
-        config: get_pcs_config(node_pp.trace_log_size, node_log_blowup),
-        n_outputs: N_RESERVED,
-        preprocessed_column_log_sizes: node_pp.preprocessed_trace.log_sizes(),
-        preprocessed_root: root.clone(),
-    };
-    (config, root)
-}
-
-/// Builds + preprocesses the NoValue multiverifier node circuit of `arity` children for a given
-/// `shared` config, padded to `target_padding`. Keyed on the already-built `SharedConfig`. Used by
-/// the caller's config-shape derivation and its capture/drift path (to regenerate the pinned root
-/// table).
-pub fn node_preprocessed_from_shared(
-    shared: &SharedConfig,
-    target_padding: ComponentSizes,
-    arity: usize,
-) -> PreprocessedCircuit {
-    // Same node circuit as `prove_fold_node`/`prove_short_fold_node`, with NoValue witnesses (the
-    // preprocessed trace is witness-independent).
-    let proof_config = noval_node_proof_config(
-        shared.proof_config.n_preprocessed_columns,
-        &shared.pcs_config,
-    );
-    let node_shared = SharedConfig {
-        pcs_config: shared.pcs_config,
-        proof_config: proof_config.clone(),
-        preprocessed_column_log_sizes: shared.preprocessed_column_log_sizes.clone(),
-    };
-    let inputs: Vec<MultiverifierInput<NoValue>> = (0..arity)
-        .map(|_| empty_node_input(&proof_config))
-        .collect();
-    let mut ctx = build_multiverifier_circuit::<NoValue>(inputs, &node_shared);
-    pad_to_targets(&mut ctx, target_padding);
-    PreprocessedCircuit::preprocess_circuit(&mut ctx)
-}
-
-/// Builds + preprocesses the NoValue node verifying leaves of `leaf_preprocessed`'s config
-/// (optionally padded), to recompute the node's `preprocessed_root`. Also returns the node's
-/// UNPADDED component sizes (for deriving the shared `TARGET_PADDING_SIZES = max(leaf, node)`).
-pub fn multiverifier_node_preprocessed(
-    leaf_preprocessed: &PreprocessedCircuit,
-    pcs_config: PcsConfig,
-    target_padding: Option<ComponentSizes>,
-    fold_arity: usize,
-) -> (PreprocessedCircuit, ComponentSizes) {
-    let proof_config = noval_node_proof_config(
-        leaf_preprocessed.preprocessed_trace.n_columns(),
-        &pcs_config,
-    );
-    let shared = SharedConfig {
-        pcs_config,
-        proof_config: proof_config.clone(),
-        preprocessed_column_log_sizes: leaf_preprocessed.preprocessed_trace.log_sizes(),
-    };
-    let inputs: Vec<MultiverifierInput<NoValue>> = (0..fold_arity)
-        .map(|_| empty_node_input(&proof_config))
-        .collect();
-    let mut ctx = build_multiverifier_circuit::<NoValue>(inputs, &shared);
-    let unpadded_sizes = compute_padded_sizes(&ctx);
-    if let Some(t) = target_padding {
-        pad_to_targets(&mut ctx, t);
-    }
-    (
-        PreprocessedCircuit::preprocess_circuit(&mut ctx),
-        unpadded_sizes,
-    )
 }
 
 // Per-node building blocks used by every fold path: the shape helpers and single-node provers
@@ -323,22 +183,6 @@ impl NodeKind {
             NodeKind::Fold => pre.fold_tree(arity),
         }
     }
-}
-
-/// The distinct node arities a fold over `n_leaves` (fold arity `k`) actually uses: `(level1,
-/// fold)`. A curve point touches only a handful of the `2..=k` arities, so the prover commits a
-/// preprocessed tree ONLY for these (see [`crate::precomputes::RecursionPrecompute`]). Reuses the
-/// real topology helpers ([`level0_group_sizes`] + [`crate::prove_streaming::fold_node_arities`])
-/// so it cannot diverge from the fold. Node sets are empty for `n_leaves <= 1` (the lone leaf is
-/// the root).
-pub fn fold_used_arities(n_leaves: usize, k: usize) -> (BTreeSet<usize>, BTreeSet<usize>) {
-    if n_leaves <= 1 {
-        return (BTreeSet::new(), BTreeSet::new());
-    }
-    let sizes = level0_group_sizes(n_leaves, k);
-    let level1: BTreeSet<usize> = sizes.iter().copied().collect();
-    let fold = crate::prove_streaming::fold_node_arities(sizes.len(), k);
-    (level1, fold)
 }
 
 /// The arities of the LEVEL-0 (leaf-verifying) nodes for `n_leaves`, left-to-right — a
@@ -522,25 +366,5 @@ fn prove_short_fold_node(
         proof,
         preprocessed_root: config.fold_root(arity),
         output_values,
-    }
-}
-
-/// The `NoValue` node `ProofConfig` a multiverifier NODE circuit is built/proved with. Shared by
-/// the two NoValue node builders so they derive the config identically.
-fn noval_node_proof_config(n_preprocessed_columns: usize, pcs_config: &PcsConfig) -> ProofConfig {
-    ProofConfig::new(
-        &all_circuit_components::<NoValue>(),
-        n_preprocessed_columns,
-        pcs_config,
-        INTERACTION_POW_BITS,
-    )
-}
-
-/// A placeholder `NoValue` child input for building the witness-independent node shape.
-fn empty_node_input(proof_config: &ProofConfig) -> MultiverifierInput<NoValue> {
-    MultiverifierInput {
-        proof: empty_proof(proof_config),
-        preprocessed_root: HashValue::from([0u32; N_RESERVED]),
-        output_values: [QM31::zero(); N_RESERVED],
     }
 }

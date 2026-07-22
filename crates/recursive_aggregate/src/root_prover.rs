@@ -4,26 +4,24 @@
 //! contract.
 
 use crate::precomputes::build_one_shot_tree;
-use crate::{level0_group_sizes, preprocessed_root, reported_root, AggregateConfig, TreeProof};
+use crate::{AggregateConfig, TreeProof, level0_group_sizes, reported_root};
 
-use circuit_cairo_verifier::privacy::get_pcs_config;
+use circuit_common::N_RESERVED;
 use circuit_common::finalize::{add_zk_blinding, pad_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
-use circuit_common::N_RESERVED;
 use circuit_multiverifier::verify::SharedConfig;
 use circuit_prover::prover::{
     prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
 };
 use circuit_verifier::statement::CircuitStatement;
-use circuit_verifier::verify::{verify_circuit, CircuitConfig, CircuitPublicData};
-use circuits::blake::{blake2s_u32s, unpack_qm31s_to_u32_words, HashValue};
+use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
+use circuits::blake::{HashValue, blake2s_u32s, unpack_qm31s_to_u32_words};
 use circuits::context::{Context, FinalizedContext, Var};
-use circuits::ivalue::{IValue, NoValue};
-use circuits::ops::{eq, Guess};
+use circuits::ivalue::IValue;
+use circuits::ops::{Guess, eq};
 use circuits::wrappers::U32Wrapper;
-use circuits_stark_verifier::proof::{empty_proof, Proof};
+use circuits_stark_verifier::proof::Proof;
 use circuits_stark_verifier::verify::verify;
-use num_traits::Zero;
 use stwo::core::fields::qm31::QM31;
 use stwo::core::pcs::PcsConfig;
 use stwo::core::utils::MaybeOwned;
@@ -52,48 +50,6 @@ pub struct ZkBlind {
     pub seed: [u8; 32],
     /// Blinding rows per witness component — must be the root proof's `n_queries`.
     pub n_padding: usize,
-}
-
-/// Recomputes the full [`CircuitConfig`] a trusted final verifier would use to `verify_circuit` the
-/// published root-verification proof, from public `(n, config)` via the same shared builder
-/// (NoValue witness), so it is byte-identical to the honest proof's preprocessed shape. Its
-/// `preprocessed_root` is the canonical unpacker root.
-///
-/// NOT on any production verify path — production verifies against a pinned `CircuitConfig` const.
-/// This is the CAPTURE/DRIFT helper the caller uses to regenerate + check the pinned per-N unpacker
-/// config. The caller must pass a `config` whose child roots are the canonical values (never
-/// prover-supplied); `zk_n_padding` must equal the prover's blinding `n_padding` (`None` = no
-/// blinding).
-pub fn unpacker_verify_config(
-    n: usize,
-    config: &AggregateConfig,
-    log_blowup_factor: u32,
-    zk_n_padding: Option<usize>,
-) -> CircuitConfig {
-    let root_pp = HashValue::from([0u32; N_RESERVED]);
-    let zk_blind = zk_n_padding.map(|n_padding| ZkBlind {
-        seed: [0u8; 32],
-        n_padding,
-    });
-    let root_output_values = [QM31::zero(); N_RESERVED];
-    let leaf_output_values = vec![[NoValue; N_RESERVED]; n];
-    let mut context = build_root_verification_context::<NoValue>(
-        empty_proof(&root_verification_shared_config(n, config).proof_config),
-        &root_output_values,
-        &root_pp,
-        &leaf_output_values,
-        n,
-        config,
-        zk_blind,
-    );
-    let preprocessed = PreprocessedCircuit::preprocess_circuit(&mut context);
-    let trace_log_size = preprocessed.trace_log_size;
-    CircuitConfig {
-        config: get_pcs_config(trace_log_size, log_blowup_factor),
-        n_outputs: n * N_RESERVED,
-        preprocessed_column_log_sizes: preprocessed.preprocessed_trace.log_sizes(),
-        preprocessed_root: preprocessed_root(&preprocessed, log_blowup_factor),
-    }
 }
 
 /// Builds and proves the root verification — the only published, only zk-blinded proof — for the
@@ -192,7 +148,7 @@ fn constant_pp<Value: IValue>(
 /// QM31 prove pass and the NoValue recompute so both build the identical shape. N≥2 ⇒ a genuine
 /// level1-/fold-node (`fold_shared_config`); N==1 ⇒ the root IS the lone leaf (proved with the
 /// LEAF config).
-fn root_verification_shared_config(n: usize, config: &AggregateConfig) -> &SharedConfig {
+pub(crate) fn root_verification_shared_config(n: usize, config: &AggregateConfig) -> &SharedConfig {
     if n == 1 {
         &config.leaf_shared_config
     } else {
@@ -220,7 +176,7 @@ fn root_verification_pcs_config(n: usize, config: &AggregateConfig) -> PcsConfig
 /// preprocessed root are QM31 constants independent of `Value`. Every child preprocessed root is a
 /// canonical config-derived value BAKED as a constant ([`constant_pp`]), pinning the whole
 /// reconstructed fold.
-fn build_root_verification_context<Value: IValue>(
+pub(crate) fn build_root_verification_context<Value: IValue>(
     root_proof: Proof<Value>,
     root_output_values: &[QM31],
     root_preprocessed_root: &HashValue<QM31>,
