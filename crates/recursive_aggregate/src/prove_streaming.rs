@@ -11,8 +11,8 @@
 use crate::pools::PoolSet;
 use crate::precomputes::RecursionPrecompute;
 use crate::{
-    AggregateConfig, AggregateOutput, TreeProof, level0_group_sizes, prove_fold_node,
-    prove_leaf_or_short, prove_short_fold_node,
+    level0_group_sizes, prove_fold_node, prove_leaf_or_short, prove_short_fold_node,
+    AggregateConfig, AggregateOutput, TreeProof,
 };
 
 /// Streaming variant of [`crate::prove::recursive_aggregate_prove`]: folds base-nodes as they

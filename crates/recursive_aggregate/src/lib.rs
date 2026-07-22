@@ -17,14 +17,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::precomputes::{PreprocessedTree, RecursionPrecompute};
 
-use circuit_common::N_RESERVED;
-use circuit_common::finalize::{ComponentSizes, compute_padded_sizes, pad_to_targets};
+use circuit_common::finalize::{compute_padded_sizes, pad_to_targets, ComponentSizes};
 use circuit_common::preprocessed::PreprocessedCircuit;
+use circuit_common::N_RESERVED;
 use circuit_multiverifier::verify::{
-    MultiverifierInput, SharedConfig, build_multiverifier_circuit,
+    build_multiverifier_circuit, MultiverifierInput, SharedConfig,
 };
 use circuit_prover::prover::{
-    CircuitProof, prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
+    prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute, CircuitProof,
 };
 use circuits::blake::HashValue;
 use circuits::context::FinalizedContext;
@@ -35,15 +35,17 @@ use stwo::core::utils::MaybeOwned;
 use stwo::core::vcs_lifted::blake2_merkle::{Blake2sM31MerkleChannel, Blake2sMerkleHasher};
 use stwo::prover::ProvingError;
 
-use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
+use circuit_cairo_verifier::privacy::get_pcs_config;
+use circuit_verifier::statement::{all_circuit_components, INTERACTION_POW_BITS};
+use circuit_verifier::verify::CircuitConfig;
 use circuits::ivalue::NoValue;
-use circuits_stark_verifier::proof::{ProofConfig, empty_proof};
+use circuits_stark_verifier::proof::{empty_proof, ProofConfig};
 use num_traits::Zero;
 use stwo::core::poly::circle::CanonicCoset;
-use stwo::prover::CommitmentTreeProver;
 use stwo::prover::backend::simd::SimdBackend;
 use stwo::prover::mempool::BaseColumnPool;
 use stwo::prover::poly::circle::PolyOps;
+use stwo::prover::CommitmentTreeProver;
 
 /// A proven node carried up the tree: the proof plus the two pieces the parent multiverifier needs
 /// (the producing circuit's preprocessed root and its output values).
@@ -166,6 +168,48 @@ pub fn shared_config_for_leaf(
         proof_config,
         preprocessed_column_log_sizes: leaf_preprocessed.preprocessed_trace.log_sizes(),
     }
+}
+
+/// The `SharedConfig` a multiverifier needs to verify children of a pinned child [`CircuitConfig`]
+/// (its `config` = child PCS, its `preprocessed_column_log_sizes` = child columns). The pure-const
+/// twin of [`shared_config_for_leaf`]: equal to it when the child `CircuitConfig` mirrors the
+/// child's `PreprocessedCircuit`. Lets the prover reconstruct a node's child-verifier config from a
+/// pinned config alone (no `PreprocessedCircuit` at hand).
+pub fn shared_config_from_circuit_config(child_config: &CircuitConfig) -> SharedConfig {
+    let proof_config = ProofConfig::new(
+        &all_circuit_components::<QM31>(),
+        child_config.preprocessed_column_log_sizes.len(),
+        &child_config.config,
+        INTERACTION_POW_BITS,
+    );
+    SharedConfig {
+        pcs_config: child_config.config,
+        proof_config,
+        preprocessed_column_log_sizes: child_config.preprocessed_column_log_sizes.clone(),
+    }
+}
+
+/// Generic drift helper: recompute a fold-node's [`CircuitConfig`] + preprocessed root from its
+/// pinned CHILD config, `arity`, the common `node_target`, and the node FRI blowup. AIR-agnostic —
+/// the caller passes the child config (a leaf config for a level-1 node, a level-1 node config for
+/// a fold node), so a per-layer drift test recomputes ONE layer without rebuilding the layers
+/// below. NOT on any prove/verify path; the pinned consts are the source of truth there.
+pub fn recompute_node(
+    child_config: &CircuitConfig,
+    arity: usize,
+    node_target: ComponentSizes,
+    node_log_blowup: u32,
+) -> (CircuitConfig, HashValue<QM31>) {
+    let child_shared = shared_config_from_circuit_config(child_config);
+    let node_pp = node_preprocessed_from_shared(&child_shared, node_target, arity);
+    let root = preprocessed_root(&node_pp, node_log_blowup);
+    let config = CircuitConfig {
+        config: get_pcs_config(node_pp.trace_log_size, node_log_blowup),
+        n_outputs: N_RESERVED,
+        preprocessed_column_log_sizes: node_pp.preprocessed_trace.log_sizes(),
+        preprocessed_root: root.clone(),
+    };
+    (config, root)
 }
 
 /// Builds + preprocesses the NoValue multiverifier node circuit of `arity` children for a given

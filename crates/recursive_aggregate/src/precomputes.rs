@@ -10,11 +10,11 @@ use stwo::core::fields::qm31::QM31;
 use stwo::core::pcs::PcsConfig;
 use stwo::core::poly::circle::CanonicCoset;
 use stwo::core::vcs_lifted::blake2_merkle::Blake2sM31MerkleChannel;
-use stwo::prover::CommitmentTreeProver;
 use stwo::prover::backend::simd::SimdBackend;
 use stwo::prover::mempool::BaseColumnPool;
 use stwo::prover::poly::circle::PolyOps;
 use stwo::prover::poly::twiddles::TwiddleTree;
+use stwo::prover::CommitmentTreeProver;
 
 /// One fixed circuit shape's committed preprocessed tree: the preprocessed circuit, its committed
 /// tree0, and the PCS config (its `lifting_log_size` pinned to the tree's domain). Every prove of

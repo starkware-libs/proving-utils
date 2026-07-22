@@ -4,24 +4,24 @@
 //! contract.
 
 use crate::precomputes::build_one_shot_tree;
-use crate::{AggregateConfig, TreeProof, level0_group_sizes, preprocessed_root, reported_root};
+use crate::{level0_group_sizes, preprocessed_root, reported_root, AggregateConfig, TreeProof};
 
 use circuit_cairo_verifier::privacy::get_pcs_config;
-use circuit_common::N_RESERVED;
 use circuit_common::finalize::{add_zk_blinding, pad_context};
 use circuit_common::preprocessed::PreprocessedCircuit;
+use circuit_common::N_RESERVED;
 use circuit_multiverifier::verify::SharedConfig;
 use circuit_prover::prover::{
     prepare_circuit_proof_for_circuit_verifier, prove_circuit_with_precompute,
 };
 use circuit_verifier::statement::CircuitStatement;
-use circuit_verifier::verify::{CircuitConfig, CircuitPublicData, verify_circuit};
-use circuits::blake::{HashValue, blake2s_u32s, unpack_qm31s_to_u32_words};
+use circuit_verifier::verify::{verify_circuit, CircuitConfig, CircuitPublicData};
+use circuits::blake::{blake2s_u32s, unpack_qm31s_to_u32_words, HashValue};
 use circuits::context::{Context, FinalizedContext, Var};
 use circuits::ivalue::{IValue, NoValue};
-use circuits::ops::{Guess, eq};
+use circuits::ops::{eq, Guess};
 use circuits::wrappers::U32Wrapper;
-use circuits_stark_verifier::proof::{Proof, empty_proof};
+use circuits_stark_verifier::proof::{empty_proof, Proof};
 use circuits_stark_verifier::verify::verify;
 use num_traits::Zero;
 use stwo::core::fields::qm31::QM31;

@@ -6,8 +6,8 @@
 use crate::pools::PoolSet;
 use crate::precomputes::RecursionPrecompute;
 use crate::{
-    AggregateConfig, AggregateOutput, TreeProof, level0_group_sizes, prove_fold_node,
-    prove_leaf_or_short, prove_short_fold_node,
+    level0_group_sizes, prove_fold_node, prove_leaf_or_short, prove_short_fold_node,
+    AggregateConfig, AggregateOutput, TreeProof,
 };
 
 /// The SHARED up-tree fold: folds `base_nodes` (height-1 node proofs) into a single root by the

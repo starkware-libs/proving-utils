@@ -1,4 +1,4 @@
-use super::{Child, FoldTask, build_fold_topology};
+use super::{build_fold_topology, Child, FoldTask};
 use crate::level0_group_sizes;
 
 /// The arity these topology tests run at — k=8 (the production default). The k=8-pinned
