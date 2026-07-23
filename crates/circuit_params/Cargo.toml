@@ -18,6 +18,7 @@ circuit-registry.workspace = true
 leaf-prover.workspace = true
 
 cairo-air.workspace = true
+cairo-program-runner-lib.workspace = true
 circuit-cairo-verifier.workspace = true
 circuits-stark-verifier.workspace = true
 circuit-common = { workspace = true, features = ["prover"] }

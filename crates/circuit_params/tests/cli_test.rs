@@ -5,7 +5,14 @@ use std::process::Command;
 /// report.
 fn run(registry: bool) -> String {
     let binary = env!("CARGO_BIN_EXE_circuit-params");
-    let mut args = vec!["--min_trace_log_size", "25", "--max_trace_log_size", "25"];
+    // Any compiled Cairo program works for measuring the circuit's topology; this is a plain test
+    // program (exercising all opcodes and builtins), not a real bootloader.
+    let program = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../leaf_prover/tests/data/use_all_opcodes_and_builtins_compiled.json"
+    );
+    let mut args =
+        vec!["--min_trace_log_size", "25", "--max_trace_log_size", "25", "--program", program];
     if registry {
         args.push("--registry");
     }
