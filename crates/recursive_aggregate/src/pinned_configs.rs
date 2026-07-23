@@ -108,6 +108,24 @@ impl PinnedConfigs {
             },
         }
     }
+
+    /// The pinned → runtime [`AggregateConfig`] recipe: [`to_derived`](Self::to_derived) at the
+    /// leaf/node FRI blowups, packed by [`assemble_aggregate_config`] with the leaf's natural
+    /// padding target. The single production entry point a consumer pins one operating point
+    /// through.
+    pub fn to_aggregate_config(
+        &self,
+        leaf_target: ComponentSizes,
+        leaf_blowup: u32,
+        node_blowup: u32,
+        fold_arity: usize,
+    ) -> AggregateConfig {
+        assemble_aggregate_config(
+            &self.to_derived(leaf_blowup, node_blowup),
+            leaf_target,
+            fold_arity,
+        )
+    }
 }
 
 /// Assembles a runtime [`AggregateConfig`] from a [`DerivedConfigs`] — the single builder both the
