@@ -1,13 +1,15 @@
-//! Streaming (overlapped) recursion tree entry points: fold-as-you-go variants of [`crate::prove`]
-//! that dispatch each fold to a [`PoolSet`] worker the instant its children are ready, so the CPU
+//! Streaming (overlapped) recursion tree entry point
+//! ([`recursive_aggregate_prove_leaves_streaming`]): a fold-as-you-go variant of [`crate::prove`]
+//! that dispatches each fold to a [`PoolSet`] worker the instant its children are ready, so the CPU
 //! fold overlaps the upstream (GPU) producer feeding the channel.
 //!
-//! BYTE-IDENTITY (the invariant every streaming path relies on): each realizes the SAME fixed tree
-//! as its non-streaming counterpart — topology fixed up front by [`build_fold_topology`] (and
-//! [`level0_group_sizes`]) with each node's children in the sequential order. Since every per-node
-//! prover is a pure function of its ordered children, identical shape ⇒ identical root proof and
+//! BYTE-IDENTITY (the invariant it relies on): it realizes the SAME fixed tree as its non-streaming
+//! counterpart — topology fixed up front by [`build_fold_topology`] (and [`level0_group_sizes`])
+//! with each node's children in the sequential order. Since every per-node prover is a pure
+//! function of its ordered children, identical shape ⇒ identical root proof and
 //! `recursion_fingerprint`; completion order only changes WHEN a slot fills, never the result.
 
+use crate::leaf::prove_leaf;
 use crate::pools::PoolSet;
 use crate::precomputes::RecursionPrecompute;
 use crate::{
@@ -15,112 +17,16 @@ use crate::{
     prove_leaf_or_short, prove_short_fold_node,
 };
 
-/// Streaming variant of [`crate::prove::recursive_aggregate_prove`]: folds base-nodes as they
-/// arrive on `rx`, dispatching each fold the instant its children are ready so the fold overlaps
-/// the upstream producer. The producer sends completed base-node proofs in canonical order
-/// (base-node `i` = the `i`-th `recv()`), keeping this crate leaf-type-agnostic. Result is
-/// byte-identical to the sequential path (see the module doc). `m_base_nodes == 1` ⇒ the single
-/// base-node as root (`n_levels = 1`).
-pub fn recursive_aggregate_prove_streaming(
-    rx: std::sync::mpsc::Receiver<TreeProof>,
-    m_base_nodes: usize,
-    config: &AggregateConfig,
-    pre: &RecursionPrecompute,
-    pools: &PoolSet,
-) -> AggregateOutput {
-    assert!(m_base_nodes >= 1, "need at least one base-node");
-    let k = config.fold_arity;
+use circuits::context::FinalizedContext;
+use stwo::core::fields::qm31::QM31;
 
-    let (tasks, root_ref) = build_fold_topology(m_base_nodes, k);
-
-    if m_base_nodes == 1 {
-        let root = rx.recv().expect("streaming fold: missing base-node 0");
-        return AggregateOutput { root, n_levels: 1 };
-    }
-
-    let n_tasks = tasks.len();
-    let (state, input_parent, node_parent) = build_state(&tasks, m_base_nodes);
-    let state = std::sync::Mutex::new(state);
-    // Signalled when a fold becomes ready or all folds are done.
-    let cv = std::sync::Condvar::new();
-
-    let n_workers = pools.n_pools().max(1);
-    std::thread::scope(|s| {
-        // Workers: one per pool. Pull a ready task, prove it, deliver to the parent, signal.
-        for pool in pools.pools.iter().take(n_workers) {
-            let state = &state;
-            let cv = &cv;
-            let node_parent = &node_parent;
-            let tasks = &tasks;
-            s.spawn(move || {
-                // On panic, mark aborted so parked siblings wake and `thread::scope` join won't
-                // hang.
-                let _abort = AbortGuard {
-                    set_aborted: || {
-                        let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
-                        st.aborted = true;
-                    },
-                    cv,
-                };
-                while let Some(ti) = next_ready(state, cv, n_tasks) {
-                    // Take ownership of the resolved inputs and prove off-lock. Children are
-                    // `take()`n out, so once the result is delivered they are
-                    // dropped: peak host memory holds only the N leaves
-                    // (caller-owned) + the O(log_k N) in-flight fold path, not all
-                    // node proofs.
-                    let children: Vec<TreeProof> = {
-                        let mut st = state.lock().unwrap();
-                        st.inputs[ti]
-                            .iter_mut()
-                            .map(|slot| slot.take().unwrap())
-                            .collect()
-                    };
-                    let is_root = node_parent[ti].is_none();
-                    let height = tasks[ti].height;
-                    let result =
-                        pool.install(|| run_fold_task(&children, is_root, height, config, pre));
-                    {
-                        let mut st = state.lock().unwrap();
-                        match node_parent[ti] {
-                            Some(parent) => deliver(&mut st, Some(parent), result),
-                            None => st.root = Some(result), // the root fold (no parent)
-                        }
-                        st.done += 1;
-                        cv.notify_all();
-                    }
-                }
-            });
-        }
-
-        // Coordinator: drain base-nodes in canonical order, delivering each to its consumer (which
-        // may enqueue a now-ready fold), so folds overlap the still-arriving base-nodes.
-        for &parent in &input_parent {
-            let base_node = rx
-                .recv()
-                .expect("streaming fold: fewer base-nodes than m_base_nodes");
-            let mut st = state.lock().unwrap();
-            deliver(&mut st, parent, base_node);
-            cv.notify_all();
-        }
-    });
-
-    let root_idx = match root_ref {
-        Child::Fold(j) => j,
-        Child::Input(_) => unreachable!("m_base_nodes > 1 ⇒ root is a fold node"),
-    };
-    let root = state.into_inner().unwrap().root.expect("root not produced");
-    AggregateOutput {
-        root,
-        n_levels: tasks[root_idx].height,
-    }
-}
-
-/// Overlapped variant of [`crate::prove::recursive_aggregate_prove_leaves`]: wraps streamed
+/// Overlapped variant of [`crate::prove::recursive_aggregate_prove_leaves`]: builds+proves streamed
 /// producer inputs into leaves AND folds the whole tree (level-0 leaf→level1-node layer + up-tree
 /// fold) progressively, as leaves and nodes become ready — overlapping the still-arriving producer.
 ///
-/// LEAF-AGNOSTIC: the AIR-specific leaf-wrap is injected as `wrap: impl Fn(W) -> TreeProof` over a
-/// generic input `W`, keeping this crate leaf-type-agnostic; `wrap` runs inside a pool worker. One
+/// LEAF-AGNOSTIC: the AIR-specific leaf-circuit build is injected as `build: impl Fn(W) ->
+/// FinalizedContext<QM31>` over a generic input `W`, keeping this crate leaf-type-agnostic; `build`
+/// runs inside a pool worker and [`prove_leaf`] runs on the SAME worker right after it. One
 /// coordinator feeds `pools.n_pools()` symmetric pull-workers off a single ready-queue of [`Job`]s,
 /// Fold-priority to bound host RAM (byte-irrelevant, per the module doc).
 ///
@@ -128,13 +34,13 @@ pub fn recursive_aggregate_prove_streaming(
 /// [`level0_group_sizes`] + [`build_fold_topology`], child ordering by index. Consumes exactly
 /// `n_leaves` items from `rx` in ARBITRARY order (each tagged with its canonical index) and returns
 /// the ordered leaves (for the `LeafBottom` unpacker) plus the [`AggregateOutput`]. `n_leaves == 1`
-/// ⇒ the wrapped leaf is the root (`n_levels == 0`); `2 <= n_leaves <= k` ⇒ the single level1-node
-/// is the root (`n_levels == 1`). Panics on a duplicate/out-of-range leaf index; a `wrap`/fold
+/// ⇒ the lone leaf is the root (`n_levels == 0`); `2 <= n_leaves <= k` ⇒ the single level1-node
+/// is the root (`n_levels == 1`). Panics on a duplicate/out-of-range leaf index; a `build`/fold
 /// panic re-panics on the parent via `thread::scope`.
 pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
     rx: std::sync::mpsc::Receiver<(usize, W)>,
     n_leaves: usize,
-    wrap: impl Fn(W) -> TreeProof + Sync,
+    build: impl Fn(W) -> FinalizedContext<QM31> + Sync,
     config: &AggregateConfig,
     pre: &RecursionPrecompute,
     pools: &PoolSet,
@@ -142,11 +48,16 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
     assert!(n_leaves >= 1, "need at least one leaf");
     let k = config.fold_arity;
 
-    // n_leaves == 1: the lone wrapped leaf is itself the root (no fold, height 0). No workers.
+    // n_leaves == 1: the lone proved leaf is itself the root (no fold, height 0). No workers.
     if n_leaves == 1 {
         let (idx, w) = rx.recv().expect("streaming leaves fold: missing leaf 0");
         assert_eq!(idx, 0, "single-leaf stream must carry index 0");
-        let leaf = wrap(w);
+        let leaf = prove_leaf(
+            build(w),
+            config.leaf_target_padding_sizes.clone(),
+            pre,
+            config.leaf_preprocessed_root.clone(),
+        );
         let out = AggregateOutput {
             root: leaf.clone(),
             n_levels: 0,
@@ -188,7 +99,7 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
             let leaf_group = &leaf_group;
             let sizes = &sizes;
             let tasks = &tasks;
-            let wrap = &wrap;
+            let build = &build;
             s.spawn(move || {
                 // On panic, mark aborted so parked siblings wake and `thread::scope` join won't
                 // hang.
@@ -201,13 +112,22 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
                 };
                 while let Some(job) = next_job(state, cv, n_jobs) {
                     match job {
-                        // Tier 0a: wrap producer input `i` into leaf `i`.
+                        // Tier 0a: build+prove producer input `i` into leaf `i`. `build` +
+                        // `prove_leaf` run on this SAME worker, back-to-back (schedule-identical to
+                        // proving inside the build closure).
                         Job::Wrap(i) => {
                             let w = {
                                 let mut st = state.lock().unwrap();
                                 st.wrap_inputs[i].take().expect("wrap input missing")
                             };
-                            let leaf = pool.install(|| wrap(w));
+                            let leaf = pool.install(|| {
+                                prove_leaf(
+                                    build(w),
+                                    config.leaf_target_padding_sizes.clone(),
+                                    pre,
+                                    config.leaf_preprocessed_root.clone(),
+                                )
+                            });
                             let (g, slot) = leaf_group[i];
                             let mut st = state.lock().unwrap();
                             // Record the ordered leaf for the caller + slot it into its level1
@@ -300,8 +220,7 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
 }
 
 /// A reference to one input of a streaming fold node: a fold INPUT supplied from below (by index —
-/// a base-node in the base-node streamer, a level1-node in the leaves streamer) or the output of an
-/// earlier fold node (by task index).
+/// a level1-node) or the output of an earlier fold node (by task index).
 #[derive(Clone, Copy)]
 enum Child {
     Input(usize),
@@ -391,36 +310,6 @@ fn run_fold_task(
     }
 }
 
-/// Per producible value, which `(task, slot)` consumes it (`slot` = left-to-right child position);
-/// `None` = unwired. Returned by [`build_state`] for base-node inputs and fold-node outputs.
-type ParentWiring = Vec<Option<(usize, usize)>>;
-
-/// Dataflow state shared between the coordinator and the worker threads.
-struct State {
-    // Resolved child inputs per task (one slot per child, left-to-right), filled as children
-    // arrive.
-    inputs: Vec<Vec<Option<TreeProof>>>,
-    pending: Vec<usize>,
-    ready: std::collections::VecDeque<usize>,
-    done: usize,
-    root: Option<TreeProof>,
-    // Set by a panicking worker's drop-guard so parked siblings wake and exit (see `AbortGuard`).
-    aborted: bool,
-}
-
-/// Records `proof` as the value of `child`, wiring it into its consuming task and enqueuing that
-/// task once all its inputs are present. Mutates `st` under its lock.
-fn deliver(st: &mut State, parent: Option<(usize, usize)>, proof: TreeProof) {
-    if let Some((ti, slot)) = parent {
-        st.inputs[ti][slot] = Some(proof);
-        st.pending[ti] -= 1;
-        if st.pending[ti] == 0 {
-            st.ready.push_back(ti);
-        }
-    }
-    // No parent ⇒ root value; the root is always a Fold here (n_leaves > 1).
-}
-
 /// Drop-guard that, ONLY when its thread is unwinding from a panic, runs `set_aborted` under the
 /// (poison-recovered) lock and wakes parked siblings — so a panic inside `pool.install` cannot
 /// strand workers in `cv.wait` forever and hang `thread::scope` join. Fires nothing on normal drop,
@@ -439,67 +328,13 @@ impl<F: Fn()> Drop for AbortGuard<'_, F> {
     }
 }
 
-/// Acquires the lock and runs the base-node streamer's pull predicate-loop: pop a ready task, else
-/// `None` when all tasks are done or a sibling aborted, else park on `cv`. Returns with the guard
-/// dropped so the caller proves off-lock. Keeps invariant 1 (re-check + wait stay under the lock).
-fn next_ready(
-    state: &std::sync::Mutex<State>,
-    cv: &std::sync::Condvar,
-    n_tasks: usize,
-) -> Option<usize> {
-    let mut st = state.lock().unwrap();
-    loop {
-        if let Some(ti) = st.ready.pop_front() {
-            return Some(ti);
-        }
-        if st.done == n_tasks || st.aborted {
-            return None;
-        }
-        st = cv.wait(st).unwrap();
-    }
-}
-
-/// Builds the base-node streamer's initial dataflow (pure, no locks) from the fixed `tasks`:
-/// per-value consumer wiring (`input_parent` for base-nodes, `node_parent` for fold outputs) and
-/// the initial [`State`] (empty slots + pending counts). `m_base_nodes` = number of base-node
-/// inputs.
-fn build_state(tasks: &[FoldTask], m_base_nodes: usize) -> (State, ParentWiring, ParentWiring) {
-    // Per producible value, record which task+slot consumes it (slot = left-to-right child
-    // position, so inputs reassemble in the fold's exact order) and each task's pending-child
-    // count.
-    let mut input_parent: Vec<Option<(usize, usize)>> = vec![None; m_base_nodes];
-    let mut node_parent: Vec<Option<(usize, usize)>> = vec![None; tasks.len()];
-    let mut pending: Vec<usize> = vec![0; tasks.len()];
-    let arity: Vec<usize> = tasks.iter().map(|t| t.children.len()).collect();
-    for (ti, t) in tasks.iter().enumerate() {
-        for (slot, ch) in t.children.iter().enumerate() {
-            pending[ti] += 1;
-            match ch {
-                Child::Input(i) => input_parent[*i] = Some((ti, slot)),
-                Child::Fold(j) => node_parent[*j] = Some((ti, slot)),
-            }
-        }
-    }
-    let state = State {
-        inputs: arity
-            .iter()
-            .map(|&k| (0..k).map(|_| None).collect())
-            .collect(),
-        pending,
-        ready: std::collections::VecDeque::new(),
-        done: 0,
-        root: None,
-        aborted: false,
-    };
-    (state, input_parent, node_parent)
-}
-
 /// The three job kinds the [`recursive_aggregate_prove_leaves_streaming`] coordinator schedules
 /// onto one worker pool. Symmetric pull-workers off a single ready-queue, so ordering has no hazard
 /// and (per the byte-identity invariant) does not affect the result.
 #[derive(Clone, Copy)]
 enum Job {
-    /// Wrap producer input at leaf index `i` into leaf `i` (the injected AIR wrap closure).
+    /// Build+prove producer input at leaf index `i` into leaf `i` (the injected AIR build closure
+    /// then `prove_leaf`, on one worker).
     Wrap(usize),
     /// Prove level-0 (leaf→level1-node) group `g`. Ready when all its leaves are wrapped.
     Level1(usize),
@@ -515,7 +350,7 @@ struct LeavesState<W> {
     wrap_inputs: Vec<Option<W>>,
     level1_remaining: Vec<usize>,
     level1_inputs: Vec<Vec<Option<TreeProof>>>,
-    // Tier ≥ 1: resolved child inputs + pending child counts (as in the base-node streamer).
+    // Tier ≥ 1: resolved child inputs + pending child counts.
     fold_inputs: Vec<Vec<Option<TreeProof>>>,
     fold_pending: Vec<usize>,
     ready_fold: std::collections::VecDeque<usize>,
@@ -598,7 +433,7 @@ fn build_leaves_state<W>(
         .collect();
     debug_assert_eq!(leaf_group.len(), n_leaves);
 
-    // Per-task readiness (as in `build_state`). Here `Child::Input(g)` denotes level1-node g.
+    // Per-task readiness. Here `Child::Input(g)` denotes level1-node g.
     let mut level1_parent: Vec<Option<(usize, usize)>> = vec![None; m];
     let mut node_parent: Vec<Option<(usize, usize)>> = vec![None; tasks.len()];
     let mut fold_pending: Vec<usize> = vec![0; tasks.len()];

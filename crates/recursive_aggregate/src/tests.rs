@@ -7,8 +7,9 @@
 //!
 //! Heavy (real proving) — run on the prover VM, not the laptop:
 //!   cargo +nightly-2026-01-15 test -p recursive-aggregate --release \
-//!     --test smoke_cairo_tree -- --nocapture --test-threads=1
+//!     tests::smoke -- --nocapture --test-threads=1
 
+use std::collections::BTreeMap;
 use std::time::Instant;
 
 use blake2::{Blake2s256, Digest};
@@ -20,23 +21,20 @@ use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
 use circuits::blake::HashValue;
 use circuits_stark_verifier::order_hash_map::OrderedHashMap;
 use circuits_stark_verifier::proof::ProofConfig;
+use stwo::core::fields::m31::M31;
+use stwo::core::fields::qm31::QM31;
+use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
 
-use recursive_aggregate::pools::PoolSet;
-use recursive_aggregate::precomputes::{
-    RecursionPrecompute, TreeSpec, node_preprocessed_from_shared,
-};
-use recursive_aggregate::prove::recursive_aggregate_prove_leaves;
-use recursive_aggregate::root_prover::{LeafBottom, ZkBlind, prove_root_verification_leaves};
-use recursive_aggregate::test_utils::{preprocessed_root, unpacker_verify_config};
-use recursive_aggregate::{AggregateConfig, TreeProof};
-use std::collections::BTreeMap;
+use crate::pools::PoolSet;
+use crate::precomputes::{RecursionPrecompute, TreeSpec, node_preprocessed_from_shared};
+use crate::prove::recursive_aggregate_fold_leaves;
+use crate::root_prover::{LeafBottom, ZkBlind, prove_root_verification_leaves};
+use crate::test_utils::{preprocessed_root, unpacker_verify_config};
+use crate::{AggregateConfig, TreeProof, level0_group_sizes};
 
 /// Fold arity `k` used by these tests (the production default; env parsing lives in the
 /// `gate-air-leaf` binary, so the value is inlined here byte-identically).
 const FOLD_ARITY: usize = 8;
-use stwo::core::fields::m31::M31;
-use stwo::core::fields::qm31::QM31;
-use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
 
 /// A modest pool set for tests: 2 pools sized to half the machine. Mirrors the harness's
 /// partitioning so the fold exercises the concurrent path; correctness is independent of the sizes.
@@ -248,30 +246,6 @@ fn load_cairo_leaves(config: &AggregateConfig, n: usize) -> Vec<TreeProof> {
         .collect()
 }
 
-/// Level-0 leaf-node arities for `n` leaves — the plain-Rust mirror of `level0_group_sizes` in the
-/// recursion crate (kept in sync by the topology tests there). Every leaf consumed, no lone leaf.
-fn level0_group_sizes(n: usize) -> Vec<usize> {
-    assert!(n >= 2);
-    if n <= FOLD_ARITY {
-        return vec![n];
-    }
-    let full = n / FOLD_ARITY;
-    match n % FOLD_ARITY {
-        0 => vec![FOLD_ARITY; full],
-        1 => {
-            let mut v = vec![FOLD_ARITY; full - 1];
-            v.push(FOLD_ARITY - 1);
-            v.push(2);
-            v
-        }
-        r => {
-            let mut v = vec![FOLD_ARITY; full];
-            v.push(r);
-            v
-        }
-    }
-}
-
 /// Off-circuit test oracle: recompute the multiverifier tree's root commitment `R` from the leaves'
 /// `(preprocessed_root, output_values)` alone — the plain-Rust mirror of the in-circuit unpacker in
 /// `prove_root_verification`. Used only to validate that the in-circuit hashing/shape reproduces a
@@ -292,18 +266,19 @@ fn mv_tree_root_output(
     }
     // LEVEL 0: consume all leaves into height-1 leaf-nodes (no leaf survives above height 1).
     let mut leaf_iter = leaves.iter();
-    let mut level: Vec<(HashValue<QM31>, [QM31; N_RESERVED])> = level0_group_sizes(leaves.len())
-        .into_iter()
-        .map(|m| {
-            let group: Vec<(HashValue<QM31>, [QM31; N_RESERVED])> = (0..m)
-                .map(|_| {
-                    let l = leaf_iter.next().unwrap();
-                    (l.preprocessed_root.clone(), l.output_values)
-                })
-                .collect();
-            (node_preprocessed_root.clone(), mv_node_hash(&group))
-        })
-        .collect();
+    let mut level: Vec<(HashValue<QM31>, [QM31; N_RESERVED])> =
+        level0_group_sizes(leaves.len(), FOLD_ARITY)
+            .into_iter()
+            .map(|m| {
+                let group: Vec<(HashValue<QM31>, [QM31; N_RESERVED])> = (0..m)
+                    .map(|_| {
+                        let l = leaf_iter.next().unwrap();
+                        (l.preprocessed_root.clone(), l.output_values)
+                    })
+                    .collect();
+                (node_preprocessed_root.clone(), mv_node_hash(&group))
+            })
+            .collect();
     // LEVELS >= 1: classic group+carry over NODES only.
     while level.len() > 1 {
         if level.len() <= FOLD_ARITY {
@@ -377,7 +352,7 @@ fn smoke_fold_four_cairo_leaves() {
     let leaves = load_cairo_leaves(&config, 4);
 
     let t0 = Instant::now();
-    let out = recursive_aggregate_prove_leaves(leaves, &config, &pre, &test_pools());
+    let out = recursive_aggregate_fold_leaves(leaves, &config, &pre, &test_pools());
     let elapsed = t0.elapsed();
 
     // At k=FOLD_ARITY (=8), 4 leaves (< k) fold in ONE level into a single short 4-child root.
@@ -432,7 +407,7 @@ fn mv_tree_root_output_two_phase() {
     let n = FOLD_ARITY + 1; // 9
     let leaves: Vec<TreeProof> = (0..n as u32).map(leaf).collect();
     assert_eq!(
-        level0_group_sizes(n),
+        level0_group_sizes(n, FOLD_ARITY),
         vec![FOLD_ARITY - 1, 2],
         "N=9 level-0 split"
     );
@@ -517,7 +492,7 @@ fn smoke_root_verification() {
     let (config, pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
 
-    let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &pre, &test_pools());
+    let out = recursive_aggregate_fold_leaves(leaves.clone(), &config, &pre, &test_pools());
 
     let t0 = Instant::now();
     let bottom = LeafBottom {
@@ -566,7 +541,7 @@ fn smoke_root_verification_zk_blinded() {
     }
     let (config, pre) = aggregate_config();
     let leaves = load_cairo_leaves(&config, 4);
-    let out = recursive_aggregate_prove_leaves(leaves.clone(), &config, &pre, &test_pools());
+    let out = recursive_aggregate_fold_leaves(leaves.clone(), &config, &pre, &test_pools());
 
     let n_queries = get_pcs_config(LEAF_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR)
         .fri_config

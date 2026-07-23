@@ -35,9 +35,6 @@ rayon = "1"
 libc = "0.2"
 
 [dev-dependencies]
-# Self dev-dependency enabling `test-utils` so the crate's own integration tests (which link the lib
-# built WITHOUT `cfg(test)`) can reach `test_utils` (`preprocessed_root` / `unpacker_verify_config`).
-recursive-aggregate = { path = ".", features = ["test-utils"] }
 stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "5ea05973" }
 # Out-of-circuit Blake2s mirror for the smoke-test node-hash oracle (mirrors circuit_multiverifier
 # verify_test's `blake2s_u32s_host`). CPU-only, test scope.

@@ -1,9 +1,14 @@
 //! Witness-independent proving precomputes: the whole-recursion [`RecursionPrecompute`] (a flat set
 //! of committed trees sharing one twiddle tree + column pool), the per-shape [`PreprocessedTree`],
 //! and the node-shape derivation ([`node_preprocessed_from_shared`], [`fold_used_arities`]) the
-//! prover uses to build each held tree.
+//! prover uses to build each held tree. The whole-recursion builder
+//! ([`build_recursion_precompute`]) takes the caller's already-built leaf [`FinalizedContext`] and
+//! assembles every held tree.
 
 use std::collections::{BTreeMap, BTreeSet};
+
+use crate::AggregateConfig;
+use crate::leaf::leaf_preprocessed;
 
 use circuit_common::N_RESERVED;
 use circuit_common::finalize::{ComponentSizes, pad_to_targets};
@@ -13,6 +18,7 @@ use circuit_multiverifier::verify::{
 };
 use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
 use circuits::blake::HashValue;
+use circuits::context::FinalizedContext;
 use circuits::ivalue::NoValue;
 use circuits_stark_verifier::proof::{ProofConfig, empty_proof};
 use num_traits::Zero;
@@ -114,7 +120,7 @@ pub fn build_one_shot_tree(
 /// Builds + preprocesses the NoValue multiverifier node circuit of `arity` children for a given
 /// `shared` config, padded to `target_padding`. Keyed on the already-built `SharedConfig`. The node
 /// shape the prover commits per held tree, and the shape the caller's capture/drift path rebuilds.
-pub fn node_preprocessed_from_shared(
+pub(crate) fn node_preprocessed_from_shared(
     shared: &SharedConfig,
     target_padding: ComponentSizes,
     arity: usize,
@@ -153,13 +159,99 @@ pub fn fold_used_arities(n_leaves: usize, k: usize) -> (BTreeSet<usize>, BTreeSe
     (level1, fold)
 }
 
+/// Builds the flat leaf/level1/fold [`RecursionPrecompute`] from the caller's already-built leaf
+/// `leaf_ctx` (the only AIR-specific ingredient) and `config`. Each layer's preprocessed shape is
+/// rebuilt from `config` — no fixed-point loop — and every tree asserts its committed root equals
+/// `config`'s root (the load-bearing soundness check: a drifted pinned config fails it loudly).
+///
+/// `build_all_arities`: production passes `false` → build shapes only for the arities this point's
+/// fold uses ([`fold_used_arities`] of `n_leaves`), since committing every unused `2..=k` arity's
+/// ~2^22 tree overruns the base-precompute overlap window. Tests pass `true` (they fold a small N
+/// differing from the placeholder `n_leaves`, so they need every `2..=k` arity).
+pub fn build_recursion_precompute(
+    leaf_ctx: FinalizedContext<NoValue>,
+    config: &AggregateConfig,
+    n_leaves: usize,
+    build_all_arities: bool,
+) -> RecursionPrecompute {
+    let k = config.fold_arity;
+    let node_pcs = config.node_pcs_config;
+    let node_target = &config.node_target_padding_sizes;
+
+    // Leaf tree: pad + preprocess the caller's leaf circuit to the config's leaf target.
+    let leaf_pp = leaf_preprocessed(leaf_ctx, config.leaf_target_padding_sizes.clone());
+    let leaf = TreeSpec {
+        preprocessed: leaf_pp,
+        pcs_config: config.leaf_pcs_config,
+        expected_root: config.leaf_preprocessed_root.clone(),
+    };
+
+    // Node shapes: level1 verifies leaves (`leaf_shared_config`), fold verifies nodes
+    // (`fold_shared_config`); both pad to the common `node_target`, rebuilt (not re-derived).
+    let (level1_arities, fold_arities): (Vec<usize>, Vec<usize>) = if build_all_arities {
+        ((2..=k).collect(), (2..=k).collect())
+    } else {
+        let (l, f) = fold_used_arities(n_leaves, k);
+        (l.into_iter().collect(), f.into_iter().collect())
+    };
+    let level1 = level1_arities
+        .into_iter()
+        .map(|a| {
+            (
+                a,
+                node_spec(
+                    &config.leaf_shared_config,
+                    node_pcs,
+                    node_target,
+                    a,
+                    config.level1_root(a),
+                ),
+            )
+        })
+        .collect();
+    let fold = fold_arities
+        .into_iter()
+        .map(|a| {
+            (
+                a,
+                node_spec(
+                    &config.fold_shared_config,
+                    node_pcs,
+                    node_target,
+                    a,
+                    config.fold_root(a),
+                ),
+            )
+        })
+        .collect();
+    RecursionPrecompute::new(leaf, level1, fold)
+}
+
+/// One node layer's [`TreeSpec`] for `arity`: the node preprocessed circuit verifying
+/// `child_shared`-configured children (padded to `node_target`), committed at `node_pcs`, asserting
+/// `expected_root`. Shared by the level1 (leaf child) and fold (node child) tiers. Generic — all
+/// inputs come from the [`AggregateConfig`].
+fn node_spec(
+    child_shared: &SharedConfig,
+    node_pcs: PcsConfig,
+    node_target: &ComponentSizes,
+    arity: usize,
+    expected_root: HashValue<QM31>,
+) -> TreeSpec {
+    TreeSpec {
+        preprocessed: node_preprocessed_from_shared(child_shared, node_target.clone(), arity),
+        pcs_config: node_pcs,
+        expected_root,
+    }
+}
+
 impl RecursionPrecompute {
     /// Builds the flat precompute: one shared `base_column_pool` + one shared `twiddles` sized to
     /// the largest prove domain across all shapes, then a committed [`PreprocessedTree`] for
     /// the `leaf` and for each arity's `level1` / `fold` shape. Every tree asserts its root
     /// against the supplied pinned root (the caller — `gate-air-leaf` — supplies the pinned
     /// consts).
-    pub fn new(
+    pub(crate) fn new(
         leaf: TreeSpec,
         level1: BTreeMap<usize, TreeSpec>,
         fold: BTreeMap<usize, TreeSpec>,

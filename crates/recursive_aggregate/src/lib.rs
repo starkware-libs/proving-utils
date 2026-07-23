@@ -7,6 +7,7 @@
 //! fold: level 0 consumes ALL leaves into height-1 nodes (a leaf surviving higher fails the
 //! in-circuit Merkle height check); levels >=1 fold nodes k-ary into the (possibly short) root.
 
+pub mod leaf;
 pub mod pinned_configs;
 pub mod pools;
 pub mod precomputes;
@@ -15,6 +16,8 @@ pub mod prove_streaming;
 pub mod root_prover;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
+#[cfg(test)]
+mod tests;
 
 use std::collections::BTreeMap;
 
@@ -118,7 +121,7 @@ pub struct AggregateOutput {
 /// twin of `test_utils::shared_config_for_leaf`: equal to it when the child `CircuitConfig` mirrors
 /// the child's `PreprocessedCircuit`. Lets the prover reconstruct a node's child-verifier config
 /// from a pinned config alone (no `PreprocessedCircuit` at hand).
-pub fn shared_config_from_circuit_config(child_config: &CircuitConfig) -> SharedConfig {
+pub(crate) fn shared_config_from_circuit_config(child_config: &CircuitConfig) -> SharedConfig {
     let proof_config = ProofConfig::new(
         &all_circuit_components::<QM31>(),
         child_config.preprocessed_column_log_sizes.len(),
