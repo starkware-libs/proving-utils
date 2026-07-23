@@ -53,6 +53,16 @@ jobs:
           path: "target/release/stwo_run_and_prove"
           destination: "sharp-binary-artifacts/stwo_run_and_prove_artifacts/${{ env.SHORT_HASH }}/release"
 
+      - name: Rename leaf-prover binary
+        run: mv target/release/leaf-prover target/release/leaf_prover
+
+      - name: Upload leaf_prover x86_64 binary to GCP
+        id: upload_leaf_prover
+        uses: "google-github-actions/upload-cloud-storage@v2"
+        with:
+          path: "target/release/leaf_prover"
+          destination: "sharp-binary-artifacts/leaf_prover_artifacts/${{ env.SHORT_HASH }}/release"
+
       - name: Upload stwo_run_and_prove_recursive_tree binary to GCP
         id: upload_stwo_run_and_prove_recursive_tree
         uses: "google-github-actions/upload-cloud-storage@v2"
@@ -95,3 +105,75 @@ jobs:
         with:
           arch: graniterapids
           binary_name: stwo-run-and-prove
+
+      - name: Build and upload leaf_prover for znver5
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: znver5
+          binary_name: leaf-prover
+
+      - name: Build and upload leaf_prover for znver4
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: znver4
+          binary_name: leaf-prover
+
+      - name: Build and upload leaf_prover for znver3
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: znver3
+          binary_name: leaf-prover
+
+      - name: Build and upload leaf_prover for emeraldrapids
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: emeraldrapids
+          binary_name: leaf-prover
+
+      - name: Build and upload leaf_prover for sapphirerapids
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: sapphirerapids
+          binary_name: leaf-prover
+
+      - name: Build and upload leaf_prover for graniterapids
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: graniterapids
+          binary_name: leaf-prover
+
+      - name: Build and upload stwo_run_and_prove_recursive_tree for znver5
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: znver5
+          binary_name: stwo_run_and_prove_recursive_tree
+
+      - name: Build and upload stwo_run_and_prove_recursive_tree for znver4
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: znver4
+          binary_name: stwo_run_and_prove_recursive_tree
+
+      - name: Build and upload stwo_run_and_prove_recursive_tree for znver3
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: znver3
+          binary_name: stwo_run_and_prove_recursive_tree
+
+      - name: Build and upload stwo_run_and_prove_recursive_tree for emeraldrapids
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: emeraldrapids
+          binary_name: stwo_run_and_prove_recursive_tree
+
+      - name: Build and upload stwo_run_and_prove_recursive_tree for sapphirerapids
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: sapphirerapids
+          binary_name: stwo_run_and_prove_recursive_tree
+
+      - name: Build and upload stwo_run_and_prove_recursive_tree for graniterapids
+        uses: ./.github/actions/build-arch-binary
+        with:
+          arch: graniterapids
+          binary_name: stwo_run_and_prove_recursive_tree
