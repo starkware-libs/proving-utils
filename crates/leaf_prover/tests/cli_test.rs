@@ -24,6 +24,8 @@ fn run_leaf_prover_binary() {
         .arg(test_data_dir.join("cairo_prover_params_canonical_small.json"))
         .arg("--circuit-prover-params-json")
         .arg(test_data_dir.join("circuit_prover_params_canonical_small.json"))
+        .arg("--circuit-registry-json")
+        .arg(test_data_dir.join("registry.json"))
         .arg("--output-path")
         .arg(&output_path)
         .status()

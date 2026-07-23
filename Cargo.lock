@@ -2814,6 +2814,7 @@ dependencies = [
  "circuit-cairo-verifier",
  "circuit-common",
  "circuit-prover",
+ "circuit-registry",
  "circuit-serialize",
  "circuits-stark-verifier",
  "clap",

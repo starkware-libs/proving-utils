@@ -18,6 +18,7 @@ sonic-rs.workspace = true
 tracing.workspace = true
 indexmap = { version = "2.10.0", default-features = false, features = ["std"] }
 
+circuit-registry.workspace = true
 leaf-proof-format.workspace = true
 
 circuit-cairo-verifier.workspace = true
