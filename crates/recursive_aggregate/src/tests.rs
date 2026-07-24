@@ -19,6 +19,7 @@ use circuit_multiverifier::verify::SharedConfig;
 use circuit_serialize::deserialize::deserialize_proof_with_config;
 use circuit_verifier::statement::{INTERACTION_POW_BITS, all_circuit_components};
 use circuits::blake::HashValue;
+use circuits::context::FinalizedContext;
 use circuits_stark_verifier::order_hash_map::OrderedHashMap;
 use circuits_stark_verifier::proof::ProofConfig;
 use stwo::core::fields::m31::M31;
@@ -28,8 +29,9 @@ use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
 use crate::pools::PoolSet;
 use crate::precomputes::{RecursionPrecompute, TreeSpec, node_preprocessed_from_shared};
 use crate::prove::recursive_aggregate_fold_leaves;
+use crate::prove_streaming::recursive_aggregate_prove_leaves_streaming;
 use crate::root_prover::{LeafBottom, ZkBlind, prove_root_verification_leaves};
-use crate::test_utils::{preprocessed_root, unpacker_verify_config};
+use crate::test_utils::{derive_unpacker_config, preprocessed_root};
 use crate::{AggregateConfig, TreeProof, level0_group_sizes};
 
 /// Fold arity `k` used by these tests (the production default; env parsing lives in the
@@ -42,7 +44,7 @@ fn test_pools() -> PoolSet {
     let cores = std::thread::available_parallelism()
         .map(|c| c.get())
         .unwrap_or(2);
-    PoolSet::new(2, (cores / 2).max(1))
+    PoolSet::new(2, (cores / 2).max(1), None)
 }
 
 // --- Constants mirrored from stwo-circuits circuit_multiverifier::verify_test (rev 041ec610). ---
@@ -146,7 +148,7 @@ fn multiverifier_preprocessed_column_log_sizes() -> OrderedHashMap<PreProcessedC
     .collect()
 }
 
-fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
+fn aggregate_config() -> RecursionPrecompute {
     let pcs_config = get_pcs_config(LEAF_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR);
     let proof_config = ProofConfig::new(
         &all_circuit_components::<QM31>(),
@@ -194,21 +196,7 @@ fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
 
     // Held per-arity trees (leaf tree stands in as an arity-2 node — leaves arrive pre-proven so it
     // is never actually used, but the flat struct requires a leaf tree). Cairo stand-in: level1
-    // == fold. Built before the config moves `shared_config`.
-    let spec = |arity: usize, root: &HashValue<QM31>| TreeSpec {
-        preprocessed: node_preprocessed_from_shared(&shared_config, target_padding_sizes(), arity),
-        pcs_config,
-        expected_root: root.clone(),
-    };
-    let leaf = spec(2, level1_roots.get(&2).unwrap());
-    let level1: BTreeMap<usize, TreeSpec> = (2..=FOLD_ARITY)
-        .map(|a| (a, spec(a, level1_roots.get(&a).unwrap())))
-        .collect();
-    let fold: BTreeMap<usize, TreeSpec> = (2..=FOLD_ARITY)
-        .map(|a| (a, spec(a, fold_roots.get(&a).unwrap())))
-        .collect();
-    let pre = RecursionPrecompute::new(leaf, level1, fold);
-
+    // == fold. Built from `config.fold_shared_config` after the config takes `shared_config`.
     let config = AggregateConfig {
         // Shared / fold-node fields — real values, used by the shared up-tree fold.
         fold_shared_config: shared_config,
@@ -224,7 +212,23 @@ fn aggregate_config() -> (AggregateConfig, RecursionPrecompute) {
         leaf_target_padding_sizes: target_padding_sizes(),
         leaf_pcs_config: pcs_config,
     };
-    (config, pre)
+    let spec = |arity: usize, root: HashValue<QM31>| TreeSpec {
+        preprocessed: node_preprocessed_from_shared(
+            &config.fold_shared_config,
+            target_padding_sizes(),
+            arity,
+        ),
+        pcs_config,
+        expected_root: root,
+    };
+    let leaf = spec(2, config.level1_root(2));
+    let level1: BTreeMap<usize, TreeSpec> = (2..=FOLD_ARITY)
+        .map(|a| (a, spec(a, config.level1_root(a))))
+        .collect();
+    let fold: BTreeMap<usize, TreeSpec> = (2..=FOLD_ARITY)
+        .map(|a| (a, spec(a, config.fold_root(a))))
+        .collect();
+    RecursionPrecompute::new(leaf, level1, fold, config)
 }
 
 fn load_cairo_leaves(config: &AggregateConfig, n: usize) -> Vec<TreeProof> {
@@ -340,19 +344,13 @@ fn mv_node_hash(children: &[(HashValue<QM31>, [QM31; N_RESERVED])]) -> [QM31; N_
 }
 
 #[test]
+#[ignore = "box-only: real STARK proves"]
 fn smoke_fold_four_cairo_leaves() {
-    if std::env::var("HEAVY_RECURSION").is_err() {
-        eprintln!(
-            "smoke_fold_four_cairo_leaves: SKIPPED (heavy: real STARK proves, VM only). Set \
-             HEAVY_RECURSION=1 to run."
-        );
-        return;
-    }
-    let (config, pre) = aggregate_config();
-    let leaves = load_cairo_leaves(&config, 4);
+    let pre = aggregate_config();
+    let leaves = load_cairo_leaves(&pre.aggregate_config, 4);
 
     let t0 = Instant::now();
-    let out = recursive_aggregate_fold_leaves(leaves, &config, &pre, &test_pools());
+    let out = recursive_aggregate_fold_leaves(leaves, &pre, &test_pools());
     let elapsed = t0.elapsed();
 
     // At k=FOLD_ARITY (=8), 4 leaves (< k) fold in ONE level into a single short 4-child root.
@@ -379,20 +377,12 @@ fn smoke_fold_four_cairo_leaves() {
 /// ⇒ Merkle panic). Exercises the short level-0 grouping and the homogeneous node-node root off
 /// circuit (the in-circuit twin is exercised on the VM).
 #[test]
+#[ignore = "box-only: commits a 2^22 preprocessed tree (no prove; off-circuit shape check)"]
 fn mv_tree_root_output_two_phase() {
-    // RUN-GUARD: `aggregate_config()` commits a 2^22-padded node preprocessed tree (CPU
-    // interpolation + Merkle, ~minutes), so gate it to HEAVY_RECURSION even though it does
-    // NOT prove/verify — keeps plain `cargo test` fast. Off-circuit shape check only.
-    if std::env::var("HEAVY_RECURSION").is_err() {
-        eprintln!(
-            "mv_tree_root_output_two_phase: SKIPPED (builds a 2^22 preprocessed tree). Set \
-             HEAVY_RECURSION=1 to run."
-        );
-        return;
-    }
     assert_eq!(FOLD_ARITY, 8, "this hand-rolled shape is written for k=8");
-    let (config, _pre) = aggregate_config();
-    let base = load_cairo_leaves(&config, 1).pop().unwrap();
+    let pre = aggregate_config();
+    let config = &pre.aggregate_config;
+    let base = load_cairo_leaves(config, 1).pop().unwrap();
     let node_pp = config.fold_root(FOLD_ARITY);
     let q = |a: u32| QM31::from_m31_array([M31(a), M31(0), M31(0), M31(0)]);
     // Distinct 8-word pp_root + 8-word outputs per leaf so position matters.
@@ -445,13 +435,9 @@ fn mv_tree_root_output_two_phase() {
 #[test]
 #[ignore = "stale k=2 golden; recapture the k=8 N=4 root on-box (see smoke_fold_four_cairo_leaves)"]
 fn opener_recomputes_known_root() {
-    // RUN-GUARD (in addition to #[ignore]): `aggregate_config()` builds a 2^22 preprocessed tree.
-    if std::env::var("HEAVY_RECURSION").is_err() {
-        eprintln!("opener_recomputes_known_root: SKIPPED. Set HEAVY_RECURSION=1 to run.");
-        return;
-    }
-    let (config, _pre) = aggregate_config();
-    let leaves = load_cairo_leaves(&config, 4);
+    let pre = aggregate_config();
+    let config = &pre.aggregate_config;
+    let leaves = load_cairo_leaves(config, 4);
 
     let root = mv_tree_root_output(&leaves, config.fold_root(FOLD_ARITY));
 
@@ -481,18 +467,12 @@ fn opener_recomputes_known_root() {
 /// Full root verification: fold 4 cairo leaves → root, then build+prove the root verification that
 /// verifies the root in-circuit, unpacks it to the leaf outputs, and emits them. Heavy — VM only.
 #[test]
+#[ignore = "box-only: real STARK proves"]
 fn smoke_root_verification() {
-    if std::env::var("HEAVY_RECURSION").is_err() {
-        eprintln!(
-            "smoke_root_verification: SKIPPED (heavy: real STARK proves, VM only). Set \
-             HEAVY_RECURSION=1 to run."
-        );
-        return;
-    }
-    let (config, pre) = aggregate_config();
-    let leaves = load_cairo_leaves(&config, 4);
+    let pre = aggregate_config();
+    let leaves = load_cairo_leaves(&pre.aggregate_config, 4);
 
-    let out = recursive_aggregate_fold_leaves(leaves.clone(), &config, &pre, &test_pools());
+    let out = recursive_aggregate_fold_leaves(leaves.clone(), &pre, &test_pools());
 
     let t0 = Instant::now();
     let bottom = LeafBottom {
@@ -500,8 +480,8 @@ fn smoke_root_verification() {
     };
     // Capture-style: recompute the pinned unpacker config to hand into the prover (production
     // supplies a pinned const instead).
-    let unpacker_config = unpacker_verify_config(4, &config, LOG_BLOWUP_FACTOR, None);
-    let rv = prove_root_verification_leaves(&out.root, &bottom, &config, &unpacker_config, None);
+    let unpacker_config = derive_unpacker_config(4, &pre.aggregate_config, LOG_BLOWUP_FACTOR, None);
+    let rv = prove_root_verification_leaves(&out.root, &bottom, &pre, &unpacker_config, None);
     let elapsed = t0.elapsed();
 
     // The unpacker emits all 4 leaf outputs, bound in-circuit to the verified root.
@@ -515,7 +495,7 @@ fn smoke_root_verification() {
     }
     // Off-circuit twin of the in-circuit unpack must reach the same root.
     assert_eq!(
-        mv_tree_root_output(&leaves, config.fold_root(FOLD_ARITY)),
+        mv_tree_root_output(&leaves, pre.aggregate_config.fold_root(FOLD_ARITY)),
         out.root.output_values,
         "off-circuit recomputation of R must match"
     );
@@ -531,17 +511,11 @@ fn smoke_root_verification() {
 /// `circuit_verifier`-family circuit), unlike on a multiverifier node. Asserts the blinded proof
 /// still unpacks the same leaf outputs and reports the overhead.
 #[test]
+#[ignore = "box-only: real STARK proves"]
 fn smoke_root_verification_zk_blinded() {
-    if std::env::var("HEAVY_RECURSION").is_err() {
-        eprintln!(
-            "smoke_root_verification_zk_blinded: SKIPPED (heavy: real STARK proves, VM only). Set \
-             HEAVY_RECURSION=1 to run."
-        );
-        return;
-    }
-    let (config, pre) = aggregate_config();
-    let leaves = load_cairo_leaves(&config, 4);
-    let out = recursive_aggregate_fold_leaves(leaves.clone(), &config, &pre, &test_pools());
+    let pre = aggregate_config();
+    let leaves = load_cairo_leaves(&pre.aggregate_config, 4);
+    let out = recursive_aggregate_fold_leaves(leaves.clone(), &pre, &test_pools());
 
     let n_queries = get_pcs_config(LEAF_VERIFIER_TRACE_LOG_SIZE, LOG_BLOWUP_FACTOR)
         .fri_config
@@ -555,9 +529,9 @@ fn smoke_root_verification_zk_blinded() {
     let bottom = LeafBottom {
         leaves: leaves.clone(),
     };
-    let unpacker_config = unpacker_verify_config(4, &config, LOG_BLOWUP_FACTOR, Some(n_queries));
-    let rv =
-        prove_root_verification_leaves(&out.root, &bottom, &config, &unpacker_config, Some(zk));
+    let unpacker_config =
+        derive_unpacker_config(4, &pre.aggregate_config, LOG_BLOWUP_FACTOR, Some(n_queries));
+    let rv = prove_root_verification_leaves(&out.root, &bottom, &pre, &unpacker_config, Some(zk));
     let elapsed = t0.elapsed();
 
     assert_eq!(rv.leaf_outputs.len(), 4);
@@ -581,3 +555,45 @@ fn smoke_root_verification_zk_blinded() {
 // (verify-root + unpacker + commitment), which is the only published proof. That wrapper is a
 // circuit_verifier-family circuit — the family `add_zk_blinding` is validated against — so blinding
 // is tested there, once the wrapper exists.
+
+/// Termination + panic propagation for [`recursive_aggregate_prove_leaves_streaming`]: a `build`
+/// closure that panics must make the coordinator re-panic on the parent (via `thread::scope` join),
+/// for BOTH n_pools == 1 and > 1 — no hang, no silent drop. The panic fires INSIDE `build`, before
+/// any node proves, so the machinery under test is pure scheduling/termination (leaf-type-agnostic:
+/// the input `W` is a bare `usize`, never turned into a real cairo leaf).
+///
+/// Box-only (`#[ignore]`d): `aggregate_config()` commits a 2^22-padded node preprocessed tree
+/// (~minutes, GBs), even though no recursion PROVE runs (the build closure panics first).
+#[test]
+#[ignore = "box-only: builds a 2^22 preprocessed tree"]
+fn streaming_wrap_panic_propagates() {
+    let pre = aggregate_config();
+
+    for n_pools in [1usize, 2] {
+        let pre = &pre;
+        let n_leaves = 2usize; // one level1 group (n <= k); build panics before any node proves.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let pools = PoolSet::new(n_pools, 2, None);
+            let (tx, rx) = std::sync::mpsc::channel::<(usize, usize)>();
+            for i in 0..n_leaves {
+                tx.send((i, i)).unwrap();
+            }
+            drop(tx);
+            // Every `build` panics — a worker panic must re-panic on the coordinator's
+            // `thread::scope` join (not hang, not be silently dropped).
+            recursive_aggregate_prove_leaves_streaming(
+                rx,
+                n_leaves,
+                |i: usize| -> FinalizedContext<QM31> {
+                    panic!("intentional build panic at leaf {i}")
+                },
+                pre,
+                &pools,
+            );
+        }));
+        assert!(
+            result.is_err(),
+            "n_pools={n_pools}: a panicking build must re-panic on the parent (no hang, no silent drop)"
+        );
+    }
+}

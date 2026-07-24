@@ -13,8 +13,8 @@ use crate::leaf::prove_leaf;
 use crate::pools::PoolSet;
 use crate::precomputes::RecursionPrecompute;
 use crate::{
-    AggregateConfig, AggregateOutput, TreeProof, level0_group_sizes, prove_fold_node,
-    prove_leaf_or_short, prove_short_fold_node,
+    AggregateOutput, TreeProof, level0_group_sizes, prove_fold_node, prove_leaf_or_short,
+    prove_short_fold_node,
 };
 
 use circuits::context::FinalizedContext;
@@ -41,11 +41,11 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
     rx: std::sync::mpsc::Receiver<(usize, W)>,
     n_leaves: usize,
     build: impl Fn(W) -> FinalizedContext<QM31> + Sync,
-    config: &AggregateConfig,
     pre: &RecursionPrecompute,
     pools: &PoolSet,
 ) -> (Vec<TreeProof>, AggregateOutput) {
     assert!(n_leaves >= 1, "need at least one leaf");
+    let config = &pre.aggregate_config;
     let k = config.fold_arity;
 
     // n_leaves == 1: the lone proved leaf is itself the root (no fold, height 0). No workers.
@@ -170,8 +170,8 @@ pub fn recursive_aggregate_prove_leaves_streaming<W: Send>(
                             };
                             let is_root = node_parent[ti].is_none();
                             let height = tasks[ti].height;
-                            let result = pool
-                                .install(|| run_fold_task(&children, is_root, height, config, pre));
+                            let result =
+                                pool.install(|| run_fold_task(&children, is_root, height, pre));
                             let mut st = state.lock().unwrap();
                             deliver_node(&mut st, node_parent[ti], result);
                             st.done += 1;
@@ -297,9 +297,9 @@ fn run_fold_task(
     children: &[TreeProof],
     is_root: bool,
     height: usize,
-    config: &AggregateConfig,
     pre: &RecursionPrecompute,
 ) -> TreeProof {
+    let config = &pre.aggregate_config;
     let k = config.fold_arity;
     if is_root {
         prove_short_fold_node(children, config, pre, height)

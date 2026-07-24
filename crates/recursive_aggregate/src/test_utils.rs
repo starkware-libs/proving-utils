@@ -3,7 +3,7 @@
 //! ([`check_configs`], per-field `assert_eq`); the const-friendly pinned twin
 //! (`DerivedConfigs`/`PinnedConfigs`) + assembler live in `crate::pinned_configs`.
 
-use crate::pinned_configs::{DerivedConfigs, assemble_aggregate_config};
+use crate::pinned_configs::{DerivedConfigs, RecursionConfig, assemble_aggregate_config};
 use crate::precomputes::node_preprocessed_from_shared;
 use crate::root_prover::{
     ZkBlind, build_root_verification_context, root_verification_shared_config,
@@ -32,6 +32,56 @@ use stwo::prover::backend::simd::SimdBackend;
 use stwo::prover::mempool::BaseColumnPool;
 use stwo::prover::poly::circle::PolyOps;
 
+/// Derives fresh via [`derive_configs`] and compares per-field / per-arity against `expected`,
+/// panicking with a labelled `assert_eq` on drift (e.g. `"level1[3] config drift"`). Replaces the
+/// old per-layer `check_*_config`.
+pub fn check_configs(leaf_pp: &PreprocessedCircuit, leaf_pcs: PcsConfig, config: &RecursionConfig) {
+    let expected = config.to_derived(config.leaf_log_blowup, config.recursion_log_blowup);
+    let real = derive_configs(
+        leaf_pp,
+        leaf_pcs,
+        config.leaf_log_blowup,
+        config.recursion_log_blowup,
+        config.fold_arity,
+        config.n_leaves,
+    );
+    assert_eq!(real.leaf, expected.leaf, "leaf config drift");
+    assert_eq!(real.node_target, expected.node_target, "node_target drift");
+    assert_eq!(
+        real.level1.len(),
+        expected.level1.len(),
+        "level1 arity count drift"
+    );
+    for (i, (r, e)) in real.level1.iter().zip(&expected.level1).enumerate() {
+        assert_eq!(r, e, "level1[{}] config drift", i + 2);
+    }
+    assert_eq!(
+        real.fold.len(),
+        expected.fold.len(),
+        "fold arity count drift"
+    );
+    for (i, (r, e)) in real.fold.iter().zip(&expected.fold).enumerate() {
+        assert_eq!(r, e, "fold[{}] config drift", i + 2);
+    }
+    assert_eq!(real.unpacker, expected.unpacker, "unpacker config drift");
+}
+
+/// Single-point capture: derives the fresh cascade for one operating point and emits every `@@`
+/// line `gen_recursion_consts.py` parses. Relocated from gate_air's `capture_all` so the derived
+/// config type + derivation stay crate-internal; the AIR-specific leaf build + `@@POINT`/
+/// `@@CAPTURE_DONE` framing stay at the call site.
+pub fn capture_point(
+    leaf_pp: &PreprocessedCircuit,
+    leaf_pcs: PcsConfig,
+    leaf_blowup: u32,
+    node_blowup: u32,
+    fold_arity: usize,
+    n: usize,
+) {
+    let derived = derive_configs(leaf_pp, leaf_pcs, leaf_blowup, node_blowup, fold_arity, n);
+    emit_captured_point(&derived, node_blowup);
+}
+
 /// The single fresh-cascade derivation, AIR-agnostic: the caller builds the AIR-specific leaf
 /// preprocessed circuit and passes it in; this derives everything downstream (node_target fixed
 /// point, per-arity level1/fold configs, the per-N unpacker) and returns every derived config. NO
@@ -39,7 +89,7 @@ use stwo::prover::poly::circle::PolyOps;
 ///
 /// `leaf_blowup`/`node_blowup` are the leaf-wrap / node FRI blowups (decoupled); `fold_arity` the
 /// node arity `k`; `n` the leaf count (for the unpacker).
-pub fn derive_configs(
+pub(crate) fn derive_configs(
     leaf_pp: &PreprocessedCircuit,
     leaf_pcs: PcsConfig,
     leaf_blowup: u32,
@@ -72,46 +122,12 @@ pub fn derive_configs(
     };
     let config = assemble_aggregate_config(&derived, zero_sizes(), fold_arity);
     let n_queries = config.node_pcs_config.fri_config.n_queries;
-    derived.unpacker = unpacker_verify_config(n, &config, node_blowup, Some(n_queries));
+    derived.unpacker = derive_unpacker_config(n, &config, node_blowup, Some(n_queries));
     derived
 }
 
-/// Derives fresh via [`derive_configs`] and compares per-field / per-arity against `expected`,
-/// panicking with a labelled `assert_eq` on drift (e.g. `"level1[3] config drift"`). Replaces the
-/// old per-layer `check_*_config`.
-pub fn check_configs(
-    leaf_pp: &PreprocessedCircuit,
-    leaf_pcs: PcsConfig,
-    leaf_blowup: u32,
-    node_blowup: u32,
-    fold_arity: usize,
-    n: usize,
-    expected: &DerivedConfigs,
-) {
-    let real = derive_configs(leaf_pp, leaf_pcs, leaf_blowup, node_blowup, fold_arity, n);
-    assert_eq!(real.leaf, expected.leaf, "leaf config drift");
-    assert_eq!(real.node_target, expected.node_target, "node_target drift");
-    assert_eq!(
-        real.level1.len(),
-        expected.level1.len(),
-        "level1 arity count drift"
-    );
-    for (i, (r, e)) in real.level1.iter().zip(&expected.level1).enumerate() {
-        assert_eq!(r, e, "level1[{}] config drift", i + 2);
-    }
-    assert_eq!(
-        real.fold.len(),
-        expected.fold.len(),
-        "fold arity count drift"
-    );
-    for (i, (r, e)) in real.fold.iter().zip(&expected.fold).enumerate() {
-        assert_eq!(r, e, "fold[{}] config drift", i + 2);
-    }
-    assert_eq!(real.unpacker, expected.unpacker, "unpacker config drift");
-}
-
 /// Merkle root of a circuit's preprocessed trace — used to regenerate/check the pinned root table.
-pub fn preprocessed_root(
+pub(crate) fn preprocessed_root(
     preprocessed: &PreprocessedCircuit,
     log_blowup_factor: u32,
 ) -> HashValue<QM31> {
@@ -139,7 +155,7 @@ pub fn preprocessed_root(
 /// (NoValue witness), so it is byte-identical to the honest proof's preprocessed shape. Its
 /// `preprocessed_root` is the canonical unpacker root. `zk_n_padding` must equal the prover's
 /// blinding `n_padding` (`None` = no blinding).
-pub fn unpacker_verify_config(
+pub(crate) fn derive_unpacker_config(
     n: usize,
     config: &AggregateConfig,
     log_blowup_factor: u32,
@@ -169,6 +185,83 @@ pub fn unpacker_verify_config(
         preprocessed_column_log_sizes: preprocessed.preprocessed_trace.log_sizes(),
         preprocessed_root: preprocessed_root(&preprocessed, log_blowup_factor),
     }
+}
+
+/// Emits every `@@` line for one point's [`DerivedConfigs`] (leaf shape/root, node_target,
+/// per-arity level1/fold shape+roots, the unpacker) — the format `gen_recursion_consts.py` parses.
+/// The layer shape (`@@{tag}_TRACE`/`@@{tag}_COLS`) is emitted once per node layer (arity 2), roots
+/// per arity.
+fn emit_captured_point(d: &DerivedConfigs, node_blowup: u32) {
+    let leaf_root = HashValue::from(hv_words(&d.leaf.preprocessed_root));
+    emit_layer("LEAF", trace_of(&d.leaf, node_blowup), &d.leaf);
+    emit_root("LEAF_ROOT", &leaf_root);
+
+    let nt = &d.node_target;
+    println!(
+        "@@NODE_TARGET {} {} {} {} {}",
+        nt.eq, nt.qm31_ops, nt.m31_to_u32, nt.triple_xor, nt.blake_g_gate
+    );
+
+    for (tag, layer) in [("LEVEL1", &d.level1), ("FOLD", &d.fold)] {
+        for (i, cfg) in layer.iter().enumerate() {
+            let arity = i + 2;
+            if arity == 2 {
+                emit_layer(tag, trace_of(cfg, node_blowup), cfg);
+            }
+            emit_root(&format!("{tag}_ROOT_{arity}"), &cfg.preprocessed_root);
+        }
+    }
+
+    let u = &d.unpacker;
+    let p = &u.config;
+    println!(
+        "@@UNPACKER_PCS {} {} {} {} {} {}",
+        p.pow_bits,
+        p.fri_config.log_blowup_factor,
+        p.fri_config.log_last_layer_degree_bound,
+        p.fri_config.n_queries,
+        p.fri_config.fold_step,
+        p.lifting_log_size.expect("unpacker lifting"),
+    );
+    println!("@@UNPACKER_NOUT {}", u.n_outputs);
+    println!("@@UNPACKER_COLS {}", cols_str(u));
+    emit_root("UNPACKER_ROOT", &u.preprocessed_root);
+}
+
+/// A config's trace log-size = its PCS lifting minus the FRI blowup.
+fn trace_of(cfg: &CircuitConfig, blowup: u32) -> u32 {
+    cfg.config.lifting_log_size.expect("lifting") - blowup
+}
+
+/// Emits a layer's `@@{tag}_TRACE` + `@@{tag}_COLS` lines for the fill generator.
+fn emit_layer(tag: &str, trace_log_size: u32, cfg: &CircuitConfig) {
+    println!("@@{tag}_TRACE {trace_log_size}");
+    println!("@@{tag}_COLS {}", cols_str(cfg));
+}
+
+/// Space-separated `id:log_size` preprocessed-column pairs, in canonical committed order.
+fn cols_str(cfg: &CircuitConfig) -> String {
+    cfg.preprocessed_column_log_sizes
+        .iter()
+        .map(|(id, ls)| format!("{}:{}", id.id, ls))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Emits `@@{tag} w0 w1 .. w7` for an eight-word root.
+fn emit_root(tag: &str, root: &HashValue<QM31>) {
+    let words: Vec<String> = hv_words(root).iter().map(|w| w.to_string()).collect();
+    println!("@@{tag} {}", words.join(" "));
+}
+
+/// Renders a `HashValue<QM31>`'s eight raw words for a paste-able `[u32; 8]` literal.
+fn hv_words(h: &HashValue<QM31>) -> [u32; 8] {
+    std::array::from_fn(|i| {
+        let [lo, hi, 0, 0] = h[i].get().to_m31_array().map(|m| m.0) else {
+            return 0;
+        };
+        lo | (hi << 16)
+    })
 }
 
 /// An empty [`CircuitConfig`] placeholder for the unpacker slot while assembling the intermediate

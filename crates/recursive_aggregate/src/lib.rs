@@ -51,13 +51,22 @@ pub struct TreeProof {
     pub output_values: [QM31; N_RESERVED],
 }
 
+/// Result of folding the tree.
+pub struct AggregateOutput {
+    pub root: TreeProof,
+    /// Number of recursion levels above the leaves.
+    pub n_levels: usize,
+}
+
 /// Static configuration shared by every node in the tree.
 ///
 /// Short internal nodes (arity `2..=k-1`) have a distinct root per (level, arity), not stored —
 /// recomputed on the fly from the public (level, arity). All internal nodes pad to a common
 /// `node_target_padding_sizes` so their output proofs share one shape; leaf padding is decoupled
-/// (see `leaf_target_padding_sizes`).
-pub struct AggregateConfig {
+/// (see `leaf_target_padding_sizes`). Proving-utils-internal — a consumer holds only the const
+/// [`crate::pinned_configs::RecursionConfig`]; this runtime form is built + cached in
+/// [`crate::precomputes::RecursionPrecompute`].
+pub(crate) struct AggregateConfig {
     /// Verifier/prover config for a fold-node whose children are NODES (and for verifying the root
     /// in the unpacker) — the multiverifier's self-verifying fixed point.
     pub fold_shared_config: SharedConfig,
@@ -92,7 +101,7 @@ pub struct AggregateConfig {
 impl AggregateConfig {
     /// The reported root of a height-1 (leaf-verifying) level1-node of `arity`. Panics for an arity
     /// the caller did not pin (unsupported).
-    pub fn level1_root(&self, arity: usize) -> HashValue<QM31> {
+    pub(crate) fn level1_root(&self, arity: usize) -> HashValue<QM31> {
         self.level1_roots
             .get(&arity)
             .unwrap_or_else(|| panic!("no level1 root for arity {arity}"))
@@ -101,19 +110,12 @@ impl AggregateConfig {
 
     /// The reported root of a height-≥2 (node-verifying) fold-node of `arity`. Panics for an arity
     /// the caller did not pin (unsupported).
-    pub fn fold_root(&self, arity: usize) -> HashValue<QM31> {
+    pub(crate) fn fold_root(&self, arity: usize) -> HashValue<QM31> {
         self.fold_roots
             .get(&arity)
             .unwrap_or_else(|| panic!("no fold root for arity {arity}"))
             .clone()
     }
-}
-
-/// Result of folding the tree.
-pub struct AggregateOutput {
-    pub root: TreeProof,
-    /// Number of recursion levels above the leaves.
-    pub n_levels: usize,
 }
 
 /// The `SharedConfig` a multiverifier needs to verify children of a pinned child [`CircuitConfig`]

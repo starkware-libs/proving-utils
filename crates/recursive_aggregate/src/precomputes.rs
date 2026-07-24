@@ -9,9 +9,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::AggregateConfig;
 use crate::leaf::leaf_preprocessed;
+use crate::pinned_configs::RecursionConfig;
 
 use circuit_common::N_RESERVED;
-use circuit_common::finalize::{ComponentSizes, pad_to_targets};
+use circuit_common::finalize::{ComponentSizes, compute_padded_sizes, pad_to_targets};
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_multiverifier::verify::{
     MultiverifierInput, SharedConfig, build_multiverifier_circuit,
@@ -57,7 +58,8 @@ pub struct TreeSpec {
 /// shared `twiddles`, and a committed [`PreprocessedTree`] for every shape a prove needs — the
 /// `leaf`, the per-arity `level1` (leaf-verifying) nodes, and the per-arity `fold` (node-verifying)
 /// nodes. Every tree asserts, at build time, that its committed root equals the pinned root the
-/// caller supplied.
+/// caller supplied. The runtime [`AggregateConfig`] is derived once up front and cached beside the
+/// trees, so the prove entry points read it here instead of re-deriving per call.
 pub struct RecursionPrecompute {
     /// Shared memory pool for the prover's SIMD columns.
     pub base_column_pool: BaseColumnPool<SimdBackend>,
@@ -69,6 +71,8 @@ pub struct RecursionPrecompute {
     pub level1: BTreeMap<usize, PreprocessedTree>,
     /// Per-arity fold (node-verifying) node trees, keyed by child count `2..=k`.
     pub fold: BTreeMap<usize, PreprocessedTree>,
+    /// The runtime aggregate config, derived once up front and read by every prove entry point.
+    pub(crate) aggregate_config: AggregateConfig,
 }
 
 impl PreprocessedTree {
@@ -84,6 +88,77 @@ impl PreprocessedTree {
         expected_root: HashValue<QM31>,
     ) -> Self {
         build_one_shot_tree(preprocessed, pcs_config, expected_root).0
+    }
+}
+
+impl RecursionPrecompute {
+    /// Builds the flat precompute: one shared `base_column_pool` + one shared `twiddles` sized to
+    /// the largest prove domain across all shapes, then a committed [`PreprocessedTree`] for
+    /// the `leaf` and for each arity's `level1` / `fold` shape. Every tree asserts its root
+    /// against the supplied pinned root (the caller — `gate-air-leaf` — supplies the pinned
+    /// consts).
+    pub(crate) fn new(
+        leaf: TreeSpec,
+        level1: BTreeMap<usize, TreeSpec>,
+        fold: BTreeMap<usize, TreeSpec>,
+        aggregate_config: AggregateConfig,
+    ) -> Self {
+        let base_column_pool = BaseColumnPool::<SimdBackend>::new();
+        let max_domain = std::iter::once(&leaf)
+            .chain(level1.values())
+            .chain(fold.values())
+            .map(shape_prove_domain)
+            .max()
+            .expect("at least the leaf shape");
+        let twiddles = SimdBackend::precompute_twiddles(
+            CanonicCoset::new(max_domain).circle_domain().half_coset,
+        );
+
+        let leaf = build_spec(leaf, &twiddles, &base_column_pool);
+        let level1 = level1
+            .into_iter()
+            .map(|(a, s)| (a, build_spec(s, &twiddles, &base_column_pool)))
+            .collect();
+        let fold = fold
+            .into_iter()
+            .map(|(a, s)| (a, build_spec(s, &twiddles, &base_column_pool)))
+            .collect();
+
+        Self {
+            base_column_pool,
+            twiddles,
+            leaf,
+            level1,
+            fold,
+            aggregate_config,
+        }
+    }
+
+    /// The node PCS config of the cached aggregate config — the caller needs its `n_queries` to
+    /// size the root proof's zk-blinding, without reaching into the internal [`AggregateConfig`].
+    pub fn node_pcs_config(&self) -> PcsConfig {
+        self.aggregate_config.node_pcs_config
+    }
+
+    /// The node-padding target sizes of the cached aggregate config (for reporting only).
+    pub fn node_target_padding_sizes(&self) -> &ComponentSizes {
+        &self.aggregate_config.node_target_padding_sizes
+    }
+
+    /// The held level1 (leaf-verifying) node tree for `arity`. Panics if not built (unsupported
+    /// arity).
+    pub fn level1_tree(&self, arity: usize) -> &PreprocessedTree {
+        self.level1
+            .get(&arity)
+            .unwrap_or_else(|| panic!("no level1 precompute for arity {arity}"))
+    }
+
+    /// The held fold (node-verifying) node tree for `arity`. Panics if not built (unsupported
+    /// arity).
+    pub fn fold_tree(&self, arity: usize) -> &PreprocessedTree {
+        self.fold
+            .get(&arity)
+            .unwrap_or_else(|| panic!("no fold precompute for arity {arity}"))
     }
 }
 
@@ -117,6 +192,46 @@ pub fn build_one_shot_tree(
     (tree, twiddles, base_column_pool)
 }
 
+/// The distinct node arities a fold over `n_leaves` (fold arity `k`) actually uses: `(level1,
+/// fold)`. A curve point touches only a handful of the `2..=k` arities, so the prover commits a
+/// preprocessed tree ONLY for these. Reuses the real topology helpers
+/// (`crate::level0_group_sizes`, `crate::prove_streaming::fold_node_arities`) so it cannot diverge
+/// from the fold. Node sets are empty for `n_leaves <= 1` (the lone leaf is the root).
+pub fn fold_used_arities(n_leaves: usize, k: usize) -> (BTreeSet<usize>, BTreeSet<usize>) {
+    if n_leaves <= 1 {
+        return (BTreeSet::new(), BTreeSet::new());
+    }
+    let sizes = crate::level0_group_sizes(n_leaves, k);
+    let level1: BTreeSet<usize> = sizes.iter().copied().collect();
+    let fold = crate::prove_streaming::fold_node_arities(sizes.len(), k);
+    (level1, fold)
+}
+
+/// Builds the flat leaf/level1/fold [`RecursionPrecompute`] from the caller's already-built leaf
+/// `leaf_ctx` (the only AIR-specific ingredient) and the const `config`. The runtime
+/// [`AggregateConfig`] is assembled here ONCE and cached in the returned precompute — the leaf's
+/// natural padding target is `compute_padded_sizes(leaf_ctx)` (the same NoValue leaf the leaf tree
+/// commits, so no second build). Each layer's preprocessed shape is rebuilt from that config — no
+/// fixed-point loop — and every tree asserts its committed root equals `config`'s pinned root (the
+/// load-bearing soundness check: a drifted pinned config fails it loudly).
+///
+/// `build_all_arities`: production passes `false` → build shapes only for the arities this point's
+/// fold uses ([`fold_used_arities`] of `config.n_leaves`), since committing every unused `2..=k`
+/// arity's ~2^22 tree overruns the base-precompute overlap window. Tests pass `true` (they fold a
+/// small N differing from the placeholder `n_leaves`, so they need every `2..=k` arity).
+pub fn build_recursion_precompute(
+    leaf_ctx: FinalizedContext<NoValue>,
+    config: &RecursionConfig,
+    build_all_arities: bool,
+) -> RecursionPrecompute {
+    let n_leaves = config.n_leaves;
+    // The leaf's natural padding target = the NoValue leaf's unpadded sizes; feeds both the
+    // assembled config and the leaf-tree padding (identical value, one build).
+    let leaf_target = compute_padded_sizes(&leaf_ctx);
+    let config = config.to_aggregate_config(leaf_target);
+    build_precompute_from_aggregate_config(leaf_ctx, config, n_leaves, build_all_arities)
+}
+
 /// Builds + preprocesses the NoValue multiverifier node circuit of `arity` children for a given
 /// `shared` config, padded to `target_padding`. Keyed on the already-built `SharedConfig`. The node
 /// shape the prover commits per held tree, and the shape the caller's capture/drift path rebuilds.
@@ -144,33 +259,13 @@ pub(crate) fn node_preprocessed_from_shared(
     PreprocessedCircuit::preprocess_circuit(&mut ctx)
 }
 
-/// The distinct node arities a fold over `n_leaves` (fold arity `k`) actually uses: `(level1,
-/// fold)`. A curve point touches only a handful of the `2..=k` arities, so the prover commits a
-/// preprocessed tree ONLY for these. Reuses the real topology helpers
-/// (`crate::level0_group_sizes`, `crate::prove_streaming::fold_node_arities`) so it cannot diverge
-/// from the fold. Node sets are empty for `n_leaves <= 1` (the lone leaf is the root).
-pub fn fold_used_arities(n_leaves: usize, k: usize) -> (BTreeSet<usize>, BTreeSet<usize>) {
-    if n_leaves <= 1 {
-        return (BTreeSet::new(), BTreeSet::new());
-    }
-    let sizes = crate::level0_group_sizes(n_leaves, k);
-    let level1: BTreeSet<usize> = sizes.iter().copied().collect();
-    let fold = crate::prove_streaming::fold_node_arities(sizes.len(), k);
-    (level1, fold)
-}
-
-/// Builds the flat leaf/level1/fold [`RecursionPrecompute`] from the caller's already-built leaf
-/// `leaf_ctx` (the only AIR-specific ingredient) and `config`. Each layer's preprocessed shape is
-/// rebuilt from `config` — no fixed-point loop — and every tree asserts its committed root equals
-/// `config`'s root (the load-bearing soundness check: a drifted pinned config fails it loudly).
-///
-/// `build_all_arities`: production passes `false` → build shapes only for the arities this point's
-/// fold uses ([`fold_used_arities`] of `n_leaves`), since committing every unused `2..=k` arity's
-/// ~2^22 tree overruns the base-precompute overlap window. Tests pass `true` (they fold a small N
-/// differing from the placeholder `n_leaves`, so they need every `2..=k` arity).
-pub fn build_recursion_precompute(
+/// Builds the flat [`RecursionPrecompute`] from an ALREADY-assembled runtime [`AggregateConfig`] —
+/// the tree-building tail shared by [`build_recursion_precompute`] (pinned path) and the test-only
+/// fresh-derivation wiring helper. Reuses the caller's leaf `leaf_ctx`, builds every held tree, and
+/// caches the config; each tree asserts its committed root equals the config's root.
+pub(crate) fn build_precompute_from_aggregate_config(
     leaf_ctx: FinalizedContext<NoValue>,
-    config: &AggregateConfig,
+    config: AggregateConfig,
     n_leaves: usize,
     build_all_arities: bool,
 ) -> RecursionPrecompute {
@@ -224,7 +319,30 @@ pub fn build_recursion_precompute(
             )
         })
         .collect();
-    RecursionPrecompute::new(leaf, level1, fold)
+    RecursionPrecompute::new(leaf, level1, fold, config)
+}
+
+/// The `NoValue` node `ProofConfig` a multiverifier NODE circuit is built/proved with. Shared by
+/// the NoValue node builders (here + `test_utils`) so they derive the config identically.
+pub(crate) fn noval_node_proof_config(
+    n_preprocessed_columns: usize,
+    pcs_config: &PcsConfig,
+) -> ProofConfig {
+    ProofConfig::new(
+        &all_circuit_components::<NoValue>(),
+        n_preprocessed_columns,
+        pcs_config,
+        INTERACTION_POW_BITS,
+    )
+}
+
+/// A placeholder `NoValue` child input for building the witness-independent node shape.
+pub(crate) fn empty_node_input(proof_config: &ProofConfig) -> MultiverifierInput<NoValue> {
+    MultiverifierInput {
+        proof: empty_proof(proof_config),
+        preprocessed_root: HashValue::from([0u32; N_RESERVED]),
+        output_values: [QM31::zero(); N_RESERVED],
+    }
 }
 
 /// One node layer's [`TreeSpec`] for `arity`: the node preprocessed circuit verifying
@@ -242,64 +360,6 @@ fn node_spec(
         preprocessed: node_preprocessed_from_shared(child_shared, node_target.clone(), arity),
         pcs_config: node_pcs,
         expected_root,
-    }
-}
-
-impl RecursionPrecompute {
-    /// Builds the flat precompute: one shared `base_column_pool` + one shared `twiddles` sized to
-    /// the largest prove domain across all shapes, then a committed [`PreprocessedTree`] for
-    /// the `leaf` and for each arity's `level1` / `fold` shape. Every tree asserts its root
-    /// against the supplied pinned root (the caller — `gate-air-leaf` — supplies the pinned
-    /// consts).
-    pub(crate) fn new(
-        leaf: TreeSpec,
-        level1: BTreeMap<usize, TreeSpec>,
-        fold: BTreeMap<usize, TreeSpec>,
-    ) -> Self {
-        let base_column_pool = BaseColumnPool::<SimdBackend>::new();
-        let max_domain = std::iter::once(&leaf)
-            .chain(level1.values())
-            .chain(fold.values())
-            .map(shape_prove_domain)
-            .max()
-            .expect("at least the leaf shape");
-        let twiddles = SimdBackend::precompute_twiddles(
-            CanonicCoset::new(max_domain).circle_domain().half_coset,
-        );
-
-        let leaf = build_spec(leaf, &twiddles, &base_column_pool);
-        let level1 = level1
-            .into_iter()
-            .map(|(a, s)| (a, build_spec(s, &twiddles, &base_column_pool)))
-            .collect();
-        let fold = fold
-            .into_iter()
-            .map(|(a, s)| (a, build_spec(s, &twiddles, &base_column_pool)))
-            .collect();
-
-        Self {
-            base_column_pool,
-            twiddles,
-            leaf,
-            level1,
-            fold,
-        }
-    }
-
-    /// The held level1 (leaf-verifying) node tree for `arity`. Panics if not built (unsupported
-    /// arity).
-    pub fn level1_tree(&self, arity: usize) -> &PreprocessedTree {
-        self.level1
-            .get(&arity)
-            .unwrap_or_else(|| panic!("no level1 precompute for arity {arity}"))
-    }
-
-    /// The held fold (node-verifying) node tree for `arity`. Panics if not built (unsupported
-    /// arity).
-    pub fn fold_tree(&self, arity: usize) -> &PreprocessedTree {
-        self.fold
-            .get(&arity)
-            .unwrap_or_else(|| panic!("no fold precompute for arity {arity}"))
     }
 }
 
@@ -364,27 +424,4 @@ fn build_tree(
 /// 1)` (matches `prove_circuit_assignment`'s twiddle domain).
 fn shape_prove_domain(spec: &TreeSpec) -> u32 {
     spec.preprocessed.trace_log_size + spec.pcs_config.fri_config.log_blowup_factor.max(1)
-}
-
-/// The `NoValue` node `ProofConfig` a multiverifier NODE circuit is built/proved with. Shared by
-/// the NoValue node builders (here + `test_utils`) so they derive the config identically.
-pub(crate) fn noval_node_proof_config(
-    n_preprocessed_columns: usize,
-    pcs_config: &PcsConfig,
-) -> ProofConfig {
-    ProofConfig::new(
-        &all_circuit_components::<NoValue>(),
-        n_preprocessed_columns,
-        pcs_config,
-        INTERACTION_POW_BITS,
-    )
-}
-
-/// A placeholder `NoValue` child input for building the witness-independent node shape.
-pub(crate) fn empty_node_input(proof_config: &ProofConfig) -> MultiverifierInput<NoValue> {
-    MultiverifierInput {
-        proof: empty_proof(proof_config),
-        preprocessed_root: HashValue::from([0u32; N_RESERVED]),
-        output_values: [QM31::zero(); N_RESERVED],
-    }
 }

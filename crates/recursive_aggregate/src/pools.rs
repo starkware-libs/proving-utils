@@ -17,11 +17,11 @@ pub struct PoolSet {
 
 impl PoolSet {
     /// Creates `n_pools` pools of `threads_per_pool` worker threads each (e.g. `PoolSet::new(2,
-    /// 48)` on a 96-core machine).
-    pub fn new(n_pools: usize, threads_per_pool: usize) -> Self {
+    /// 48, None)` on a 96-core machine). `nice` optionally deprioritizes pool workers (an integer
+    /// nice delta, or "idle"); the caller supplies it (`None` = off). Byte-neutral.
+    pub fn new(n_pools: usize, threads_per_pool: usize, nice: Option<String>) -> Self {
         // Optionally deprioritize pool workers so GPU-producer / composition threads win CPU.
-        // Byte-neutral. OFF unless RECURSION_POOL_NICE is set (an integer nice delta, or "idle").
-        let sched = std::env::var("RECURSION_POOL_NICE").ok();
+        let sched = nice;
         let pools = (0..n_pools.max(1))
             .map(|_| {
                 let sched = sched.clone();

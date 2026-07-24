@@ -7,8 +7,8 @@ use crate::leaf::prove_leaf;
 use crate::pools::PoolSet;
 use crate::precomputes::RecursionPrecompute;
 use crate::{
-    AggregateConfig, AggregateOutput, TreeProof, level0_group_sizes, prove_fold_node,
-    prove_leaf_or_short, prove_short_fold_node,
+    AggregateOutput, TreeProof, level0_group_sizes, prove_fold_node, prove_leaf_or_short,
+    prove_short_fold_node,
 };
 
 use circuits::context::FinalizedContext;
@@ -24,11 +24,11 @@ use stwo::core::fields::qm31::QM31;
 pub fn recursive_aggregate_prove_leaves<W: Send>(
     inputs: Vec<W>,
     build: impl Fn(W) -> FinalizedContext<QM31> + Sync,
-    config: &AggregateConfig,
     pre: &RecursionPrecompute,
     pools: &PoolSet,
 ) -> (Vec<TreeProof>, AggregateOutput) {
     assert!(!inputs.is_empty(), "need at least one leaf");
+    let config = &pre.aggregate_config;
 
     // Build+prove+drop each leaf in a pool worker (never hold all N contexts at once).
     let build = &build;
@@ -49,7 +49,7 @@ pub fn recursive_aggregate_prove_leaves<W: Send>(
 
     (
         leaves.clone(),
-        recursive_aggregate_fold_leaves(leaves, config, pre, pools),
+        recursive_aggregate_fold_leaves(leaves, pre, pools),
     )
 }
 
@@ -60,10 +60,10 @@ pub fn recursive_aggregate_prove_leaves<W: Send>(
 /// [`recursive_aggregate_prove_leaves`] runs internally.
 pub(crate) fn recursive_aggregate_fold_leaves(
     leaves: Vec<TreeProof>,
-    config: &AggregateConfig,
     pre: &RecursionPrecompute,
     pools: &PoolSet,
 ) -> AggregateOutput {
+    let config = &pre.aggregate_config;
     let k = config.fold_arity;
 
     // n_leaves == 1: the lone leaf is itself the root (no fold, height 0).
@@ -88,7 +88,7 @@ pub(crate) fn recursive_aggregate_fold_leaves(
     let leaf_nodes: Vec<TreeProof> = pools.map(jobs);
 
     // Levels ≥ 1: shared up-tree fold over the height-1 leaf-nodes.
-    recursive_aggregate_prove(leaf_nodes, config, pre, pools)
+    recursive_aggregate_prove(leaf_nodes, pre, pools)
 }
 
 /// The SHARED up-tree fold: folds `bottom_nodes` (the fold's height-1 bottom node proofs) into a
@@ -98,11 +98,11 @@ pub(crate) fn recursive_aggregate_fold_leaves(
 /// concurrently across `pools`.
 fn recursive_aggregate_prove(
     bottom_nodes: Vec<TreeProof>,
-    config: &AggregateConfig,
     pre: &RecursionPrecompute,
     pools: &PoolSet,
 ) -> AggregateOutput {
     assert!(!bottom_nodes.is_empty(), "need at least one bottom-node");
+    let config = &pre.aggregate_config;
     let k = config.fold_arity;
 
     // M == 1: the lone bottom-node is itself the root (no fold). Its height is 1.

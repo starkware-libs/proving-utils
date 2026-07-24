@@ -3,7 +3,7 @@
 //! root from per-leaf output hints, emit the leaf outputs). See the crate root for the unpack
 //! contract.
 
-use crate::precomputes::build_one_shot_tree;
+use crate::precomputes::{RecursionPrecompute, build_one_shot_tree};
 use crate::{AggregateConfig, TreeProof, level0_group_sizes, reported_root};
 
 use circuit_common::N_RESERVED;
@@ -65,10 +65,11 @@ pub struct ZkBlind {
 pub fn prove_root_verification_leaves(
     root: &TreeProof,
     bottom: &LeafBottom,
-    config: &AggregateConfig,
+    pre: &RecursionPrecompute,
     unpacker_config: &CircuitConfig,
     zk_blind: Option<ZkBlind>,
 ) -> RootVerificationOutput {
+    let config = &pre.aggregate_config;
     let leaves = &bottom.leaves;
     let n = leaves.len();
     assert!(!leaves.is_empty(), "need at least one leaf");
