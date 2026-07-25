@@ -1,0 +1,36 @@
+[package]
+name = "recursive-aggregate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fold an N-leaf multiverifier recursion tree, unpack leaf outputs, and create a single zk-blinded root proof"
+
+[features]
+# Capture/drift helpers (`test_utils`), off by default so they never ship in a production build. A
+# dependent crate turns it on as a dev-dependency feature to reach them from its tests. (The pinned
+# config machinery it exercises lives in the always-compiled `pinned_configs` module.)
+test-utils = []
+
+[dependencies]
+# stwo circuits
+circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047", features = ["prover"] }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047" }
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "f411b047" }
+
+# stwo
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "616027ce", features = ["prover"] }
+stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "616027ce" }
+
+num-traits = "0.2"
+rayon = "1"
+libc = "0.2"
+
+[dev-dependencies]
+stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "616027ce" }
+blake2 = "0.10"
