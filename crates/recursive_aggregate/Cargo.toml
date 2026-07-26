@@ -1,0 +1,41 @@
+[package]
+name = "recursive-aggregate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fold an N-leaf 2-to-1 multiverifier recursion tree into a single zk-blinded root proof, then unpack leaf outputs."
+
+[features]
+# Capture/drift helpers (`test_utils`), off by default so they never ship in a production build. A
+# dependent crate turns it on as a dev-dependency feature to reach them from its tests. (The pinned
+# config machinery it exercises lives in the always-compiled `pinned_configs` module.)
+test-utils = []
+
+[dependencies]
+# stwo circuits (rev pinned to the multiverifier merge on main)
+circuit-multiverifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8" }
+circuit-common = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8", features = ["prover"] }
+circuit-prover = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8" }
+circuit-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8" }
+circuit-serialize = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8" }
+circuits = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8" }
+circuits-stark-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8" }
+# get_pcs_config (used to size the wrapper's own prove config).
+circuit-cairo-verifier = { git = "https://github.com/starkware-libs/stwo-circuits", rev = "847802d70876001ff2832e9e1246f532d8976ac8" }
+
+# stwo: bumped 74951f79 -> 5ea05973 to match the local stwo-circuits branch (#1425). Must match
+# for type identity with the [patch]'d local stwo-circuits in the workspace root Cargo.toml.
+stwo = { git = "https://github.com/starkware-libs/stwo", rev = "09cdfb73a6cd7f594e29aa30083aecde99d8d9df", features = ["prover"] }
+# `PreProcessedColumnId`, used to build the pinned-config `CircuitConfig` columns in the (production,
+# non-gated) `pinned_configs` module.
+stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "09cdfb73a6cd7f594e29aa30083aecde99d8d9df" }
+num-traits = "0.2"
+rayon = "1"
+libc = "0.2"
+
+[dev-dependencies]
+stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", rev = "09cdfb73a6cd7f594e29aa30083aecde99d8d9df" }
+# Out-of-circuit Blake2s mirror for the smoke-test node-hash oracle (mirrors circuit_multiverifier
+# verify_test's `blake2s_u32s_host`). CPU-only, test scope.
+blake2 = "0.10"
