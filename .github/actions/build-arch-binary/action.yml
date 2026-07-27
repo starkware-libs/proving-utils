@@ -35,7 +35,7 @@ runs:
           "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_DEST }}"
 
     - name: Upload ${{ env.BINARY_NAME_DEST }} (${{ env.ARCH_NAME }}) to GCP
-      uses: google-github-actions/upload-cloud-storage@v2
+      uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2.2.4
       with:
         path: "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME_DEST }}"
         destination: "sharp-binary-artifacts/${{ env.BINARY_NAME_DEST }}_${{ env.ARCH_NAME }}_artifacts/${{ env.SHORT_HASH }}/release"

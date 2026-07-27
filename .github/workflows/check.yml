@@ -14,39 +14,39 @@ jobs:
   rustfmt:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           components: rustfmt
           toolchain: ${{ env.NIGHTLY_VERSION }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: scripts/rust_fmt.sh --check
 
   clippy:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           components: clippy
           toolchain: ${{ env.NIGHTLY_VERSION }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: scripts/clippy.sh
 
   tests:
     runs-on: namespace-profile-starkware-libs-proving-utils-large-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: "true"
       - run: rustup show
       - run: rustup toolchain install ${{ env.NIGHTLY_VERSION }} --profile minimal
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-python@v4
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4.9.1
         with:
           python-version: "3.11"
       - name: Free disk space
-        uses: jlumbroso/free-disk-space@v1.3.1
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
           android: true
           dotnet: true
@@ -64,13 +64,13 @@ jobs:
   slow-tests:
     runs-on: namespace-profile-starkware-libs-stwo-cairo-xlarge-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           toolchain: ${{ env.NIGHTLY_VERSION }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Install latest nextest release
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@5eef0a1a229795b1ebd3e9f72dd41d63a959d20f # nextest
       - name: "Slow tests"
         run: |
           cargo +${{ env.NIGHTLY_VERSION }} nextest run --package leaf-prover --features=slow-tests --cargo-profile witness-opt-1  -j 1 -P ci
@@ -86,11 +86,11 @@ jobs:
   verifier-stable:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           toolchain: ${{ env.STABLE_VERSION }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Check verifier compiles on stable
         env:
           RUSTUP_TOOLCHAIN: ${{ env.STABLE_VERSION }}
@@ -99,18 +99,18 @@ jobs:
   coverage:
     runs-on: namespace-profile-starkware-libs-stwo-cairo-xlarge-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: "true"
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           toolchain: ${{ env.NIGHTLY_VERSION }}
           components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@ed87afb44e1aa5ecc737d1d8cad72f2eeb3d3fec # cargo-llvm-cov
       - name: Install latest nextest release
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@5eef0a1a229795b1ebd3e9f72dd41d63a959d20f # nextest
       - name: Generate coverage report
         run: |
           cargo +${{ env.NIGHTLY_VERSION }} llvm-cov nextest --workspace --features slow-tests --cargo-profile witness-opt-1 -j 1 --lcov --output-path lcov.info
@@ -118,7 +118,7 @@ jobs:
           RUST_MIN_STACK: 4194304
           RUSTFLAGS: -C target-cpu=native
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
@@ -127,11 +127,11 @@ jobs:
   udeps:
     runs-on: namespace-profile-starkware-libs-proving-utils-medium-ubuntu-24-04-amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: rustup show
       - run: rustup toolchain install ${{ env.STABLE_VERSION }} --profile minimal
       - run: rustup toolchain install ${{ env.NIGHTLY_VERSION }} --profile minimal
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
       - run: cargo +${{ env.STABLE_VERSION }} install cargo-udeps --locked
