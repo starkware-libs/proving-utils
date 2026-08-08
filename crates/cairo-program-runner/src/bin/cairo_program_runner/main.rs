@@ -94,7 +94,8 @@ struct Args {
         num_args = 0..=1,
         default_missing_value = "true",
         help = "Allow initializing the runner with builtins in the program that are not present in
-        the layout."
+        the layout.",
+        conflicts_with = "proof_mode",
     )]
     allow_missing_builtins: bool,
     #[clap(
@@ -167,9 +168,9 @@ fn run() -> Result<(), Box<dyn Error>> {
         &args.dynamic_params_file,
         args.layout,
         args.proof_mode,
-        args.disable_trace_padding,
-        args.allow_missing_builtins,
-        args.relocate_mem, // will affect only if proof_mode is true
+        args.disable_trace_padding, // will affect only if proof_mode is true
+        args.allow_missing_builtins, // will affect only if proof_mode is false
+        args.relocate_mem,          // will affect only if proof_mode is true
     )?;
 
     let mut runner = cairo_run_program(&program, program_input, cairo_run_config, None)?;
