@@ -6,6 +6,13 @@ license.workspace = true
 repository.workspace = true
 description = "Library for running Cairo programs on the Cairo VM with hint support"
 
+[[bin]]
+name = "benchmark_runner"
+path = "scripts/benchmark_runner.rs"
+
+[[bin]]
+name = "benchmark_run_and_prove"
+path = "scripts/benchmark_run_and_prove.rs"
 
 [dependencies]
 anyhow.workspace = true
