@@ -11,6 +11,7 @@ use circuit_cairo_verifier::verify::{
     CairoVerifierConfig, build_and_fill_cairo_verifier_circuit,
     prepare_cairo_proof_for_circuit_verifier,
 };
+use circuit_common::finalize::pad_to_targets;
 use circuit_common::preprocessed::PreprocessedCircuit;
 use circuit_prover::prover::{
     BaseColumnPool, prepare_circuit_proof_for_circuit_verifier, prove_circuit_assignment,
@@ -32,7 +33,8 @@ use stwo_cairo_prover::witness::prelude::{Felt252, QM31};
 use tracing::info;
 
 use crate::consts::{
-    DISABLED_COMPONENTS_CANONICAL_PREPROCESSED, DISABLED_COMPONENTS_SMALL_PREPROCESSED,
+    DEFAULT_CONFIG_COMPONENT_SIZES, DISABLED_COMPONENTS_CANONICAL_PREPROCESSED,
+    DISABLED_COMPONENTS_SMALL_PREPROCESSED,
 };
 
 pub fn prove_leaf(
@@ -158,7 +160,7 @@ pub fn prove_leaf(
         output_hash,
     );
 
-    // TODO: Pad to multiverifier size.
+    pad_to_targets(&mut context, DEFAULT_CONFIG_COMPONENT_SIZES);
 
     info!(
         "Verifier config:
